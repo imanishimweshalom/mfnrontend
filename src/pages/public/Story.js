@@ -110,7 +110,7 @@ export default function StoryPage() {
     e.target.src = '/placeholder.jpg'; 
   }}
   style={{ 
-    width: 'auto', 
+    width: '50%', 
     height: 'auto',
     maxHeight: '650px',
     minHeight: '350px',
