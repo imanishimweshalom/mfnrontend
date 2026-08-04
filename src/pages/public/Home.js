@@ -50,13 +50,59 @@ export default function Home() {
 
   return (
     <PublicLayout>
+      {/* ── NEW: Mobile-First Responsive CSS Overrides ── */}
+      <style>{`
+        .home-top-ad-section { width: 100%; box-sizing: border-box; }
+        
+        .home-hero-grid { display: grid; grid-template-columns: 1fr 340px; gap: 2px; background: #e8e4d8; margin-bottom: 2px; }
+        .home-hero-sidebar { display: flex; flex-direction: column; gap: 2px; }
+        
+        .home-main-grid { display: grid; grid-template-columns: 1fr 340px; gap: 36px; align-items: start; }
+        .home-sidebar-sticky { position: sticky; top: 72px; }
+        
+        .home-hot-story { display: flex; gap: 20px; padding: 20px 0; border-bottom: 1px solid #e8e4d8; text-decoration: none; color: inherit; }
+        .home-hot-story-img { width: 160px; height: 110px; object-fit: cover; flex-shrink: 0; }
+
+        @media (max-width: 1024px) {
+          /* Tablet Layout */
+          .home-main-grid { grid-template-columns: 1fr !important; }
+          .home-sidebar-sticky { position: static !important; }
+        }
+
+        @media (max-width: 768px) {
+          /* Mobile Layout */
+          .home-hero-grid { grid-template-columns: 1fr !important; }
+          .home-hero-sidebar { flex-direction: row !important; }
+          .home-hero-sidebar > * { flex: 1 1 45% !important; min-height: 140px !important; }
+        }
+
+        @media (max-width: 600px) {
+          /* Small Mobile Layout */
+          .home-hero-sidebar { flex-direction: column !important; }
+          .home-hero-sidebar > * { flex: 1 1 100% !important; }
+          
+          .home-hot-story { flex-direction: column !important; gap: 12px !important; }
+          .home-hot-story-img { width: 100% !important; height: 200px !important; }
+        }
+      `}</style>
+
+      {/* ── NEW: Top Banner Advertisement Section ── */}
+      {ads.length > 0 && (
+        <div className="home-top-ad-section" style={{ background: '#f0ece0', borderBottom: '1px solid #e8e4d8', padding: '12px 16px', textAlign: 'center' }}>
+          <div style={{ maxWidth: 1260, margin: '0 auto' }}>
+            <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: '#aaa', marginBottom: 6 }}>Advertisement</div>
+            <AdBanner ads={ads.slice(0, 2)} height={100} />
+          </div>
+        </div>
+      )}
+
       <div style={{ maxWidth: 1260, margin: '0 auto', padding: '28px 20px 40px' }}>
 
         {/* ── HERO ZONE ─────────────────────────────────────── */}
         {featured && (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: 2, background: '#e8e4d8', marginBottom: 2 }}>
+          <div className="home-hero-grid">
             <HeroCard story={featured} />
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <div className="home-hero-sidebar">
               {sidebarStories.map(s => (
                 <Link key={s._id || s.id} to={`/story/${s._id || s.id}`}
                   style={{ position: 'relative', overflow: 'hidden', background: '#0d0d0d', flex: 1, minHeight: 120, display: 'flex', alignItems: 'flex-end', textDecoration: 'none' }}>
@@ -76,7 +122,7 @@ export default function Home() {
         <AdBanner ads={ads.slice(0, 3)} height={210} />
 
         {/* ── MAIN CONTENT + SIDEBAR ────────────────────────── */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: 36, alignItems: 'start' }}>
+        <div className="home-main-grid">
 
           {/* Main column */}
           <div>
@@ -105,17 +151,15 @@ export default function Home() {
             {/* Hot stories list */}
             <SectionLabel>More Stories</SectionLabel>
             {hotStories.map(s => (
-              <Link key={s._id || s.id} to={`/story/${s._id || s.id}`}
-                style={{ display: 'flex', gap: 20, padding: '20px 0', borderBottom: '1px solid #e8e4d8', textDecoration: 'none', color: 'inherit' }}>
-                <img src={imgUrl(s.image)} alt="" loading="lazy" onError={e => { e.target.onerror = null; e.target.src = '/placeholder.jpg'; }}
-                  style={{ width: 160, height: 110, objectFit: 'cover', flexShrink: 0 }} />
+              <Link key={s._id || s.id} to={`/story/${s._id || s.id}`} className="home-hot-story">
+                <img className="home-hot-story-img" src={imgUrl(s.image)} alt="" loading="lazy" onError={e => { e.target.onerror = null; e.target.src = '/placeholder.jpg'; }} />
                 <div>
                   <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 9, fontWeight: 800, letterSpacing: 2, textTransform: 'uppercase', color: '#c0392b', marginBottom: 6 }}>{s.category}</div>
                   <div style={{ fontFamily: "'Playfair Display',serif", fontSize: '1.1rem', lineHeight: 1.3, marginBottom: 6 }}>{(s.title || '').substring(0, 90)}</div>
                   <p style={{ fontSize: 13, color: '#5a5a5a', fontStyle: 'italic', lineHeight: 1.5, marginBottom: 8 }}>
                     {(s.description || '').replace(/<[^>]+>/g, '').substring(0, 110)}
                   </p>
-                  <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 10, color: '#aaa', display: 'flex', gap: 12 }}>
+                  <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 10, color: '#aaa', display: 'flex', gap: 12, flexWrap: 'wrap' }}>
                     <span>👤 {s.author}</span>
                     <span>🕐 {timeAgo(s.created_at || s.createdAt)}</span>
                     <span>👁 {Number(s.views || 0).toLocaleString()}</span>
@@ -137,7 +181,7 @@ export default function Home() {
 
           {/* Sidebar */}
           <aside>
-            <div style={{ position: 'sticky', top: 72 }}>
+            <div className="home-sidebar-sticky">
               <div style={{ background: '#fff', border: '1px solid #e8e4d8', padding: 20, marginBottom: 22, borderTop: '3px solid #c0392b' }}>
                 <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 800, fontSize: 11, letterSpacing: 2.5, textTransform: 'uppercase', borderBottom: '3px solid #c0392b', paddingBottom: 10, marginBottom: 16 }}>🔥 Most Read</div>
                 {popular.map((p, i) => <PopularItem key={p._id || p.id} story={p} rank={i + 1} />)}
