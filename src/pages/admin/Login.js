@@ -30,6 +30,7 @@ export default function AdminLogin() {
 
         .modern-login-container {
           min-height: 100vh;
+          min-height: 100dvh; /* Dynamic viewport height for modern mobile browsers */
           background: linear-gradient(135deg, #1a472a 0%, #2d6a4f 100%);
           display: flex;
           align-items: center;
@@ -196,24 +197,23 @@ export default function AdminLogin() {
           box-shadow: none;
         }
 
-        .hint-box {
-          text-align: center;
-          margin-top: 32px;
-          font-size: 13px;
-          color: #94a3b8;
+        /* Loading Spinner Animation */
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+        .animate-spin {
+          animation: spin 1s linear infinite;
         }
 
-        .hint-code {
-          background: #f8fafc;
-          padding: 4px 8px;
-          border-radius: 6px;
-          font-family: monospace;
-          color: #64748b;
-          font-weight: 600;
-          border: 1px solid #e2e8f0;
+        /* Responsive Design - Tablets & Small Laptops */
+        @media (max-width: 768px) {
+          .modern-login-container {
+            padding: 24px;
+          }
         }
 
-        /* Responsive Design */
+        /* Responsive Design - Mobile Phones */
         @media (max-width: 480px) {
           .modern-login-card {
             padding: 32px 24px;
@@ -224,6 +224,31 @@ export default function AdminLogin() {
           }
           .modern-input {
             padding: 18px 16px 6px 48px;
+            font-size: 14px;
+          }
+          .floating-label {
+            font-size: 14px;
+          }
+        }
+
+        /* Responsive Design - Very Small Mobile Phones (e.g., iPhone SE) */
+        @media (max-width: 360px) {
+          .modern-login-card {
+            padding: 24px 20px;
+            border-radius: 16px;
+          }
+          .login-title {
+            font-size: 1.35rem;
+          }
+          .login-icon-box {
+            width: 56px;
+            height: 56px;
+            font-size: 24px;
+            border-radius: 14px;
+            margin-bottom: 16px;
+          }
+          .login-header {
+            margin-bottom: 28px;
           }
         }
       `}</style>
@@ -286,10 +311,6 @@ export default function AdminLogin() {
             ) : 'Sign In'}
           </button>
         </form>
-
-        <div className="hint-box">
-          Default: <span className="hint-code">Gerard banya</span> / <span className="hint-code">admin123</span>
-        </div>
       </div>
     </div>
   );
