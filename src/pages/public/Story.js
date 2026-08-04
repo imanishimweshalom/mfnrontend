@@ -19,13 +19,13 @@ export default function StoryPage() {
 
   /* ── NEW STATE (added on top, no existing state touched) ── */
   const [showCommentModal, setShowCommentModal] = useState(false);
-  const [showFloatingAd, setShowFloatingAd] = useState(false);
-  const [floatingAdClosing, setFloatingAdClosing] = useState(false);
-  const [currentFloatAdIndex, setCurrentFloatAdIndex] = useState(0);
   const [refreshingComments, setRefreshingComments] = useState(false);
-  const floatCloseTimer = useRef(null);
-  const floatShowTimer = useRef(null);
-  const floatRotateTimer = useRef(null);
+
+  /* ── FLOATING AD STATE MACHINE ── */
+  const [floatVisible, setFloatVisible] = useState(false);
+  const [floatClosing, setFloatClosing] = useState(false);
+  const [floatIndex, setFloatIndex] = useState(0);
+  const [hasStarted, setHasStarted] = useState(false);
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -44,7 +44,7 @@ export default function StoryPage() {
         setComments(cRes.data || []);
         setPopular(pRes.data || []);
         
-        // ── FIX: Safely parse ads API response ──
+        // Safely parse ads API response
         const adsData = aRes.data;
         const adsArray = Array.isArray(adsData) ? adsData : (adsData?.ads || adsData?.data || adsData?.items || []);
         setAds(adsArray);
@@ -58,70 +58,94 @@ export default function StoryPage() {
     load();
   }, [id]);
 
-  /* ── FIX: Process active ads safely without filtering out valid ads ── */
+  /* ── Process active ads safely (Ignore position, use all ads) ── */
   const activeAds = useMemo(() => {
     return (ads || []).filter(a => 
       a && (a.is_active !== false && a.status !== 'inactive' && a.status !== 'paused' && a.status !== 'draft')
     );
   }, [ads]);
 
-  const rightAds = useMemo(() => activeAds.slice(0, 3), [activeAds]);         // 3 ads on right sidebar
-  const floatAds = useMemo(() => activeAds, [activeAds]);                     // Use ALL active ads for rotation
+  const leftAds = useMemo(() => activeAds, [activeAds]); // All ads go to left sidebar
+  const floatAds = useMemo(() => activeAds, [activeAds]); // All ads used for floating rotation
 
-  /* ── NEW: Floating bottom ad lifecycle & carousel rotation ── */
+  /* ── Initial trigger for floating ad ── */
   useEffect(() => {
-    if (floatAds.length === 0) {
-      setShowFloatingAd(false);
-      return;
+    if (floatAds.length > 0 && !hasStarted) {
+      const timer = setTimeout(() => {
+        setFloatVisible(true);
+        setHasStarted(true);
+      }, 2500); // Wait 2.5s initially before first appearance
+      return () => clearTimeout(timer);
     }
-    floatShowTimer.current = setTimeout(() => setShowFloatingAd(true), 2500);
-    return () => clearTimeout(floatShowTimer.current);
-  }, [floatAds]);
+  }, [floatAds, hasStarted]);
 
+  /* ── Core Floating Ad Cycle Logic ── */
   useEffect(() => {
-    if (!showFloatingAd || floatAds.length <= 1) return;
-    
-    // Rotate ad every 5 seconds
-    floatRotateTimer.current = setInterval(() => {
-      setCurrentFloatAdIndex(prev => (prev + 1) % floatAds.length);
-    }, 5000);
+    if (!hasStarted || floatAds.length === 0) return;
 
-    // Stop covering the footer when it enters the viewport
+    let timer;
+    if (floatVisible) {
+      // Ad is currently visible
+      timer = setTimeout(() => {
+        if (floatIndex === floatAds.length - 1) {
+          // Last ad in the cycle reached -> Close smoothly
+          setFloatClosing(true);
+          timer = setTimeout(() => {
+            setFloatVisible(false);
+            setFloatClosing(false);
+          }, 400); // Wait for slide-down animation
+        } else {
+          // Move to next ad
+          setFloatIndex(prev => prev + 1);
+        }
+      }, 8000); // Stay on each ad for 8 seconds
+    } else {
+      // Ad is hidden, wait 5 seconds then restart from beginning
+      timer = setTimeout(() => {
+        setFloatIndex(0);
+        setFloatVisible(true);
+      }, 5000); 
+    }
+
+    return () => clearTimeout(timer);
+  }, [hasStarted, floatVisible, floatIndex, floatAds]);
+
+  /* ── Stop covering the footer when it enters the viewport ── */
+  useEffect(() => {
+    if (!floatVisible) return;
     const footer = document.querySelector('footer') || document.querySelector('[data-footer]');
     let observer;
     if (footer) {
       observer = new IntersectionObserver(entries => {
         entries.forEach(entry => {
-          if (entry.isIntersecting) handleCloseFloatingAd();
+          if (entry.isIntersecting) {
+            setFloatClosing(true);
+            setTimeout(() => {
+              setFloatVisible(false);
+              setFloatClosing(false);
+            }, 400);
+          }
         });
       }, { threshold: 0.05 });
       observer.observe(footer);
     }
-    
     return () => {
-      clearInterval(floatRotateTimer.current);
       if (observer) observer.disconnect();
     };
-  }, [showFloatingAd, floatAds]);
+  }, [floatVisible]);
 
-  /* ── NEW: lock body scroll when comment modal open ── */
+  /* ── lock body scroll when comment modal open ── */
   useEffect(() => {
     document.body.style.overflow = showCommentModal ? 'hidden' : '';
     return () => { document.body.style.overflow = ''; };
   }, [showCommentModal]);
 
-  /* ── NEW: ESC key closes modal ── */
+  /* ── ESC key closes modal ── */
   useEffect(() => {
     const onKey = (e) => { if (e.key === 'Escape') setShowCommentModal(false); };
     if (showCommentModal) window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [showCommentModal]);
-
-  const handleCloseFloatingAd = () => {
-    setFloatingAdClosing(true);
-    clearInterval(floatRotateTimer.current);
-    setTimeout(() => { setShowFloatingAd(false); setFloatingAdClosing(false); }, 400);
-  };
 
   const handleReact = async (type) => {
     try {
@@ -157,7 +181,7 @@ export default function StoryPage() {
 
   return (
     <PublicLayout>
-      {/* ── NEW: injected animations + mobile-first responsive tweaks ── */}
+      {/* ── Injected animations + mobile-first responsive tweaks ── */}
       <style>{`
         @keyframes mhkFloatUp { from { transform: translate(-50%, 120%); opacity: 0; } to { transform: translate(-50%, 0); opacity: 1; } }
         @keyframes mhkFloatDown { from { transform: translate(-50%, 0); opacity: 1; } to { transform: translate(-50%, 120%); opacity: 0; } }
@@ -184,7 +208,7 @@ export default function StoryPage() {
         .mhk-story-img { transition: transform .4s ease; }
         .mhk-story-img:hover { transform: scale(1.015); }
         
-        /* Ad Card Animation (Applies to sidebar and floating ads) */
+        /* Ad Card Animation */
         .mhk-ad-card { transition: transform .3s ease, box-shadow .3s ease; border: 1px solid #e8e4d8; border-radius: 6px; overflow: hidden; display: block; }
         .mhk-ad-card:hover { transform: translateY(-3px); box-shadow: 0 8px 18px rgba(0,0,0,.12); }
         .mhk-ad-card img { transition: transform .4s ease; }
@@ -194,13 +218,13 @@ export default function StoryPage() {
         .mhk-float-track { display: flex; flex-direction: column; transition: transform 0.5s cubic-bezier(.2,.8,.2,1); }
         .mhk-float-slide { flex-shrink: 0; width: 100%; height: 160px; }
         
-        /* Responsive Layout Grid (Mobile First) - Left Sidebar Removed */
+        /* Responsive Layout Grid (Mobile First) */
         .mhk-layout-grid {
           display: grid;
           grid-template-columns: 1fr; /* Mobile */
           gap: 20px;
         }
-        .mhk-right-col { width: 100%; }
+        .mhk-left-col, .mhk-right-col { width: 100%; }
         
         @media (min-width: 768px) {
           /* Tablet */
@@ -208,32 +232,42 @@ export default function StoryPage() {
             grid-template-columns: 1fr 240px; /* Content + Right Sidebar */
             gap: 24px;
           }
-          .mhk-right-col { width: 240px; }
+          .mhk-right-col { width: 240px; position: sticky; top: 72px; align-self: start; max-height: calc(100vh - 90px); overflow-y: auto; }
+          .mhk-left-col { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 24px; } /* Show left ads horizontally on tablet */
         }
         
         @media (min-width: 1024px) {
           /* Desktop */
           .mhk-layout-grid {
-            grid-template-columns: 1fr 280px; /* Content + Wider Right Sidebar */
+            grid-template-columns: 220px 1fr 280px; /* Left Sidebar + Content + Right Sidebar */
             gap: 32px;
           }
-          .mhk-right-col { width: 280px; position: sticky; top: 72px; align-self: start; max-height: calc(100vh - 90px); overflow-y: auto; padding-right: 4px; }
-          /* Custom scrollbar for sidebar */
-          .mhk-right-col::-webkit-scrollbar { width: 4px; }
-          .mhk-right-col::-webkit-scrollbar-thumb { background: #ccc; border-radius: 2px; }
+          .mhk-left-col { display: flex; flex-direction: column; gap: 12px; position: sticky; top: 72px; align-self: start; max-height: calc(100vh - 90px); overflow-y: auto; }
+          .mhk-right-col { width: 280px; }
+          /* Custom scrollbar for sidebars */
+          .mhk-left-col::-webkit-scrollbar, .mhk-right-col::-webkit-scrollbar { width: 4px; }
+          .mhk-left-col::-webkit-scrollbar-thumb, .mhk-right-col::-webkit-scrollbar-thumb { background: #ccc; border-radius: 2px; }
         }
         
         @media (max-width: 560px) {
-          .mhk-comment-form-grid { grid-template-columns: 1fr !important; }
+          .mhk-comment-form-grid { gridTemplateColumns: '1fr' !important; }
           .mhk-float-container { width: calc(100vw - 24px) !important; }
           .mhk-modal-wrap { padding: 12px !important; }
         }
       `}</style>
 
-      <div style={{ maxWidth: 1180, margin: '0 auto', padding: '20px 16px 32px' }}>
+      <div style={{ maxWidth: 1280, margin: '0 auto', padding: '20px 16px 32px' }}>
 
-        {/* ── NEW 2-COLUMN RESPONSIVE GRID (Left Removed) ── */}
         <div className="mhk-layout-grid">
+
+          {/* ── LEFT ADVERTISEMENT SIDEBAR (All Ads) ── */}
+          {leftAds.length > 0 && (
+            <aside className="mhk-left-col">
+              {leftAds.map((ad, i) => (
+                <AdCard key={ad._id || ad.id || i} ad={ad} height={220} />
+              ))}
+            </aside>
+          )}
 
           {/* ── ARTICLE ──────────────────────────────────────── */}
           <article className="mhk-center-col">
@@ -350,7 +384,7 @@ export default function StoryPage() {
               </section>
             )}
 
-            {/* ── NEW: Comments section replaced by a button that opens a modal ── */}
+            {/* ── Comments section replaced by a button that opens a modal ── */}
             <section>
               <SectionLabel>Discussion ({comments.length})</SectionLabel>
               <div style={{ background: '#f0ece0', padding: '26px 20px', border: '1px solid #e8e4d8', borderRadius: 6, textAlign: 'center' }}>
@@ -378,19 +412,9 @@ export default function StoryPage() {
             </section>
           </article>
 
-          {/* ── RIGHT SIDEBAR (Existing Widgets + NEW 3 Right Ads) ── */}
+          {/* ── RIGHT SIDEBAR (NO ADS, Only Existing Widgets) ── */}
           <aside className="mhk-right-col">
             <div>
-              
-              {/* NEW: 3 RIGHT SIDEBAR ADS (Using the unified AdCard) */}
-              {rightAds.length > 0 && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 18 }}>
-                  {rightAds.map((ad, i) => (
-                    <AdCard key={ad._id || ad.id || i} ad={ad} height={220} />
-                  ))}
-                </div>
-              )}
-
               <div style={{ background: '#fff', border: '1px solid #e8e4d8', padding: 16, marginBottom: 18, borderTop: '3px solid #0d0d0d', borderRadius: 2 }}>
                 <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 800, fontSize: 10, letterSpacing: 2.5, textTransform: 'uppercase', borderBottom: '3px solid #0d0d0d', paddingBottom: 8, marginBottom: 12 }}>🔥 Most Read</div>
                 {popular.map((p, i) => <PopularItem key={p._id || p.id} story={p} rank={i + 1} />)}
@@ -408,13 +432,12 @@ export default function StoryPage() {
       </div>
 
       {/* ───────────────────────────────────────────────────────────────
-          NEW: FLOATING BOTTOM AD CAROUSEL 
-          (Loads dynamically, rotates every 5s, slide up/down animation,
-          never covers footer, fully responsive)
+          FLOATING BOTTOM AD CAROUSEL 
+          (Cycles all ads every 8s, disappears for 5s, then restarts)
       ─────────────────────────────────────────────────────────────── */}
-      {showFloatingAd && floatAds.length > 0 && (
+      {floatVisible && floatAds.length > 0 && (
         <div
-          className={`mhk-float-container ${floatingAdClosing ? 'closing' : ''}`}
+          className={`mhk-float-container ${floatClosing ? 'closing' : ''}`}
           style={{
             position: 'fixed',
             bottom: 15,
@@ -436,24 +459,10 @@ export default function StoryPage() {
               border: '1px solid #e8e4d8'
             }}
           >
-            <button
-              onClick={handleCloseFloatingAd}
-              aria-label="Close advertisement"
-              style={{
-                position: 'absolute', top: 6, right: 6, width: 28, height: 28,
-                borderRadius: '50%', background: 'rgba(0,0,0,.7)', color: '#fff',
-                border: 'none', cursor: 'pointer', fontSize: 18, lineHeight: 1,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                zIndex: 3, padding: 0, transition: 'background .2s'
-              }}
-              onMouseEnter={e => e.currentTarget.style.background = '#c0392b'}
-              onMouseLeave={e => e.currentTarget.style.background = 'rgba(0,0,0,.7)'}
-            >×</button>
-            
             <div style={{ position: 'relative', height: 160, overflow: 'hidden' }}>
               <div 
                 className="mhk-float-track" 
-                style={{ transform: `translateY(-${currentFloatAdIndex * 160}px)` }}
+                style={{ transform: `translateY(-${floatIndex * 160}px)` }}
               >
                 {floatAds.map((ad, i) => (
                   <div key={ad._id || ad.id || i} className="mhk-float-slide">
@@ -469,7 +478,7 @@ export default function StoryPage() {
                 {floatAds.map((_, i) => (
                   <div key={i} style={{
                     width: 6, height: 6, borderRadius: '50%', 
-                    background: i === currentFloatAdIndex ? '#fff' : 'rgba(255,255,255,0.5)',
+                    background: i === floatIndex ? '#fff' : 'rgba(255,255,255,0.5)',
                     transition: 'background 0.3s'
                   }} />
                 ))}
@@ -480,7 +489,7 @@ export default function StoryPage() {
       )}
 
       {/* ───────────────────────────────────────────────────────────────
-          NEW: COMMENT MODAL  (smooth, mobile responsive, scrollable,
+          COMMENT MODAL  (smooth, mobile responsive, scrollable,
           loading indicators, error handling, ESC to close)
       ─────────────────────────────────────────────────────────────── */}
       {showCommentModal && (
@@ -604,7 +613,7 @@ export default function StoryPage() {
   );
 }
 
-/* ── FIX: Robust AdCard component that checks all possible image property names from API ── */
+/* ── Robust AdCard component that checks all possible image property names from API ── */
 const AdCard = React.memo(function AdCard({ ad, height = 180, fluid = false }) {
   if (!ad) return null;
   
