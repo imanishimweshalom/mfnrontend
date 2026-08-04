@@ -65,9 +65,8 @@ export default function StoryPage() {
     );
   }, [ads]);
 
-  const leftAds = useMemo(() => activeAds.slice(0, 3), [activeAds]);          // 3 ads on left sidebar
-  const rightAds = useMemo(() => activeAds.slice(3, 6), [activeAds]);         // 3 ads on right sidebar
-  const floatAds = useMemo(() => activeAds, [activeAds]);                     // Use all active ads for rotation
+  const rightAds = useMemo(() => activeAds.slice(0, 3), [activeAds]);         // 3 ads on right sidebar
+  const floatAds = useMemo(() => activeAds, [activeAds]);                     // Use ALL active ads for rotation
 
   /* ── NEW: Floating bottom ad lifecycle & carousel rotation ── */
   useEffect(() => {
@@ -184,20 +183,23 @@ export default function StoryPage() {
         .mhk-comment-row:hover { background: rgba(240,236,224,.45); }
         .mhk-story-img { transition: transform .4s ease; }
         .mhk-story-img:hover { transform: scale(1.015); }
-        .mhk-ad-card { transition: transform .25s ease, box-shadow .25s ease; }
-        .mhk-ad-card:hover { transform: translateY(-2px); box-shadow: 0 8px 18px rgba(0,0,0,.10); }
+        
+        /* Ad Card Animation (Applies to sidebar and floating ads) */
+        .mhk-ad-card { transition: transform .3s ease, box-shadow .3s ease; border: 1px solid #e8e4d8; border-radius: 6px; overflow: hidden; display: block; }
+        .mhk-ad-card:hover { transform: translateY(-3px); box-shadow: 0 8px 18px rgba(0,0,0,.12); }
+        .mhk-ad-card img { transition: transform .4s ease; }
+        .mhk-ad-card:hover img { transform: scale(1.04); }
         
         /* Floating Ad Carousel Track */
         .mhk-float-track { display: flex; flex-direction: column; transition: transform 0.5s cubic-bezier(.2,.8,.2,1); }
         .mhk-float-slide { flex-shrink: 0; width: 100%; height: 160px; }
         
-        /* Responsive Layout Grid (Mobile First) */
+        /* Responsive Layout Grid (Mobile First) - Left Sidebar Removed */
         .mhk-layout-grid {
           display: grid;
           grid-template-columns: 1fr; /* Mobile */
           gap: 20px;
         }
-        .mhk-left-col { display: none; } /* Hidden on mobile */
         .mhk-right-col { width: 100%; }
         
         @media (min-width: 768px) {
@@ -206,29 +208,19 @@ export default function StoryPage() {
             grid-template-columns: 1fr 240px; /* Content + Right Sidebar */
             gap: 24px;
           }
-          .mhk-layout-grid.no-right {
-            grid-template-columns: 1fr; /* No right sidebar on tablet if empty */
-          }
           .mhk-right-col { width: 240px; }
         }
         
         @media (min-width: 1024px) {
           /* Desktop */
           .mhk-layout-grid {
-            grid-template-columns: 220px 1fr 240px; /* Left Sidebar + Content + Right Sidebar */
-            gap: 24px;
+            grid-template-columns: 1fr 280px; /* Content + Wider Right Sidebar */
+            gap: 32px;
           }
-          .mhk-layout-grid.no-left {
-            grid-template-columns: 1fr 240px;
-          }
-          .mhk-layout-grid.no-right {
-            grid-template-columns: 220px 1fr;
-          }
-          .mhk-layout-grid.no-left.no-right {
-            grid-template-columns: 1fr;
-          }
-          .mhk-left-col { display: flex; flex-direction: column; gap: 0; position: sticky; top: 72px; align-self: start; }
-          .mhk-right-col { width: 240px; align-self: start; position: sticky; top: 72px; }
+          .mhk-right-col { width: 280px; position: sticky; top: 72px; align-self: start; max-height: calc(100vh - 90px); overflow-y: auto; padding-right: 4px; }
+          /* Custom scrollbar for sidebar */
+          .mhk-right-col::-webkit-scrollbar { width: 4px; }
+          .mhk-right-col::-webkit-scrollbar-thumb { background: #ccc; border-radius: 2px; }
         }
         
         @media (max-width: 560px) {
@@ -238,19 +230,10 @@ export default function StoryPage() {
         }
       `}</style>
 
-      <div style={{ maxWidth: 1280, margin: '0 auto', padding: '20px 16px 32px' }}>
+      <div style={{ maxWidth: 1180, margin: '0 auto', padding: '20px 16px 32px' }}>
 
-        {/* ── NEW 3-COLUMN RESPONSIVE GRID ── */}
-        <div className={`mhk-layout-grid ${leftAds.length === 0 ? 'no-left' : ''} ${rightAds.length === 0 ? 'no-right' : ''}`}>
-
-          {/* ── NEW: LEFT ADVERTISEMENT SIDEBAR (Identical to Right) ── */}
-          {leftAds.length > 0 && (
-            <aside className="mhk-left-col">
-              {leftAds.map((ad, i) => (
-                <AdCard key={ad._id || ad.id || i} ad={ad} height={220} />
-              ))}
-            </aside>
-          )}
+        {/* ── NEW 2-COLUMN RESPONSIVE GRID (Left Removed) ── */}
+        <div className="mhk-layout-grid">
 
           {/* ── ARTICLE ──────────────────────────────────────── */}
           <article className="mhk-center-col">
@@ -399,9 +382,9 @@ export default function StoryPage() {
           <aside className="mhk-right-col">
             <div>
               
-              {/* NEW: 3 RIGHT SIDEBAR ADS (Styled identically to left) */}
+              {/* NEW: 3 RIGHT SIDEBAR ADS (Using the unified AdCard) */}
               {rightAds.length > 0 && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 0, marginBottom: 18 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 18 }}>
                   {rightAds.map((ad, i) => (
                     <AdCard key={ad._id || ad.id || i} ad={ad} height={220} />
                   ))}
@@ -642,8 +625,7 @@ const AdCard = React.memo(function AdCard({ ad, height = 180, fluid = false }) {
       style={{
         display: 'flex', flexDirection: 'column', width: '100%', height: fluid ? '100%' : 'auto',
         textDecoration: 'none', background: '#fff',
-        border: '1px solid #e8e4d8', borderRadius: 4, overflow: 'hidden',
-        marginBottom: 12
+        marginBottom: fluid ? 0 : 12
       }}
     >
       {img ? (
