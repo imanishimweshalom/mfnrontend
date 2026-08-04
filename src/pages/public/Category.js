@@ -45,9 +45,42 @@ export default function CategoryPage() {
 
   return (
     <PublicLayout>
+      {/* ── Mobile-First Responsive CSS Additions ── */}
+      <style>{`
+        .cat-header-wrap { background: ${accent}; padding: 22px 0 0; position: relative; overflow: hidden; }
+        .cat-watermark { position: absolute; right: -20px; top: -20px; font-family: 'Barlow Condensed',sans-serif; font-size: 140px; font-weight: 900; color: rgba(255,255,255,.04); letter-spacing: -6px; line-height: 1; pointer-events: none; text-transform: uppercase; user-select: none; }
+        .cat-content-wrap { max-width: 1260px; margin: 0 auto; padding: 32px 20px 40px; }
+        .cat-main-grid { display: grid; grid-template-columns: 1fr 340px; gap: 36px; align-items: start; }
+        .cat-featured-story { display: block; position: relative; overflow: hidden; background: #000; height: 360px; margin-bottom: 28px; text-decoration: none; }
+        .cat-card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 20px; margin-bottom: 28px; }
+        .cat-sidebar-sticky { position: sticky; top: 72px; }
+
+        @media (max-width: 1024px) {
+          /* Tablet Layout */
+          .cat-main-grid { grid-template-columns: 1fr !important; }
+          .cat-sidebar-sticky { position: static !important; }
+        }
+
+        @media (max-width: 768px) {
+          /* Mobile Layout */
+          .cat-content-wrap { padding: 24px 16px 32px; }
+          .cat-featured-story { height: 280px; }
+          .cat-watermark { font-size: 90px; right: -10px; top: -10px; }
+          .cat-header-wrap { padding: 18px 0 0; }
+        }
+
+        @media (max-width: 560px) {
+          /* Small Mobile Layout */
+          .cat-featured-story { height: 220px; }
+          .cat-featured-overlay { padding: 30px 16px 16px !important; }
+          .cat-featured-title { font-size: 1.2rem !important; line-height: 1.2 !important; }
+          .cat-card-grid { grid-template-columns: 1fr !important; gap: 16px !important; }
+        }
+      `}</style>
+
       {/* Category header */}
-      <div style={{ background: accent, padding: '22px 0 0', position: 'relative', overflow: 'hidden' }}>
-        <div style={{ position: 'absolute', right: -20, top: -20, fontFamily: "'Barlow Condensed',sans-serif", fontSize: 140, fontWeight: 900, color: 'rgba(255,255,255,.04)', letterSpacing: -6, lineHeight: 1, pointerEvents: 'none', textTransform: 'uppercase', userSelect: 'none' }}>
+      <div className="cat-header-wrap">
+        <div className="cat-watermark">
           {(category || '').substring(0, 8)}
         </div>
         <div style={{ maxWidth: 1260, margin: '0 auto', padding: '0 20px' }}>
@@ -67,9 +100,9 @@ export default function CategoryPage() {
         </div>
       </div>
 
-      <div style={{ maxWidth: 1260, margin: '0 auto', padding: '32px 20px 40px' }}>
+      <div className="cat-content-wrap">
         <AdBanner ads={ads} height={90} />
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: 36, alignItems: 'start' }}>
+        <div className="cat-main-grid">
 
           <div>
             {loading ? <Spinner /> : stories.length === 0 ? (
@@ -77,17 +110,16 @@ export default function CategoryPage() {
             ) : (
               <>
                 {/* Featured first story */}
-                <Link to={`/story/${stories[0]._id || stories[0].id}`}
-                  style={{ display: 'block', position: 'relative', overflow: 'hidden', background: '#000', height: 360, marginBottom: 28, textDecoration: 'none' }}>
+                <Link to={`/story/${stories[0]._id || stories[0].id}`} className="cat-featured-story">
                   <img src={imgUrl(stories[0].image)} alt="" loading="eager" onError={e => { e.target.onerror = null; e.target.src = '/placeholder.jpg'; }}
                     style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: .75 }} />
-                  <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'linear-gradient(transparent,rgba(0,0,0,.95))', padding: '50px 24px 24px' }}>
+                  <div className="cat-featured-overlay" style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'linear-gradient(transparent,rgba(0,0,0,.95))', padding: '50px 24px 24px' }}>
                     <div style={{ background: accent, display: 'inline-block', padding: '3px 10px', fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 800, fontSize: 10, letterSpacing: 2, color: '#fff', marginBottom: 10 }}>{stories[0].category}</div>
-                    <h2 style={{ fontFamily: "'Playfair Display',serif", fontSize: 'clamp(1.3rem,2.5vw,2rem)', fontWeight: 900, color: '#fff', lineHeight: 1.15 }}>{stories[0].title}</h2>
+                    <h2 className="cat-featured-title" style={{ fontFamily: "'Playfair Display',serif", fontSize: 'clamp(1.3rem,2.5vw,2rem)', fontWeight: 900, color: '#fff', lineHeight: 1.15 }}>{stories[0].title}</h2>
                   </div>
                 </Link>
 
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(230px,1fr))', gap: 20, marginBottom: 28 }}>
+                <div className="cat-card-grid">
                   {stories.slice(1).map(s => <GridCard key={s._id || s.id} story={s} />)}
                 </div>
 
@@ -97,7 +129,7 @@ export default function CategoryPage() {
           </div>
 
           <aside>
-            <div style={{ position: 'sticky', top: 72 }}>
+            <div className="cat-sidebar-sticky">
               <div style={{ background: '#fff', border: '1px solid #e8e4d8', padding: 20, marginBottom: 22, borderTop: `3px solid ${accent}` }}>
                 <SectionLabel>🔥 Most Read</SectionLabel>
                 {popular.map((p, i) => <PopularItem key={p._id || p.id} story={p} rank={i + 1} />)}
