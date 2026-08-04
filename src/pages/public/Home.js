@@ -73,7 +73,7 @@ export default function Home() {
           </div>
         )}
 
-        <AdBanner ads={ads.slice(0, 3)} height={190} />
+        <AdBanner ads={ads.slice(0, 3)} height={210} />
 
         {/* ── MAIN CONTENT + SIDEBAR ────────────────────────── */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: 36, alignItems: 'start' }}>
@@ -100,7 +100,7 @@ export default function Home() {
               ))}
             </div>
 
-            <AdBanner ads={ads.slice(3)} height={90} />
+            <AdBanner ads={ads.slice(3)} height={210} />
 
             {/* Hot stories list */}
             <SectionLabel>More Stories</SectionLabel>
