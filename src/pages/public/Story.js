@@ -58,7 +58,7 @@ export default function StoryPage() {
     load();
   }, [id]);
 
-  /* ── Process active ads safely (Ignore position, use all ads) ── */
+  /* ── Process active ads safely (Ignore position, use ALL active ads) ── */
   const activeAds = useMemo(() => {
     return (ads || []).filter(a => 
       a && (a.is_active !== false && a.status !== 'inactive' && a.status !== 'paused' && a.status !== 'draft')
@@ -79,7 +79,7 @@ export default function StoryPage() {
     }
   }, [floatAds, hasStarted]);
 
-  /* ── Core Floating Ad Cycle Logic ── */
+  /* ── Core Floating Ad Cycle Logic (8s visible, 5s hidden, restart) ── */
   useEffect(() => {
     if (!hasStarted || floatAds.length === 0) return;
 
@@ -99,7 +99,7 @@ export default function StoryPage() {
           setFloatIndex(prev => prev + 1);
         }
       }, 8000); // Stay on each ad for 8 seconds
-    } else {
+    } else if (hasStarted) {
       // Ad is hidden, wait 5 seconds then restart from beginning
       timer = setTimeout(() => {
         setFloatIndex(0);
@@ -233,7 +233,7 @@ export default function StoryPage() {
             gap: 24px;
           }
           .mhk-right-col { width: 240px; position: sticky; top: 72px; align-self: start; max-height: calc(100vh - 90px); overflow-y: auto; }
-          .mhk-left-col { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 24px; } /* Show left ads horizontally on tablet */
+          .mhk-left-col { display: none; } /* Hide left ads on tablet to save space */
         }
         
         @media (min-width: 1024px) {
@@ -242,7 +242,7 @@ export default function StoryPage() {
             grid-template-columns: 220px 1fr 280px; /* Left Sidebar + Content + Right Sidebar */
             gap: 32px;
           }
-          .mhk-left-col { display: flex; flex-direction: column; gap: 12px; position: sticky; top: 72px; align-self: start; max-height: calc(100vh - 90px); overflow-y: auto; }
+          .mhk-left-col { display: flex; flex-direction: column; gap: 12px; position: sticky; top: 72px; align-self: start; max-height: calc(100vh - 90px); overflow-y: auto; padding-right: 4px; }
           .mhk-right-col { width: 280px; }
           /* Custom scrollbar for sidebars */
           .mhk-left-col::-webkit-scrollbar, .mhk-right-col::-webkit-scrollbar { width: 4px; }
@@ -260,7 +260,7 @@ export default function StoryPage() {
 
         <div className="mhk-layout-grid">
 
-          {/* ── LEFT ADVERTISEMENT SIDEBAR (All Ads) ── */}
+          {/* ── LEFT ADVERTISEMENT SIDEBAR (Displays ALL Ads) ── */}
           {leftAds.length > 0 && (
             <aside className="mhk-left-col">
               {leftAds.map((ad, i) => (
