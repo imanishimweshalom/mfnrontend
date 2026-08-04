@@ -1,292 +1,9 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import PublicLayout from '../../components/layout/PublicLayout';
 import { PopularItem, AdBanner, SectionLabel, NewsletterWidget, WhatsAppCTA, Spinner, EmptyState, imgUrl, timeAgo } from '../../components/ui';
 import { storiesAPI, commentsAPI, adsAPI } from '../../utils/api';
 
-/* ================================================================== */
-/*  Scoped responsive stylesheet                                      */
-/*  (kept inline so nothing outside this file has to change; all      */
-/*  selectors are prefixed with mfn- to avoid clashing with anything  */
-/*  already on the page)                                              */
-/* ================================================================== */
-function StoryPageStyles() {
-  return (
-    <style>{`
-      .mfn-page { --mfn-accent:#c0392b; --mfn-ink:#0d0d0d; --mfn-line:#e8e4d8; --mfn-sand:#f0ece0; --mfn-muted:#5a5a5a; }
-
-      .mfn-container { max-width:1260px; margin:0 auto; padding:18px 14px 26px; box-sizing:border-box; }
-      @media (min-width:768px)  { .mfn-container { padding:26px 20px 34px; } }
-      @media (min-width:1200px) { .mfn-container { padding:32px 20px 40px; } }
-
-      .mfn-layout { display:grid; grid-template-columns:1fr; gap:26px; align-items:start; }
-      @media (min-width:1024px) { .mfn-layout { grid-template-columns:1fr 320px; gap:34px; } }
-
-      /* ---- top-of-article ad strip (3 slots) ---- */
-      .mfn-top-ads { display:grid; grid-template-columns:1fr; gap:10px; margin-bottom:18px; }
-      .mfn-top-ads:empty { display:none; }
-      @media (min-width:640px) { .mfn-top-ads { grid-template-columns:repeat(3,1fr); gap:12px; } }
-      .mfn-top-ads .mfn-ad-slot { border:1px solid var(--mfn-line); border-radius:8px; overflow:hidden; background:var(--mfn-sand); }
-      .mfn-top-ads .mfn-ad-slot img { width:100%; height:90px; object-fit:cover; display:block; }
-      @media (min-width:640px) { .mfn-top-ads .mfn-ad-slot img { height:110px; } }
-
-      /* ---- breadcrumb / meta / hero ---- */
-      .mfn-breadcrumb { font-family:'Barlow Condensed',sans-serif; font-size:11px; letter-spacing:2px; text-transform:uppercase; color:#bbb; display:flex; gap:8px; align-items:center; margin-bottom:14px; flex-wrap:wrap; }
-      .mfn-title { font-family:'Playfair Display',Georgia,serif; font-size:clamp(1.5rem,5vw,3rem); font-weight:900; line-height:1.12; margin:14px 0 12px; }
-      .mfn-meta { display:flex; gap:10px; font-family:'Barlow Condensed',sans-serif; font-size:12px; color:var(--mfn-muted); margin-bottom:20px; flex-wrap:wrap; align-items:center; border-bottom:1px solid var(--mfn-line); padding-bottom:14px; }
-
-      .mfn-hero-img { width:100%; height:auto; max-height:340px; min-height:180px; aspect-ratio:16/9; object-fit:cover; border-radius:8px; margin-bottom:22px; display:block; }
-      @media (min-width:640px)  { .mfn-hero-img { max-height:440px; } }
-      @media (min-width:1024px) { .mfn-hero-img { max-height:560px; } }
-
-      .mfn-body { font-size:1rem; line-height:1.75; font-family:'Source Serif 4',Georgia,serif; margin-bottom:22px; }
-      @media (min-width:768px) { .mfn-body { font-size:1.08rem; line-height:1.85; } }
-
-      .mfn-tags { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:22px; }
-      .mfn-tag { background:var(--mfn-sand); padding:5px 12px; font-family:'Barlow Condensed',sans-serif; font-size:11px; font-weight:700; border:1px solid var(--mfn-line); text-decoration:none; color:var(--mfn-ink); }
-
-      /* ---- reactions / share ---- */
-      .mfn-actions { display:flex; gap:8px; padding:16px 0; border-top:1px solid var(--mfn-line); border-bottom:1px solid var(--mfn-line); margin-bottom:22px; flex-wrap:wrap; }
-      .mfn-react-btn { display:flex; align-items:center; gap:6px; padding:8px 14px; background:var(--mfn-sand); border:1px solid var(--mfn-line); border-radius:6px; font-family:'Barlow Condensed',sans-serif; font-weight:700; font-size:13px; cursor:pointer; transition:transform .15s ease, background .15s ease; }
-      .mfn-react-btn:hover { transform:translateY(-1px); background:#e9e4d4; }
-      .mfn-share-btn { padding:8px 14px; border-radius:6px; font-family:'Barlow Condensed',sans-serif; font-weight:700; font-size:12px; text-decoration:none; letter-spacing:1px; transition:opacity .15s ease; }
-      .mfn-share-btn:hover { opacity:.85; }
-
-      /* ---- author box ---- */
-      .mfn-author-box { background:var(--mfn-sand); padding:18px; display:flex; gap:16px; align-items:flex-start; margin-bottom:26px; border:1px solid var(--mfn-line); border-radius:8px; }
-
-      /* ---- related ---- */
-      .mfn-related-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:14px; }
-      @media (min-width:640px)  { .mfn-related-grid { grid-template-columns:repeat(3,1fr); gap:18px; } }
-      @media (min-width:1024px) { .mfn-related-grid { grid-template-columns:repeat(4,1fr); gap:20px; } }
-
-      /* ---- comments trigger card (replaces the always-open form) ---- */
-      .mfn-comments-trigger { display:flex; align-items:center; justify-content:space-between; gap:14px; background:var(--mfn-sand); border:1px solid var(--mfn-line); border-radius:10px; padding:18px 20px; margin-top:8px; }
-      .mfn-comments-trigger__text h3 { font-family:'Playfair Display',serif; font-size:1.05rem; font-weight:700; margin:0 0 4px; }
-      .mfn-comments-trigger__text p { margin:0; font-size:13px; color:var(--mfn-muted); }
-      .mfn-comments-trigger__btn { flex-shrink:0; background:var(--mfn-ink); color:#fff; border:none; border-radius:6px; padding:12px 20px; font-family:'Barlow Condensed',sans-serif; font-weight:800; font-size:12px; letter-spacing:1.5px; text-transform:uppercase; cursor:pointer; transition:transform .15s ease, background .15s ease; }
-      .mfn-comments-trigger__btn:hover { transform:translateY(-1px); background:var(--mfn-accent); }
-
-      /* ---- sidebar ---- */
-      .mfn-sidebar-card { background:#fff; border:1px solid var(--mfn-line); padding:18px; margin-bottom:20px; border-top:3px solid var(--mfn-ink); border-radius:2px; }
-      .mfn-sidebar-card__label { font-family:'Barlow Condensed',sans-serif; font-weight:800; font-size:11px; letter-spacing:2.5px; text-transform:uppercase; border-bottom:3px solid var(--mfn-ink); padding-bottom:9px; margin-bottom:14px; }
-      .mfn-sidebar-ads { display:flex; flex-direction:column; gap:12px; }
-
-      /* ================= comment modal ================= */
-      .mfn-modal-overlay { position:fixed; inset:0; background:rgba(13,13,13,.55); display:flex; align-items:flex-end; justify-content:center; z-index:1000; padding:0; animation:mfnFadeIn .2s ease; }
-      @media (min-width:768px) { .mfn-modal-overlay { align-items:center; padding:20px; } }
-      .mfn-modal-overlay--out { animation:mfnFadeOut .2s ease forwards; }
-
-      .mfn-modal { background:#fff; width:100%; max-width:640px; max-height:88vh; border-radius:16px 16px 0 0; display:flex; flex-direction:column; animation:mfnSlideUp .28s ease; box-shadow:0 -8px 30px rgba(0,0,0,.2); }
-      @media (min-width:768px) { .mfn-modal { border-radius:14px; max-height:82vh; box-shadow:0 20px 60px rgba(0,0,0,.3); } }
-      .mfn-modal--out { animation:mfnSlideDown .22s ease forwards; }
-
-      .mfn-modal__header { display:flex; align-items:center; justify-content:space-between; padding:16px 20px; border-bottom:1px solid var(--mfn-line); flex-shrink:0; }
-      .mfn-modal__header h3 { font-family:'Playfair Display',serif; font-size:1.15rem; font-weight:700; margin:0; }
-      .mfn-modal__count { color:var(--mfn-muted); font-weight:400; font-size:.95rem; }
-      .mfn-modal__close { background:none; border:none; font-size:18px; cursor:pointer; color:var(--mfn-muted); padding:6px; line-height:1; border-radius:50%; transition:background .15s ease; }
-      .mfn-modal__close:hover { background:var(--mfn-sand); }
-
-      .mfn-modal__body { overflow-y:auto; padding:14px 20px; flex:1 1 auto; -webkit-overflow-scrolling:touch; }
-      .mfn-comment-list { display:flex; flex-direction:column; }
-      .mfn-comment { display:flex; gap:12px; padding:14px 0; border-bottom:1px solid var(--mfn-line); }
-      .mfn-comment:last-child { border-bottom:none; }
-      .mfn-comment__avatar { width:34px; height:34px; flex-shrink:0; background:var(--mfn-sand); border-radius:50%; display:flex; align-items:center; justify-content:center; font-family:'Playfair Display',serif; font-weight:700; font-size:14px; color:var(--mfn-accent); }
-      .mfn-comment__meta { display:flex; gap:8px; align-items:baseline; margin-bottom:4px; }
-      .mfn-comment__name { font-family:'Barlow Condensed',sans-serif; font-size:13px; font-weight:700; }
-      .mfn-comment__time { font-family:'Barlow Condensed',sans-serif; font-size:10px; color:#bbb; }
-      .mfn-comment__text { font-size:13.5px; line-height:1.6; margin:0; word-break:break-word; }
-      .mfn-comment-empty { color:#bbb; font-style:italic; font-size:14px; padding:20px 0; text-align:center; }
-
-      .mfn-comment-form { border-top:1px solid var(--mfn-line); background:var(--mfn-sand); padding:16px 20px; flex-shrink:0; display:flex; flex-direction:column; gap:12px; }
-      .mfn-comment-form__row { display:grid; grid-template-columns:1fr; gap:12px; }
-      @media (min-width:480px) { .mfn-comment-form__row { grid-template-columns:1fr 1fr; } }
-      .mfn-comment-form label { display:block; font-family:'Barlow Condensed',sans-serif; font-size:10px; font-weight:800; letter-spacing:1.5px; text-transform:uppercase; margin-bottom:5px; color:var(--mfn-muted); }
-      .mfn-comment-form input, .mfn-comment-form textarea { width:100%; padding:10px 12px; border:1px solid var(--mfn-line); background:#fff; font-size:14px; font-family:inherit; outline:none; box-sizing:border-box; border-radius:4px; }
-      .mfn-comment-form input:focus, .mfn-comment-form textarea:focus { border-color:var(--mfn-accent); }
-      .mfn-comment-form__submit { background:var(--mfn-ink); color:#fff; border:none; padding:13px; font-family:'Barlow Condensed',sans-serif; font-weight:800; font-size:12px; letter-spacing:2px; text-transform:uppercase; cursor:pointer; border-radius:4px; transition:background .15s ease; }
-      .mfn-comment-form__submit:hover:not(:disabled) { background:var(--mfn-accent); }
-      .mfn-comment-form__submit:disabled { cursor:not-allowed; opacity:.7; }
-      .mfn-comment-msg { font-size:13px; margin:0; }
-      .mfn-comment-msg.is-success { color:#166534; }
-      .mfn-comment-msg.is-error { color:var(--mfn-accent); }
-
-      @keyframes mfnFadeIn  { from{opacity:0} to{opacity:1} }
-      @keyframes mfnFadeOut { from{opacity:1} to{opacity:0} }
-      @keyframes mfnSlideUp   { from{ transform:translateY(40px); opacity:0 } to{ transform:translateY(0); opacity:1 } }
-      @keyframes mfnSlideDown { to{ transform:translateY(40px); opacity:0 } }
-
-      /* ================= floating bottom ad ================= */
-      .mfn-floating-ad { position:fixed; left:50%; bottom:16px; z-index:900; background:#fff; border:1px solid var(--mfn-line); border-radius:10px; box-shadow:0 10px 30px rgba(0,0,0,.18); width:calc(100% - 32px); max-width:380px; overflow:hidden; }
-      .mfn-floating-ad--in  { animation:mfnFloatIn .45s cubic-bezier(.2,.8,.2,1) forwards; }
-      .mfn-floating-ad--out { animation:mfnFloatOut .4s cubic-bezier(.4,0,1,1) forwards; }
-      @keyframes mfnFloatIn  { from{ transform:translateX(-50%) translateY(130%); opacity:0 } to{ transform:translateX(-50%) translateY(0); opacity:1 } }
-      @keyframes mfnFloatOut { from{ transform:translateX(-50%) translateY(0); opacity:1 } to{ transform:translateX(-50%) translateY(130%); opacity:0 } }
-      .mfn-floating-ad__label { position:absolute; top:6px; left:8px; background:rgba(13,13,13,.7); color:#fff; font-family:'Barlow Condensed',sans-serif; font-size:9px; letter-spacing:1.5px; text-transform:uppercase; padding:2px 6px; border-radius:3px; }
-      .mfn-floating-ad__link { display:block; position:relative; text-decoration:none; }
-      .mfn-floating-ad__link img { width:100%; height:auto; max-height:120px; object-fit:cover; display:block; }
-      .mfn-floating-ad__close { position:absolute; top:6px; right:6px; z-index:2; width:24px; height:24px; border-radius:50%; border:none; background:rgba(13,13,13,.75); color:#fff; font-size:12px; cursor:pointer; display:flex; align-items:center; justify-content:center; }
-
-      @media (prefers-reduced-motion: reduce) {
-        .mfn-modal, .mfn-modal-overlay, .mfn-floating-ad--in, .mfn-floating-ad--out, .mfn-modal--out, .mfn-modal-overlay--out { animation:none !important; }
-      }
-    `}</style>
-  );
-}
-
-/* ================================================================== */
-/*  Floating bottom advertisement — dynamic, auto-dismissing          */
-/* ================================================================== */
-function FloatingAd({ ad }) {
-  const [phase, setPhase] = useState('hidden'); // hidden | in | out
-
-  useEffect(() => {
-    if (!ad) return undefined;
-    const showTimer = setTimeout(() => setPhase('in'), 1500);
-    const hideTimer = setTimeout(() => setPhase('out'), 1500 + 120000); // visible ~2 minutes
-    const removeTimer = setTimeout(() => setPhase('hidden'), 1500 + 120000 + 450);
-    return () => { clearTimeout(showTimer); clearTimeout(hideTimer); clearTimeout(removeTimer); };
-  }, [ad]);
-
-  const dismiss = useCallback(() => {
-    setPhase('out');
-    setTimeout(() => setPhase('hidden'), 400);
-  }, []);
-
-  if (!ad || phase === 'hidden') return null;
-
-  const src = ad.image || ad.banner || ad.img || ad.image_url;
-  const href = ad.link || ad.url || ad.target_url || '#';
-  const label = ad.title || ad.name || 'Advertisement';
-
-  return (
-    <div className={`mfn-floating-ad ${phase === 'in' ? 'mfn-floating-ad--in' : 'mfn-floating-ad--out'}`} role="complementary" aria-label="Advertisement">
-      <button className="mfn-floating-ad__close" onClick={dismiss} aria-label="Close advertisement">✕</button>
-      <a className="mfn-floating-ad__link" href={href} target="_blank" rel="noopener noreferrer sponsored">
-        <span className="mfn-floating-ad__label">Sponsored</span>
-        {src && (
-          <img
-            src={imgUrl(src)}
-            alt={label}
-            loading="lazy"
-            onError={e => { e.target.onerror = null; e.target.style.display = 'none'; }}
-          />
-        )}
-      </a>
-    </div>
-  );
-}
-
-/* ================================================================== */
-/*  Comments modal — reads + posts comments without leaving the page  */
-/* ================================================================== */
-function CommentModal({ open, onClose, comments, form, setForm, onSubmit, submitting, commentMsg }) {
-  const [closing, setClosing] = useState(false);
-
-  const handleClose = useCallback(() => {
-    setClosing(true);
-    setTimeout(() => { setClosing(false); onClose(); }, 220);
-  }, [onClose]);
-
-  useEffect(() => {
-    if (!open) return undefined;
-    const onKey = e => { if (e.key === 'Escape') handleClose(); };
-    document.addEventListener('keydown', onKey);
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.removeEventListener('keydown', onKey);
-      document.body.style.overflow = prevOverflow;
-    };
-  }, [open, handleClose]);
-
-  if (!open) return null;
-
-  return (
-    <div
-      className={`mfn-modal-overlay ${closing ? 'mfn-modal-overlay--out' : ''}`}
-      onClick={handleClose}
-    >
-      <div
-        className={`mfn-modal ${closing ? 'mfn-modal--out' : ''}`}
-        onClick={e => e.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-        aria-label="Story comments"
-      >
-        <div className="mfn-modal__header">
-          <h3>Discussion <span className="mfn-modal__count">({comments.length})</span></h3>
-          <button className="mfn-modal__close" onClick={handleClose} aria-label="Close comments">✕</button>
-        </div>
-
-        <div className="mfn-modal__body">
-          {comments.length > 0 ? (
-            <div className="mfn-comment-list">
-              {comments.map(c => (
-                <div key={c._id || c.id} className="mfn-comment">
-                  <div className="mfn-comment__avatar">{(c.name || 'B').charAt(0).toUpperCase()}</div>
-                  <div>
-                    <div className="mfn-comment__meta">
-                      <span className="mfn-comment__name">{c.name}</span>
-                      <span className="mfn-comment__time">{timeAgo(c.created_at || c.createdAt)}</span>
-                    </div>
-                    <p className="mfn-comment__text">{c.comment}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="mfn-comment-empty">Be the first to comment on this story.</p>
-          )}
-        </div>
-
-        <form onSubmit={onSubmit} className="mfn-comment-form">
-          <div className="mfn-comment-form__row">
-            <div>
-              <label>Name (blank = BANYA)</label>
-              <input
-                value={form.name}
-                onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-                placeholder="Your name…"
-              />
-            </div>
-            <div>
-              <label>Email (optional)</label>
-              <input
-                type="email"
-                value={form.email}
-                onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
-                placeholder="your@email.com"
-              />
-            </div>
-          </div>
-          <div>
-            <label>Comment *</label>
-            <textarea
-              value={form.comment}
-              onChange={e => setForm(f => ({ ...f, comment: e.target.value }))}
-              rows={4}
-              required
-              placeholder="Share your thoughts…"
-            />
-          </div>
-          <button type="submit" disabled={submitting} className="mfn-comment-form__submit">
-            {submitting ? 'Submitting…' : 'Post Comment'}
-          </button>
-          {commentMsg && (
-            <p className={`mfn-comment-msg ${commentMsg.startsWith('✅') ? 'is-success' : 'is-error'}`}>
-              {commentMsg}
-            </p>
-          )}
-        </form>
-      </div>
-    </div>
-  );
-}
-
-/* ================================================================== */
-/*  Main page                                                          */
-/* ================================================================== */
 export default function StoryPage() {
   const { id } = useParams();
   const [story, setStory] = useState(null);
@@ -299,7 +16,16 @@ export default function StoryPage() {
   const [submitting, setSubmitting] = useState(false);
   const [commentMsg, setCommentMsg] = useState('');
   const [reactions, setReactions] = useState({ likes: 0, dislikes: 0 });
-  const [commentModalOpen, setCommentModalOpen] = useState(false);
+
+  /* ── NEW STATE (added on top, no existing state touched) ── */
+  const [showCommentModal, setShowCommentModal] = useState(false);
+  const [showFloatingAd, setShowFloatingAd] = useState(false);
+  const [floatingAdClosing, setFloatingAdClosing] = useState(false);
+  const [currentFloatAdIndex, setCurrentFloatAdIndex] = useState(0);
+  const [refreshingComments, setRefreshingComments] = useState(false);
+  const floatCloseTimer = useRef(null);
+  const floatShowTimer = useRef(null);
+  const floatRotateTimer = useRef(null);
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -317,9 +43,7 @@ export default function StoryPage() {
         setReactions({ likes: s.likes || 0, dislikes: s.dislikes || 0 });
         setComments(cRes.data || []);
         setPopular(pRes.data || []);
-        // only ever show ads that are explicitly active/enabled where that field exists
-        const allAds = (aRes.data || []).filter(a => a.active !== false && a.enabled !== false && a.status !== 'inactive');
-        setAds(allAds);
+        setAds(aRes.data || []);
         // Related
         const relRes = await storiesAPI.getAll({ category: s.category, limit: 5, status: 'published' });
         setRelated((relRes.data.stories || []).filter(r => (r._id || r.id).toString() !== id).slice(0, 4));
@@ -328,6 +52,70 @@ export default function StoryPage() {
     };
     load();
   }, [id]);
+
+  /* ── NEW: Process active ads for different layout sections ── */
+  const activeAds = useMemo(() => {
+    return (ads || []).filter(a =>
+      a && (a.status === 'active' || a.is_active === true || a.active === true || a.status === undefined)
+    );
+  }, [ads]);
+
+  const leftAds = useMemo(() => activeAds.slice(0, 3), [activeAds]);          // 3 ads on left sidebar
+  const rightAds = useMemo(() => activeAds.slice(3, 6), [activeAds]);         // 3 ads on right sidebar
+  const topAds = useMemo(() => activeAds.slice(6, 9), [activeAds]);           // Optional 3 ads above article
+  const floatAds = useMemo(() => activeAds, [activeAds]);                     // Use all active ads for rotation
+
+  /* ── NEW: Floating bottom ad lifecycle & carousel rotation ── */
+  useEffect(() => {
+    if (floatAds.length === 0) return;
+    floatShowTimer.current = setTimeout(() => setShowFloatingAd(true), 2500);
+    return () => clearTimeout(floatShowTimer.current);
+  }, [floatAds]);
+
+  useEffect(() => {
+    if (!showFloatingAd || floatAds.length <= 1) return;
+    
+    // Rotate ad every 5 seconds
+    floatRotateTimer.current = setInterval(() => {
+      setCurrentFloatAdIndex(prev => (prev + 1) % floatAds.length);
+    }, 5000);
+
+    // Stop covering the footer when it enters the viewport
+    const footer = document.querySelector('footer') || document.querySelector('[data-footer]');
+    let observer;
+    if (footer) {
+      observer = new IntersectionObserver(entries => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) handleCloseFloatingAd();
+        });
+      }, { threshold: 0.05 });
+      observer.observe(footer);
+    }
+    
+    return () => {
+      clearInterval(floatRotateTimer.current);
+      if (observer) observer.disconnect();
+    };
+  }, [showFloatingAd, floatAds]);
+
+  /* ── NEW: lock body scroll when comment modal open ── */
+  useEffect(() => {
+    document.body.style.overflow = showCommentModal ? 'hidden' : '';
+    return () => { document.body.style.overflow = ''; };
+  }, [showCommentModal]);
+
+  /* ── NEW: ESC key closes modal ── */
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') setShowCommentModal(false); };
+    if (showCommentModal) window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [showCommentModal]);
+
+  const handleCloseFloatingAd = () => {
+    setFloatingAdClosing(true);
+    clearInterval(floatRotateTimer.current);
+    setTimeout(() => { setShowFloatingAd(false); setFloatingAdClosing(false); }, 400);
+  };
 
   const handleReact = async (type) => {
     try {
@@ -339,10 +127,19 @@ export default function StoryPage() {
   const handleComment = async (e) => {
     e.preventDefault();
     setSubmitting(true);
+    setCommentMsg('');
     try {
       await commentsAPI.create({ story_id: id, ...form });
       setCommentMsg('✅ Comment submitted for review!');
       setForm({ name: '', email: '', comment: '' });
+      // refresh comments silently inside modal
+      setRefreshingComments(true);
+      try {
+        const cRes = await commentsAPI.getByStory(id);
+        setComments(cRes.data || []);
+      } catch (_) {}
+      finally { setRefreshingComments(false); }
+      setTimeout(() => setCommentMsg(''), 4000);
     } catch { setCommentMsg('❌ Error submitting. Please try again.'); }
     finally { setSubmitting(false); }
   };
@@ -352,193 +149,512 @@ export default function StoryPage() {
 
   const authorAvatar = story.author_avatar || story.author_image;
 
-  // Ad placement: 3 above the article, 3 in the sidebar, 1 as the floating unit.
-  // Gracefully degrades — fewer ads never breaks the layout, and sections
-  // simply hide themselves when there is nothing to show (see CSS :empty rule).
-  const topAds = ads.slice(0, 3);
-  const sidebarAds = ads.slice(3, 6);
-  const floatingAd = ads[6] || ads[0] || null;
-
   return (
     <PublicLayout>
-      <div className="mfn-page">
-        <StoryPageStyles />
-        <div className="mfn-container">
-          <div className="mfn-layout">
+      {/* ── NEW: injected animations + mobile-first responsive tweaks ── */}
+      <style>{`
+        @keyframes mhkFloatUp { from { transform: translate(-50%, 120%); opacity: 0; } to { transform: translate(-50%, 0); opacity: 1; } }
+        @keyframes mhkFloatDown { from { transform: translate(-50%, 0); opacity: 1; } to { transform: translate(-50%, 120%); opacity: 0; } }
+        @keyframes mhkFade { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes mhkPop { from { transform: translateY(40px) scale(.98); opacity: 0; } to { transform: translateY(0) scale(1); opacity: 1; } }
+        @keyframes mhkSpin { to { transform: rotate(360deg); } }
+        
+        .mhk-float-container { animation: mhkFloatUp .5s cubic-bezier(.2,.8,.2,1) forwards; }
+        .mhk-float-container.closing { animation: mhkFloatDown .4s ease-in forwards; }
+        .mhk-modal-bg { animation: mhkFade .25s ease-out forwards; }
+        .mhk-modal-card { animation: mhkPop .3s cubic-bezier(.2,.8,.2,1) forwards; }
+        .mhk-spin { display:inline-block; width:14px; height:14px; border:2px solid #fff; border-top-color:transparent; border-radius:50%; animation: mhkSpin .6s linear infinite; }
+        
+        .mhk-react-btn { transition: all .2s ease; }
+        .mhk-react-btn:hover { background:#e8e4d8 !important; transform: translateY(-1px); }
+        .mhk-share-btn { transition: all .2s ease; }
+        .mhk-share-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 14px rgba(0,0,0,.18); }
+        .mhk-related-card { transition: transform .25s ease, box-shadow .25s ease; }
+        .mhk-related-card:hover { transform: translateY(-4px); box-shadow: 0 10px 24px rgba(0,0,0,.09); }
+        .mhk-related-card .mhk-related-img { transition: transform .4s ease; }
+        .mhk-related-card:hover .mhk-related-img { transform: scale(1.06); }
+        .mhk-comment-row { transition: background .2s; }
+        .mhk-comment-row:hover { background: rgba(240,236,224,.45); }
+        .mhk-story-img { transition: transform .4s ease; }
+        .mhk-story-img:hover { transform: scale(1.015); }
+        .mhk-ad-card { transition: transform .25s ease, box-shadow .25s ease; }
+        .mhk-ad-card:hover { transform: translateY(-2px); box-shadow: 0 8px 18px rgba(0,0,0,.10); }
+        
+        /* Floating Ad Carousel Track */
+        .mhk-float-track { display: flex; flex-direction: column; transition: transform 0.5s cubic-bezier(.2,.8,.2,1); }
+        .mhk-float-slide { flex-shrink: 0; width: 100%; height: 160px; }
+        
+        /* Responsive Layout Grid (Mobile First) */
+        .mhk-layout-grid {
+          display: grid;
+          grid-template-columns: 1fr; /* Mobile */
+          gap: 20px;
+        }
+        .mhk-left-col { display: none; } /* Hidden on mobile */
+        .mhk-right-col { width: 100%; }
+        
+        @media (min-width: 768px) {
+          /* Tablet */
+          .mhk-layout-grid {
+            grid-template-columns: 1fr 240px; /* Content + Right Sidebar */
+            gap: 24px;
+          }
+          .mhk-right-col { width: 240px; }
+        }
+        
+        @media (min-width: 1024px) {
+          /* Desktop */
+          .mhk-layout-grid {
+            grid-template-columns: 200px 1fr 240px; /* Left Sidebar + Content + Right Sidebar */
+            gap: 24px;
+          }
+          .mhk-left-col { display: flex; flex-direction: column; gap: 12px; position: sticky; top: 72px; align-self: start; }
+          .mhk-right-col { width: 240px; align-self: start; }
+        }
+        
+        @media (min-width: 1200px) {
+          .mhk-layout-grid {
+            grid-template-columns: 220px 1fr 260px; /* Wider sidebars on large desktop */
+          }
+        }
+        
+        @media (max-width: 560px) {
+          .mhk-top-ads { grid-template-columns: 1fr !important; }
+          .mhk-comment-form-grid { grid-template-columns: 1fr !important; }
+          .mhk-float-container { width: calc(100vw - 24px) !important; }
+          .mhk-modal-wrap { padding: 12px !important; }
+        }
+      `}</style>
 
-            {/* ── ARTICLE ──────────────────────────────────────── */}
-            <article>
-              {/* Top-of-content ad strip (3 slots) */}
-              {topAds.length > 0 && (
-                <div className="mfn-top-ads">
-                  {topAds.map((ad, i) => {
-                    const src = ad.image || ad.banner || ad.img || ad.image_url;
-                    const href = ad.link || ad.url || ad.target_url || '#';
-                    return (
-                      <a
-                        key={ad._id || ad.id || i}
-                        className="mfn-ad-slot"
-                        href={href}
-                        target="_blank"
-                        rel="noopener noreferrer sponsored"
-                      >
-                        {src && (
-                          <img
-                            src={imgUrl(src)}
-                            alt={ad.title || 'Advertisement'}
-                            loading="lazy"
-                            onError={e => { e.target.onerror = null; e.target.parentElement.style.display = 'none'; }}
-                          />
-                        )}
-                      </a>
-                    );
-                  })}
-                </div>
+      <div style={{ maxWidth: 1280, margin: '0 auto', padding: '20px 16px 32px' }}>
+
+        {/* ── NEW: 3 ADS ABOVE ARTICLE ── */}
+        {topAds.length > 0 && (
+          <div className="mhk-top-ads" style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(3, 1fr)',
+            gap: 12,
+            marginBottom: 18,
+          }}>
+            {topAds.map((ad, i) => (
+              <AdCard key={ad._id || ad.id || i} ad={ad} height={110} />
+            ))}
+          </div>
+        )}
+
+        {/* ── NEW 3-COLUMN RESPONSIVE GRID ── */}
+        <div className="mhk-layout-grid">
+
+          {/* ── NEW: LEFT ADVERTISEMENT SIDEBAR (3 Ads) ── */}
+          <aside className="mhk-left-col">
+            {leftAds.map((ad, i) => (
+              <AdCard key={ad._id || ad.id || i} ad={ad} height={220} />
+            ))}
+          </aside>
+
+          {/* ── ARTICLE ──────────────────────────────────────── */}
+          <article className="mhk-center-col">
+            {/* Breadcrumb */}
+            <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', color: '#bbb', display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12, flexWrap:'wrap' }}>
+              <Link to="/" style={{ color: '#bbb', textDecoration: 'none' }}>Home</Link>
+              <span>›</span>
+              <Link to={`/category/${story.category}`} style={{ color: '#c0392b', textDecoration: 'none' }}>{story.category}</Link>
+            </div>
+
+            <div style={{ marginBottom: 10 }}>
+              <Link to={`/category/${story.category}`} style={{ background: '#c0392b', color: '#fff', padding: '3px 10px', fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 800, fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', textDecoration: 'none', borderRadius: 2 }}>{story.category}</Link>
+            </div>
+
+            <h1 style={{ fontFamily: "'Playfair Display',Georgia,serif", fontSize: 'clamp(1.45rem, 3.5vw, 2.4rem)', fontWeight: 900, lineHeight: 1.15, margin: '12px 0 10px' }}>{story.title}</h1>
+
+            <div style={{ display: 'flex', gap: 10, fontFamily: "'Barlow Condensed',sans-serif", fontSize: 11, color: '#5a5a5a', marginBottom: 18, flexWrap: 'wrap', alignItems: 'center', borderBottom: '1px solid #e8e4d8', paddingBottom: 12 }}>
+              {authorAvatar && (
+                <img src={imgUrl(authorAvatar)} alt="" loading="lazy" onError={e => { e.target.onerror = null; e.target.style.display = 'none'; }}
+                  style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover', border: '2px solid #e8e4d8' }} />
               )}
+              <Link to={`/author/${encodeURIComponent(story.author)}`} style={{ fontWeight: 700, textDecoration: 'none', color: '#0d0d0d' }}>{story.author}</Link>
+              <span style={{ color: '#ddd' }}>·</span>
+              <span>{timeAgo(story.created_at || story.createdAt)}</span>
+              <span style={{ color: '#ddd' }}>·</span>
+              <span>👁 {Number(story.views || 0).toLocaleString()} views</span>
+              {story.tags && story.tags.split(',').slice(0, 3).map(t => (
+                <Link key={t} to={`/search?q=${encodeURIComponent(t.trim())}`} style={{ background: '#f0ece0', padding: '2px 7px', fontSize: 9, letterSpacing: 1, color: '#5a5a5a', textDecoration: 'none', border: '1px solid #e8e4d8', borderRadius: 2 }}>#{t.trim()}</Link>
+              ))}
+            </div>
 
-              {/* Breadcrumb */}
-              <div className="mfn-breadcrumb">
-                <Link to="/" style={{ color: '#bbb', textDecoration: 'none' }}>Home</Link>
-                <span>›</span>
-                <Link to={`/category/${story.category}`} style={{ color: '#c0392b', textDecoration: 'none' }}>{story.category}</Link>
-              </div>
+            <img className="mhk-story-img"
+              src={imgUrl(story.image)}
+              alt={story.title}
+              loading="eager"
+              onError={e => { e.target.onerror = null; e.target.src = '/placeholder.jpg'; }}
+              style={{
+                width: '100%',
+                maxWidth: 720,
+                height: 'auto',
+                maxHeight: 520,
+                minHeight: 260,
+                aspectRatio: '16/9',
+                objectFit: 'cover',
+                borderRadius: 6,
+                marginBottom: 22,
+                display: 'block',
+                marginInline: 'auto'
+              }}
+            />
 
-              <div style={{ marginBottom: 10 }}>
-                <Link to={`/category/${story.category}`} style={{ background: '#c0392b', color: '#fff', padding: '4px 12px', fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 800, fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', textDecoration: 'none' }}>{story.category}</Link>
-              </div>
+            <div style={{ fontSize: '1.02rem', lineHeight: 1.78, fontFamily: "'Source Serif 4',Georgia,serif", marginBottom: 22 }}
+              dangerouslySetInnerHTML={{ __html: story.description }} />
 
-              <h1 className="mfn-title">{story.title}</h1>
-
-              <div className="mfn-meta">
-                {authorAvatar && (
-                  <img src={imgUrl(authorAvatar)} alt="" loading="lazy" onError={e => { e.target.onerror = null; e.target.style.display = 'none'; }}
-                    style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover', border: '2px solid #e8e4d8' }} />
-                )}
-                <Link to={`/author/${encodeURIComponent(story.author)}`} style={{ fontWeight: 700, textDecoration: 'none', color: '#0d0d0d' }}>{story.author}</Link>
-                <span style={{ color: '#ddd' }}>·</span>
-                <span>{timeAgo(story.created_at || story.createdAt)}</span>
-                <span style={{ color: '#ddd' }}>·</span>
-                <span>👁 {Number(story.views || 0).toLocaleString()} views</span>
-                {story.tags && story.tags.split(',').slice(0, 3).map(t => (
-                  <Link key={t} to={`/search?q=${encodeURIComponent(t.trim())}`} style={{ background: '#f0ece0', padding: '2px 8px', fontSize: 10, letterSpacing: 1, color: '#5a5a5a', textDecoration: 'none', border: '1px solid #e8e4d8' }}>#{t.trim()}</Link>
+            {/* All tags */}
+            {story.tags && (
+              <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', marginBottom: 22 }}>
+                {story.tags.split(',').map(t => (
+                  <Link key={t} to={`/search?q=${encodeURIComponent(t.trim())}`}
+                    style={{ background: '#f0ece0', padding: '4px 10px', fontFamily: "'Barlow Condensed',sans-serif", fontSize: 10, fontWeight: 700, border: '1px solid #e8e4d8', textDecoration: 'none', color: '#0d0d0d', borderRadius: 2 }}>#{t.trim()}</Link>
                 ))}
               </div>
+            )}
 
-              <img
-                className="mfn-hero-img"
-                src={imgUrl(story.image)}
-                alt={story.title}
-                loading="eager"
-                onError={e => { e.target.onerror = null; e.target.src = '/placeholder.jpg'; }}
-              />
+            {/* Reactions + Share */}
+            <div style={{ display: 'flex', gap: 8, padding: '14px 0', borderTop: '1px solid #e8e4d8', borderBottom: '1px solid #e8e4d8', marginBottom: 22, flexWrap: 'wrap' }}>
+              <button className="mhk-react-btn" onClick={() => handleReact('likes')} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '7px 14px', background: '#f0ece0', border: '1px solid #e8e4d8', fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 700, fontSize: 12, cursor: 'pointer', borderRadius: 3 }}>
+                👍 {reactions.likes}
+              </button>
+              <button className="mhk-react-btn" onClick={() => handleReact('dislikes')} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '7px 14px', background: '#f0ece0', border: '1px solid #e8e4d8', fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 700, fontSize: 12, cursor: 'pointer', borderRadius: 3 }}>
+                👎 {reactions.dislikes}
+              </button>
+              <div style={{ flex: 1 }} />
+              <a className="mhk-share-btn" href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(window.location.href)}`} target="_blank" rel="noopener noreferrer"
+                style={{ padding: '7px 12px', background: '#1877f2', color: '#fff', fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 700, fontSize: 11, textDecoration: 'none', letterSpacing: 1, borderRadius: 3 }}>Share</a>
+              <a className="mhk-share-btn" href={`https://twitter.com/intent/tweet?url=${encodeURIComponent(window.location.href)}&text=${encodeURIComponent(story.title)}`} target="_blank" rel="noopener noreferrer"
+                style={{ padding: '7px 12px', background: '#0d0d0d', color: '#fff', fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 700, fontSize: 11, textDecoration: 'none', letterSpacing: 1, borderRadius: 3 }}>Tweet</a>
+              <a className="mhk-share-btn" href={`https://wa.me/?text=${encodeURIComponent(story.title + ' ' + window.location.href)}`} target="_blank" rel="noopener noreferrer"
+                style={{ padding: '7px 12px', background: '#25d366', color: '#fff', fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 700, fontSize: 11, textDecoration: 'none', letterSpacing: 1, borderRadius: 3 }}>WhatsApp</a>
+            </div>
 
-              <div className="mfn-body" dangerouslySetInnerHTML={{ __html: story.description }} />
+            {/* Author box */}
+            <div style={{ background: '#f0ece0', padding: '18px', display: 'flex', gap: 14, alignItems: 'flex-start', marginBottom: 24, border: '1px solid #e8e4d8', borderRadius: 4 }}>
+              {authorAvatar && (
+                <img src={imgUrl(authorAvatar)} alt="" loading="lazy" onError={e => { e.target.onerror = null; e.target.style.display = 'none'; }}
+                  style={{ width: 54, height: 54, borderRadius: '50%', objectFit: 'cover', flexShrink: 0, border: '2px solid #e8e4d8' }} />
+              )}
+              <div>
+                <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: '#c0392b', marginBottom: 3 }}>About the Author</div>
+                <Link to={`/author/${encodeURIComponent(story.author)}`} style={{ fontFamily: "'Playfair Display',serif", fontSize: '1rem', fontWeight: 700, textDecoration: 'none', color: '#0d0d0d' }}>{story.author}</Link>
+                <p style={{ fontSize: 12, color: '#5a5a5a', fontStyle: 'italic', marginTop: 5, lineHeight: 1.55 }}>
+                  {story.author_bio_full || story.author_bio || 'Staff writer at Mahoko Friday News, covering the stories that matter most to Rwanda\'s youth.'}
+                </p>
+              </div>
+            </div>
 
-              {/* All tags */}
-              {story.tags && (
-                <div className="mfn-tags">
-                  {story.tags.split(',').map(t => (
-                    <Link key={t} to={`/search?q=${encodeURIComponent(t.trim())}`} className="mfn-tag">#{t.trim()}</Link>
+            {/* EXISTING AdBanner kept intact (do NOT remove) */}
+            <AdBanner ads={ads.slice(0, 2)} height={90} />
+
+            {/* Related stories */}
+            {related.length > 0 && (
+              <section style={{ marginBottom: 28 }}>
+                <SectionLabel>Related Stories</SectionLabel>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(160px,1fr))', gap: 16 }}>
+                  {related.map(s => (
+                    <Link key={s._id || s.id} to={`/story/${s._id || s.id}`} className="mhk-related-card" style={{ textDecoration: 'none', color: 'inherit', display: 'block', borderRadius: 6 }}>
+                      <img className="mhk-related-img" src={imgUrl(s.image)} alt="" loading="lazy" onError={e => { e.target.onerror = null; e.target.src = '/placeholder.jpg'; }}
+                        style={{ width:'100%', aspectRatio:'16/10', height:'auto', objectFit:'cover', marginBottom:6, borderRadius:6, display:'block' }} />
+                      <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 9, color: '#c0392b', fontWeight: 800, letterSpacing: 2, marginBottom: 3 }}>{s.category}</div>
+                      <div style={{ fontFamily: "'Playfair Display',serif", fontSize: '.82rem', fontWeight: 700, lineHeight: 1.3 }}>{(s.title || '').substring(0, 65)}</div>
+                    </Link>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {/* ── NEW: Comments section replaced by a button that opens a modal ── */}
+            <section>
+              <SectionLabel>Discussion ({comments.length})</SectionLabel>
+              <div style={{ background: '#f0ece0', padding: '26px 20px', border: '1px solid #e8e4d8', borderRadius: 6, textAlign: 'center' }}>
+                <div style={{ fontSize: 34, marginBottom: 8 }}>💬</div>
+                <h3 style={{ fontFamily: "'Playfair Display',serif", fontSize: '1.15rem', fontWeight: 700, marginBottom: 6 }}>
+                  {comments.length} {comments.length === 1 ? 'Comment' : 'Comments'}
+                </h3>
+                <p style={{ color: '#5a5a5a', fontSize: 12.5, marginBottom: 16, fontStyle: 'italic' }}>
+                  {comments.length > 0 ? 'Join the conversation and share your thoughts.' : 'Be the first to comment on this story.'}
+                </p>
+                <button
+                  onClick={() => setShowCommentModal(true)}
+                  style={{
+                    background: '#0d0d0d', color: '#fff', border: 'none', padding: '11px 26px',
+                    fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 800, fontSize: 12,
+                    letterSpacing: 2, textTransform: 'uppercase', cursor: 'pointer', borderRadius: 3,
+                    transition: 'all .2s'
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.background = '#c0392b'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = '#0d0d0d'; e.currentTarget.style.transform = 'translateY(0)'; }}
+                >
+                  {comments.length > 0 ? `💬 View Comments (${comments.length})` : '💬 Add a Comment'}
+                </button>
+              </div>
+            </section>
+          </article>
+
+          {/* ── RIGHT SIDEBAR (Existing Widgets + NEW 3 Right Ads) ── */}
+          <aside className="mhk-right-col">
+            <div style={{ position: 'sticky', top: 72 }}>
+              
+              {/* NEW: 3 RIGHT SIDEBAR ADS */}
+              {rightAds.length > 0 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 18 }}>
+                  {rightAds.map((ad, i) => (
+                    <AdCard key={ad._id || ad.id || i} ad={ad} height={120} />
                   ))}
                 </div>
               )}
 
-              {/* Reactions + Share */}
-              <div className="mfn-actions">
-                <button onClick={() => handleReact('likes')} className="mfn-react-btn">👍 {reactions.likes}</button>
-                <button onClick={() => handleReact('dislikes')} className="mfn-react-btn">👎 {reactions.dislikes}</button>
-                <div style={{ flex: 1 }} />
-                <a href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(window.location.href)}`} target="_blank" rel="noopener noreferrer"
-                  className="mfn-share-btn" style={{ background: '#1877f2', color: '#fff' }}>Share</a>
-                <a href={`https://twitter.com/intent/tweet?url=${encodeURIComponent(window.location.href)}&text=${encodeURIComponent(story.title)}`} target="_blank" rel="noopener noreferrer"
-                  className="mfn-share-btn" style={{ background: '#0d0d0d', color: '#fff' }}>Tweet</a>
-                <a href={`https://wa.me/?text=${encodeURIComponent(story.title + ' ' + window.location.href)}`} target="_blank" rel="noopener noreferrer"
-                  className="mfn-share-btn" style={{ background: '#25d366', color: '#fff' }}>WhatsApp</a>
+              <div style={{ background: '#fff', border: '1px solid #e8e4d8', padding: 16, marginBottom: 18, borderTop: '3px solid #0d0d0d', borderRadius: 2 }}>
+                <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 800, fontSize: 10, letterSpacing: 2.5, textTransform: 'uppercase', borderBottom: '3px solid #0d0d0d', paddingBottom: 8, marginBottom: 12 }}>🔥 Most Read</div>
+                {popular.map((p, i) => <PopularItem key={p._id || p.id} story={p} rank={i + 1} />)}
               </div>
 
-              {/* Author box */}
-              <div className="mfn-author-box">
-                {authorAvatar && (
-                  <img src={imgUrl(authorAvatar)} alt="" loading="lazy" onError={e => { e.target.onerror = null; e.target.style.display = 'none'; }}
-                    style={{ width: 58, height: 58, borderRadius: '50%', objectFit: 'cover', flexShrink: 0, border: '2px solid #e8e4d8' }} />
-                )}
-                <div>
-                  <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: '#c0392b', marginBottom: 4 }}>About the Author</div>
-                  <Link to={`/author/${encodeURIComponent(story.author)}`} style={{ fontFamily: "'Playfair Display',serif", fontSize: '1.05rem', fontWeight: 700, textDecoration: 'none', color: '#0d0d0d' }}>{story.author}</Link>
-                  <p style={{ fontSize: 13, color: '#5a5a5a', fontStyle: 'italic', marginTop: 6, lineHeight: 1.6 }}>
-                    {story.author_bio_full || story.author_bio || 'Staff writer at Mahoko Friday News, covering the stories that matter most to Rwanda\'s youth.'}
-                  </p>
-                </div>
+              <NewsletterWidget />
+
+              {/* EXISTING AdBanner kept intact (do NOT remove) */}
+              <AdBanner ads={ads.slice(2, 5)} height={200} />
+
+              <WhatsAppCTA />
+            </div>
+          </aside>
+        </div>
+      </div>
+
+      {/* ───────────────────────────────────────────────────────────────
+          NEW: FLOATING BOTTOM AD CAROUSEL 
+          (Loads dynamically, rotates every 5s, slide up/down animation,
+          never covers footer, fully responsive)
+      ─────────────────────────────────────────────────────────────── */}
+      {showFloatingAd && floatAds.length > 0 && (
+        <div
+          className={`mhk-float-container ${floatingAdClosing ? 'closing' : ''}`}
+          style={{
+            position: 'fixed',
+            bottom: 15,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            zIndex: 9000,
+            width: 380,
+            maxWidth: 'calc(100vw - 24px)',
+            pointerEvents: 'auto'
+          }}
+        >
+          <div
+            style={{
+              position: 'relative',
+              background: '#fff',
+              borderRadius: 8,
+              boxShadow: '0 10px 36px rgba(0,0,0,.28)',
+              overflow: 'hidden',
+              border: '1px solid #e8e4d8'
+            }}
+          >
+            <button
+              onClick={handleCloseFloatingAd}
+              aria-label="Close advertisement"
+              style={{
+                position: 'absolute', top: 6, right: 6, width: 28, height: 28,
+                borderRadius: '50%', background: 'rgba(0,0,0,.7)', color: '#fff',
+                border: 'none', cursor: 'pointer', fontSize: 18, lineHeight: 1,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                zIndex: 3, padding: 0, transition: 'background .2s'
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = '#c0392b'}
+              onMouseLeave={e => e.currentTarget.style.background = 'rgba(0,0,0,.7)'}
+            >×</button>
+            
+            <div style={{ position: 'relative', height: 160, overflow: 'hidden' }}>
+              <div 
+                className="mhk-float-track" 
+                style={{ transform: `translateY(-${currentFloatAdIndex * 160}px)` }}
+              >
+                {floatAds.map((ad, i) => (
+                  <div key={ad._id || ad.id || i} className="mhk-float-slide">
+                    <AdCard ad={ad} fluid />
+                  </div>
+                ))}
               </div>
-
-              {/* Related stories */}
-              {related.length > 0 && (
-                <section style={{ marginBottom: 30 }}>
-                  <SectionLabel>Related Stories</SectionLabel>
-                  <div className="mfn-related-grid">
-                    {related.map(s => (
-                      <Link key={s._id || s.id} to={`/story/${s._id || s.id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
-                        <img src={imgUrl(s.image)} alt="" loading="lazy" onError={e => { e.target.onerror = null; e.target.src = '/placeholder.jpg'; }}
-                          style={{ width: '100%', aspectRatio: '16/10', height: 'auto', objectFit: 'cover', marginBottom: 8, borderRadius: '6px' }} />
-                        <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 9, color: '#c0392b', fontWeight: 800, letterSpacing: 2, marginBottom: 4 }}>{s.category}</div>
-                        <div style={{ fontFamily: "'Playfair Display',serif", fontSize: '.88rem', fontWeight: 700, lineHeight: 1.3 }}>{(s.title || '').substring(0, 65)}</div>
-                      </Link>
-                    ))}
-                  </div>
-                </section>
-              )}
-
-              {/* Comments — trigger card opens the modal; nothing about the
-                  underlying comment system (state, API calls, validation) changed */}
-              <section>
-                <SectionLabel>Discussion ({comments.length})</SectionLabel>
-                <div className="mfn-comments-trigger">
-                  <div className="mfn-comments-trigger__text">
-                    <h3>Join the conversation</h3>
-                    <p>{comments.length > 0 ? `${comments.length} comment${comments.length === 1 ? '' : 's'} so far` : 'Be the first to comment'}</p>
-                  </div>
-                  <button className="mfn-comments-trigger__btn" onClick={() => setCommentModalOpen(true)}>
-                    View Comments
-                  </button>
-                </div>
-              </section>
-            </article>
-
-            {/* ── SIDEBAR ─────────────────────────────────────── */}
-            <aside>
-              <div style={{ position: 'sticky', top: 72 }}>
-                <div className="mfn-sidebar-card">
-                  <div className="mfn-sidebar-card__label">🔥 Most Read</div>
-                  {popular.map((p, i) => <PopularItem key={p._id || p.id} story={p} rank={i + 1} />)}
-                </div>
-                <NewsletterWidget />
-                {sidebarAds.length > 0 && (
-                  <div className="mfn-sidebar-card">
-                    <div className="mfn-sidebar-card__label">Sponsored</div>
-                    <div className="mfn-sidebar-ads">
-                      <AdBanner ads={sidebarAds} height={200} />
-                    </div>
-                  </div>
-                )}
-                <WhatsAppCTA />
+            </div>
+            
+            {/* Carousel Dots Indicator */}
+            {floatAds.length > 1 && (
+              <div style={{ position: 'absolute', bottom: 8, left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: 5, zIndex: 3 }}>
+                {floatAds.map((_, i) => (
+                  <div key={i} style={{
+                    width: 6, height: 6, borderRadius: '50%', 
+                    background: i === currentFloatAdIndex ? '#fff' : 'rgba(255,255,255,0.5)',
+                    transition: 'background 0.3s'
+                  }} />
+                ))}
               </div>
-            </aside>
+            )}
           </div>
         </div>
+      )}
 
-        <CommentModal
-          open={commentModalOpen}
-          onClose={() => setCommentModalOpen(false)}
-          comments={comments}
-          form={form}
-          setForm={setForm}
-          onSubmit={handleComment}
-          submitting={submitting}
-          commentMsg={commentMsg}
-        />
+      {/* ───────────────────────────────────────────────────────────────
+          NEW: COMMENT MODAL  (smooth, mobile responsive, scrollable,
+          loading indicators, error handling, ESC to close)
+      ─────────────────────────────────────────────────────────────── */}
+      {showCommentModal && (
+        <div
+          className="mhk-modal-bg"
+          onClick={(e) => { if (e.target === e.currentTarget) setShowCommentModal(false); }}
+          style={{
+            position: 'fixed', inset: 0, background: 'rgba(0,0,0,.62)',
+            zIndex: 10000, display: 'flex', alignItems: 'flex-start',
+            justifyContent: 'center', padding: '24px 16px', overflowY: 'auto',
+            backdropFilter: 'blur(3px)', WebkitBackdropFilter: 'blur(3px)'
+          }}
+        >
+          <div className="mhk-modal-card mhk-modal-wrap" style={{
+            background: '#fff', width: '100%', maxWidth: 640, borderRadius: 8,
+            boxShadow: '0 24px 64px rgba(0,0,0,.35)', overflow: 'hidden',
+            marginTop: 24, marginBottom: 24
+          }}>
+            {/* Modal header */}
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              padding: '14px 18px', borderBottom: '2px solid #0d0d0d',
+              background: '#0d0d0d', color: '#fff', position: 'sticky', top: 0, zIndex: 2
+            }}>
+              <div>
+                <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: '#c0392b', fontWeight: 800 }}>Discussion</div>
+                <h3 style={{ fontFamily: "'Playfair Display',serif", fontSize: '1.15rem', fontWeight: 700, margin: 0 }}>
+                  Comments ({comments.length})
+                  {refreshingComments && <span className="mhk-spin" style={{ marginLeft: 10, borderColor:'#fff', borderTopColor:'transparent' }} />}
+                </h3>
+              </div>
+              <button
+                onClick={() => setShowCommentModal(false)} aria-label="Close"
+                style={{
+                  width: 32, height: 32, borderRadius: '50%', background: 'rgba(255,255,255,.15)',
+                  color: '#fff', border: 'none', cursor: 'pointer', fontSize: 18,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0,
+                  transition: 'background .2s'
+                }}
+                onMouseEnter={e => e.currentTarget.style.background = '#c0392b'}
+                onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,.15)'}
+              >×</button>
+            </div>
 
-        <FloatingAd ad={floatingAd} />
-      </div>
+            {/* Scrollable comment list */}
+            <div style={{ maxHeight: '52vh', overflowY: 'auto' }}>
+              {comments.length > 0 ? (
+                <div style={{ padding: '8px 18px' }}>
+                  {comments.map(c => (
+                    <div key={c._id || c.id} className="mhk-comment-row" style={{ padding: '12px 0', borderBottom: '1px solid #f0ece0' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+                        <div style={{ width: 34, height: 34, background: '#f0ece0', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Playfair Display',serif", fontWeight: 700, fontSize: 14, color: '#c0392b', flexShrink: 0 }}>
+                          {(c.name || 'B').charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                          <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 13, fontWeight: 700 }}>{c.name}</div>
+                          <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 10, color: '#bbb' }}>{timeAgo(c.created_at || c.createdAt)}</div>
+                        </div>
+                      </div>
+                      <p style={{ fontSize: 13, lineHeight: 1.65, paddingLeft: 44, margin: 0 }}>{c.comment}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div style={{ padding: '28px 20px', textAlign: 'center' }}>
+                  <div style={{ fontSize: 30, marginBottom: 8 }}>💬</div>
+                  <p style={{ color: '#5a5a5a', fontStyle: 'italic', fontSize: 13 }}>Be the first to comment on this story.</p>
+                </div>
+              )}
+            </div>
+
+            {/* Comment form (existing handleComment preserved) */}
+            <div style={{ background: '#f0ece0', padding: '18px', borderTop: '2px solid #e8e4d8' }}>
+              <h4 style={{ fontFamily: "'Playfair Display',serif", fontSize: '1.02rem', fontWeight: 700, marginBottom: 12 }}>Leave a Comment</h4>
+              <form onSubmit={handleComment} style={{ display: 'flex', flexDirection: 'column', gap: 11 }}>
+                <div className="mhk-comment-form-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 11 }}>
+                  <div>
+                    <label style={{ display: 'block', fontFamily: "'Barlow Condensed',sans-serif", fontSize: 9, fontWeight: 800, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 5, color: '#5a5a5a' }}>Name (blank = BANYA)</label>
+                    <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Your name…"
+                      style={{ width: '100%', padding: '10px 12px', border: '1px solid #e8e4d8', background: '#fff', fontSize: 13, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box', borderRadius: 3 }} />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontFamily: "'Barlow Condensed',sans-serif", fontSize: 9, fontWeight: 800, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 5, color: '#5a5a5a' }}>Email (optional)</label>
+                    <input type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder="your@email.com"
+                      style={{ width: '100%', padding: '10px 12px', border: '1px solid #e8e4d8', background: '#fff', fontSize: 13, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box', borderRadius: 3 }} />
+                  </div>
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontFamily: "'Barlow Condensed',sans-serif", fontSize: 9, fontWeight: 800, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 5, color: '#5a5a5a' }}>Comment *</label>
+                  <textarea value={form.comment} onChange={e => setForm(f => ({ ...f, comment: e.target.value }))} rows={4} required placeholder="Share your thoughts…"
+                    style={{ width: '100%', padding: '10px 12px', border: '1px solid #e8e4d8', background: '#fff', fontSize: 13, fontFamily: 'inherit', outline: 'none', resize: 'vertical', boxSizing: 'border-box', borderRadius: 3 }} />
+                </div>
+                <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <button type="submit" disabled={submitting}
+                    style={{
+                      background: '#0d0d0d', color: '#fff', border: 'none', padding: '11px 22px',
+                      fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 800, fontSize: 11,
+                      letterSpacing: 2, textTransform: 'uppercase', cursor: submitting ? 'not-allowed' : 'pointer',
+                      opacity: submitting ? .7 : 1, borderRadius: 3, display: 'flex', alignItems: 'center', gap: 8,
+                      transition: 'background .2s'
+                    }}
+                    onMouseEnter={e => { if (!submitting) e.currentTarget.style.background = '#c0392b'; }}
+                    onMouseLeave={e => { if (!submitting) e.currentTarget.style.background = '#0d0d0d'; }}
+                  >
+                    {submitting ? (<><span className="mhk-spin" /> Submitting…</>) : 'Post Comment'}
+                  </button>
+                  {commentMsg && (
+                    <p style={{
+                      color: commentMsg.startsWith('✅') ? '#166534' : '#c0392b',
+                      fontSize: 12, margin: 0, padding: '4px 10px', borderRadius: 3,
+                      background: commentMsg.startsWith('✅') ? 'rgba(22,101,52,.08)' : 'rgba(192,57,43,.08)'
+                    }}>{commentMsg}</p>
+                  )}
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
     </PublicLayout>
   );
 }
+
+/* ── NEW: reusable AdCard component (additive; existing AdBanner untouched) ── */
+const AdCard = React.memo(function AdCard({ ad, height = 110, fluid = false }) {
+  if (!ad) return null;
+  const img = ad.image || ad.banner || ad.imageUrl || ad.img;
+  const link = ad.link || ad.url || ad.click_url || '#';
+  const title = ad.title || ad.name || 'Advertisement';
+  return (
+    <a
+      href={link}
+      target="_blank"
+      rel="noopener noreferrer sponsored"
+      className="mhk-ad-card"
+      style={{
+        display: 'flex', flexDirection: 'column', width: '100%', height: fluid ? '100%' : 'auto',
+        textDecoration: 'none', background: '#fff',
+        border: '1px solid #e8e4d8', borderRadius: 4, overflow: 'hidden'
+      }}
+    >
+      {img ? (
+        <img
+          src={imgUrl(img)}
+          alt={title}
+          loading="lazy"
+          onError={e => { e.target.onerror = null; e.target.src = '/placeholder.jpg'; }}
+          style={{ width: '100%', height: fluid ? '100%' : height, objectFit: 'cover', display: 'block', flex: 1 }}
+        />
+      ) : (
+        <div style={{ width: '100%', height: fluid ? '100%' : height, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#bbb', fontFamily: "'Barlow Condensed',sans-serif", fontSize: 12, flex: 1, background: '#f8f9fa' }}>
+          {title}
+        </div>
+      )}
+      <div style={{ padding: '4px 10px', fontFamily: "'Barlow Condensed',sans-serif", fontSize: 8, letterSpacing: 1.5, textTransform: 'uppercase', color: '#bbb', background: '#f0ece0' }}>
+        Advertisement
+      </div>
+    </a>
+  );
+});
