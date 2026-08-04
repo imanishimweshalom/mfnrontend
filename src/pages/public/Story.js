@@ -43,7 +43,12 @@ export default function StoryPage() {
         setReactions({ likes: s.likes || 0, dislikes: s.dislikes || 0 });
         setComments(cRes.data || []);
         setPopular(pRes.data || []);
-        setAds(aRes.data || []);
+        
+        // ── FIX: Safely parse ads API response ──
+        const adsData = aRes.data;
+        const adsArray = Array.isArray(adsData) ? adsData : (adsData?.ads || adsData?.data || adsData?.items || []);
+        setAds(adsArray);
+
         // Related
         const relRes = await storiesAPI.getAll({ category: s.category, limit: 5, status: 'published' });
         setRelated((relRes.data.stories || []).filter(r => (r._id || r.id).toString() !== id).slice(0, 4));
@@ -53,21 +58,23 @@ export default function StoryPage() {
     load();
   }, [id]);
 
-  /* ── NEW: Process active ads for different layout sections ── */
+  /* ── FIX: Process active ads safely without filtering out valid ads ── */
   const activeAds = useMemo(() => {
-    return (ads || []).filter(a =>
-      a && (a.status === 'active' || a.is_active === true || a.active === true || a.status === undefined)
+    return (ads || []).filter(a => 
+      a && (a.is_active !== false && a.status !== 'inactive' && a.status !== 'paused' && a.status !== 'draft')
     );
   }, [ads]);
 
   const leftAds = useMemo(() => activeAds.slice(0, 3), [activeAds]);          // 3 ads on left sidebar
   const rightAds = useMemo(() => activeAds.slice(3, 6), [activeAds]);         // 3 ads on right sidebar
-  const topAds = useMemo(() => activeAds.slice(6, 9), [activeAds]);           // Optional 3 ads above article
   const floatAds = useMemo(() => activeAds, [activeAds]);                     // Use all active ads for rotation
 
   /* ── NEW: Floating bottom ad lifecycle & carousel rotation ── */
   useEffect(() => {
-    if (floatAds.length === 0) return;
+    if (floatAds.length === 0) {
+      setShowFloatingAd(false);
+      return;
+    }
     floatShowTimer.current = setTimeout(() => setShowFloatingAd(true), 2500);
     return () => clearTimeout(floatShowTimer.current);
   }, [floatAds]);
@@ -199,27 +206,32 @@ export default function StoryPage() {
             grid-template-columns: 1fr 240px; /* Content + Right Sidebar */
             gap: 24px;
           }
+          .mhk-layout-grid.no-right {
+            grid-template-columns: 1fr; /* No right sidebar on tablet if empty */
+          }
           .mhk-right-col { width: 240px; }
         }
         
         @media (min-width: 1024px) {
           /* Desktop */
           .mhk-layout-grid {
-            grid-template-columns: 200px 1fr 240px; /* Left Sidebar + Content + Right Sidebar */
+            grid-template-columns: 220px 1fr 240px; /* Left Sidebar + Content + Right Sidebar */
             gap: 24px;
           }
-          .mhk-left-col { display: flex; flex-direction: column; gap: 12px; position: sticky; top: 72px; align-self: start; }
-          .mhk-right-col { width: 240px; align-self: start; }
-        }
-        
-        @media (min-width: 1200px) {
-          .mhk-layout-grid {
-            grid-template-columns: 220px 1fr 260px; /* Wider sidebars on large desktop */
+          .mhk-layout-grid.no-left {
+            grid-template-columns: 1fr 240px;
           }
+          .mhk-layout-grid.no-right {
+            grid-template-columns: 220px 1fr;
+          }
+          .mhk-layout-grid.no-left.no-right {
+            grid-template-columns: 1fr;
+          }
+          .mhk-left-col { display: flex; flex-direction: column; gap: 0; position: sticky; top: 72px; align-self: start; }
+          .mhk-right-col { width: 240px; align-self: start; position: sticky; top: 72px; }
         }
         
         @media (max-width: 560px) {
-          .mhk-top-ads { grid-template-columns: 1fr !important; }
           .mhk-comment-form-grid { grid-template-columns: 1fr !important; }
           .mhk-float-container { width: calc(100vw - 24px) !important; }
           .mhk-modal-wrap { padding: 12px !important; }
@@ -228,29 +240,17 @@ export default function StoryPage() {
 
       <div style={{ maxWidth: 1280, margin: '0 auto', padding: '20px 16px 32px' }}>
 
-        {/* ── NEW: 3 ADS ABOVE ARTICLE ── */}
-        {topAds.length > 0 && (
-          <div className="mhk-top-ads" style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(3, 1fr)',
-            gap: 12,
-            marginBottom: 18,
-          }}>
-            {topAds.map((ad, i) => (
-              <AdCard key={ad._id || ad.id || i} ad={ad} height={110} />
-            ))}
-          </div>
-        )}
-
         {/* ── NEW 3-COLUMN RESPONSIVE GRID ── */}
-        <div className="mhk-layout-grid">
+        <div className={`mhk-layout-grid ${leftAds.length === 0 ? 'no-left' : ''} ${rightAds.length === 0 ? 'no-right' : ''}`}>
 
-          {/* ── NEW: LEFT ADVERTISEMENT SIDEBAR (3 Ads) ── */}
-          <aside className="mhk-left-col">
-            {leftAds.map((ad, i) => (
-              <AdCard key={ad._id || ad.id || i} ad={ad} height={220} />
-            ))}
-          </aside>
+          {/* ── NEW: LEFT ADVERTISEMENT SIDEBAR (Identical to Right) ── */}
+          {leftAds.length > 0 && (
+            <aside className="mhk-left-col">
+              {leftAds.map((ad, i) => (
+                <AdCard key={ad._id || ad.id || i} ad={ad} height={220} />
+              ))}
+            </aside>
+          )}
 
           {/* ── ARTICLE ──────────────────────────────────────── */}
           <article className="mhk-center-col">
@@ -397,13 +397,13 @@ export default function StoryPage() {
 
           {/* ── RIGHT SIDEBAR (Existing Widgets + NEW 3 Right Ads) ── */}
           <aside className="mhk-right-col">
-            <div style={{ position: 'sticky', top: 72 }}>
+            <div>
               
-              {/* NEW: 3 RIGHT SIDEBAR ADS */}
+              {/* NEW: 3 RIGHT SIDEBAR ADS (Styled identically to left) */}
               {rightAds.length > 0 && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 18 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 0, marginBottom: 18 }}>
                   {rightAds.map((ad, i) => (
-                    <AdCard key={ad._id || ad.id || i} ad={ad} height={120} />
+                    <AdCard key={ad._id || ad.id || i} ad={ad} height={220} />
                   ))}
                 </div>
               )}
@@ -621,12 +621,18 @@ export default function StoryPage() {
   );
 }
 
-/* ── NEW: reusable AdCard component (additive; existing AdBanner untouched) ── */
-const AdCard = React.memo(function AdCard({ ad, height = 110, fluid = false }) {
+/* ── FIX: Robust AdCard component that checks all possible image property names from API ── */
+const AdCard = React.memo(function AdCard({ ad, height = 180, fluid = false }) {
   if (!ad) return null;
-  const img = ad.image || ad.banner || ad.imageUrl || ad.img;
-  const link = ad.link || ad.url || ad.click_url || '#';
-  const title = ad.title || ad.name || 'Advertisement';
+  
+  // Check all common API property names for the image
+  const rawImg = ad.image_url || ad.imageUrl || ad.image || ad.banner || ad.bannerUrl || ad.img || ad.file_url || ad.photo || ad.file;
+  
+  // Use the project's imgUrl utility, fallback to null if empty
+  const img = rawImg ? imgUrl(rawImg) : null;
+  const link = ad.link || ad.url || ad.click_url || ad.target_url || '#';
+  const title = ad.title || ad.name || 'Sponsored Ad';
+  
   return (
     <a
       href={link}
@@ -636,20 +642,27 @@ const AdCard = React.memo(function AdCard({ ad, height = 110, fluid = false }) {
       style={{
         display: 'flex', flexDirection: 'column', width: '100%', height: fluid ? '100%' : 'auto',
         textDecoration: 'none', background: '#fff',
-        border: '1px solid #e8e4d8', borderRadius: 4, overflow: 'hidden'
+        border: '1px solid #e8e4d8', borderRadius: 4, overflow: 'hidden',
+        marginBottom: 12
       }}
     >
       {img ? (
         <img
-          src={imgUrl(img)}
+          src={img}
           alt={title}
           loading="lazy"
           onError={e => { e.target.onerror = null; e.target.src = '/placeholder.jpg'; }}
           style={{ width: '100%', height: fluid ? '100%' : height, objectFit: 'cover', display: 'block', flex: 1 }}
         />
       ) : (
-        <div style={{ width: '100%', height: fluid ? '100%' : height, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#bbb', fontFamily: "'Barlow Condensed',sans-serif", fontSize: 12, flex: 1, background: '#f8f9fa' }}>
-          {title}
+        <div style={{ 
+          width: '100%', height: fluid ? '100%' : height, 
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', 
+          color: '#bbb', fontFamily: "'Barlow Condensed',sans-serif", fontSize: 14, 
+          flex: 1, background: '#f8f9fa', padding: '10px', textAlign: 'center' 
+        }}>
+          <span style={{ fontWeight: 700, marginBottom: 4 }}>{title}</span>
+          <small style={{ fontSize: 10, opacity: 0.7 }}>Ad Space Available</small>
         </div>
       )}
       <div style={{ padding: '4px 10px', fontFamily: "'Barlow Condensed',sans-serif", fontSize: 8, letterSpacing: 1.5, textTransform: 'uppercase', color: '#bbb', background: '#f0ece0' }}>
