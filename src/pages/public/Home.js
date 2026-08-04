@@ -50,10 +50,49 @@ export default function Home() {
 
   return (
     <>
-      {/* ── NEW: Mobile-First Responsive CSS Overrides ── */}
+      {/* ── Mobile-First Responsive CSS & Top Ad Constraints ── */}
       <style>{`
-        .home-top-ad-section { width: 100%; box-sizing: border-box; }
-        
+        .home-top-ad-section { 
+          width: 100%; 
+          box-sizing: border-box; 
+          background: #0d0d0d; 
+          padding: 10px 16px; 
+          display: flex; 
+          justify-content: center; 
+          align-items: center;
+          border-bottom: 1px solid #333;
+          position: relative;
+          z-index: 1000;
+        }
+        .top-ad-wrapper { 
+          width: 100%; 
+          max-width: 970px; 
+          height: 90px; 
+          overflow: hidden; 
+          border: 1px solid #333; 
+          border-radius: 4px; 
+          display: flex; 
+          background: #111;
+        }
+        /* Force AdBanner internal items and images to fit perfectly inside the border */
+        .top-ad-wrapper > div { 
+          width: 100% !important; 
+          height: 100% !important; 
+          display: flex !important; 
+          flex-direction: row !important;
+        }
+        .top-ad-wrapper a {
+          flex: 1 1 50% !important; /* If 2 ads, they split 50/50. If 1 ad, takes 100% */
+          height: 100% !important;
+          display: block !important;
+        }
+        .top-ad-wrapper img { 
+          width: 100% !important; 
+          height: 90px !important; 
+          object-fit: cover !important; 
+          display: block !important;
+        }
+
         .home-hero-grid { display: grid; grid-template-columns: 1fr 340px; gap: 2px; background: #e8e4d8; margin-bottom: 2px; }
         .home-hero-sidebar { display: flex; flex-direction: column; gap: 2px; }
         
@@ -74,6 +113,8 @@ export default function Home() {
           .home-hero-grid { grid-template-columns: 1fr !important; }
           .home-hero-sidebar { flex-direction: row !important; }
           .home-hero-sidebar > * { flex: 1 1 45% !important; min-height: 140px !important; }
+          /* On mobile, stack the top ads vertically if there are 2 */
+          .top-ad-wrapper > div { flex-direction: column !important; }
         }
 
         @media (max-width: 600px) {
@@ -86,22 +127,14 @@ export default function Home() {
         }
       `}</style>
 
-      {/* ── NEW: Absolute Top Banner Advertisement (Above All Features) ── */}
+      {/* ── Absolute Top Banner Advertisement (Fits perfectly inside border) ── */}
       {ads.length > 0 && (
-        <div className="home-top-ad-section" style={{ 
-          background: '#0d0d0d', 
-          borderBottom: '1px solid #333', 
-          padding: '10px 16px', 
-          textAlign: 'center', 
-          position: 'relative', 
-          zIndex: 1000,
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center'
-        }}>
-          <div style={{ maxWidth: 970, width: '100%', margin: '0 auto' }}>
-            <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 8, letterSpacing: 2, textTransform: 'uppercase', color: '#666', marginBottom: 4 }}>Advertisement</div>
-            <AdBanner ads={ads.slice(0, 2)} height={90} />
+        <div className="home-top-ad-section">
+          <div style={{ width: '100%', maxWidth: 970, margin: '0 auto' }}>
+            <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 8, letterSpacing: 2, textTransform: 'uppercase', color: '#666', marginBottom: 4, textAlign: 'center' }}>Advertisement</div>
+            <div className="top-ad-wrapper">
+              <AdBanner ads={ads.slice(0, 2)} height={90} />
+            </div>
           </div>
         </div>
       )}
