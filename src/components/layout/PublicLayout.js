@@ -9,12 +9,14 @@ const CATEGORIES = [
   { label: 'Technology', path: '/category/Technology' },
   { label: 'Health', path: '/category/Health' },
   { label: 'Culture', path: '/category/Culture' },
+    { label: 'Education', path: '/category/Education' },
   { label: 'Video', path: '/videos', icon: '▶' },
   { label: 'More', sub: [
     { label: 'Le Phare', path: '/category/Le Phare' },
     { label: 'Environment', path: '/category/Environment' },
     { label: 'Music', path: '/category/Music' },
     { label: 'Transport', path: '/category/Transport' },
+    
   ]},
 ];
 
@@ -228,7 +230,7 @@ export default function PublicLayout({ children }) {
             <div>
               <h4 style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: 11, fontWeight: 800, letterSpacing: 2, textTransform: 'uppercase', color: '#fff', borderBottom: '1px solid rgba(255,255,255,.1)', paddingBottom: 10, marginBottom: 16 }}>Categories</h4>
               <ul style={{ listStyle: 'none' }}>
-                {['Business','Sport','Technology','Health','Culture','Environment'].map(c => (
+                {['Business','Sport','Technology','Education','Health','Culture','Environment'].map(c => (
                   <li key={c} style={{ padding: '5px 0' }}><Link to={`/category/${c}`} style={{ fontSize: 13, color: '#888', fontStyle: 'italic' }}>→ {c}</Link></li>
                 ))}
               </ul>
@@ -236,7 +238,7 @@ export default function PublicLayout({ children }) {
             <div>
               <h4 style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: 11, fontWeight: 800, letterSpacing: 2, textTransform: 'uppercase', color: '#fff', borderBottom: '1px solid rgba(255,255,255,.1)', paddingBottom: 10, marginBottom: 16 }}>Services</h4>
               <ul style={{ listStyle: 'none' }}>
-                {[['About Us','/about'],['Advertise','/advertise'],['Contact','/contact'],['E-Paper','/epaper'],['Archive','/archive']].map(([l,p]) => (
+                {[['About Us','/about'],['Contact','/contact'],['E-Paper','/epaper'],['Archive','/archive']].map(([l,p]) => (
                   <li key={l} style={{ padding: '5px 0' }}><Link to={p} style={{ fontSize: 13, color: '#888', fontStyle: 'italic' }}>→ {l}</Link></li>
                 ))}
               </ul>
@@ -262,7 +264,7 @@ export default function PublicLayout({ children }) {
             <div style={{ display: 'flex', gap: 20, justifyContent: 'center' }}>
               <Link to="/privacy">Privacy</Link>
               <Link to="/terms">Terms</Link>
-              <Link to="/sitemap">Sitemap</Link>
+              
             </div>
           </div>
         </div>
