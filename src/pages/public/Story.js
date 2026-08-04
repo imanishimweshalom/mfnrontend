@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import PublicLayout from '../../components/layout/PublicLayout';
 import { PopularItem, AdBanner, SectionLabel, NewsletterWidget, WhatsAppCTA, Spinner, EmptyState, imgUrl, timeAgo } from '../../components/ui';
@@ -16,6 +16,14 @@ export default function StoryPage() {
   const [submitting, setSubmitting] = useState(false);
   const [commentMsg, setCommentMsg] = useState('');
   const [reactions, setReactions] = useState({ likes: 0, dislikes: 0 });
+
+  /* ── NEW STATE (added on top, no existing state touched) ── */
+  const [showCommentModal, setShowCommentModal] = useState(false);
+  const [showFloatingAd, setShowFloatingAd] = useState(false);
+  const [floatingAdClosing, setFloatingAdClosing] = useState(false);
+  const [refreshingComments, setRefreshingComments] = useState(false);
+  const floatCloseTimer = useRef(null);
+  const floatShowTimer = useRef(null);
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -43,6 +51,65 @@ export default function StoryPage() {
     load();
   }, [id]);
 
+  /* ── NEW: pick only active ads, split into the 3+3 layout ── */
+  const activeAds = useMemo(() => {
+    return (ads || []).filter(a =>
+      a && (a.status === 'active' || a.is_active === true || a.active === true || a.status === undefined)
+    );
+  }, [ads]);
+
+  const topAds = useMemo(() => activeAds.slice(0, 3), [activeAds]);          // 3 above article
+  const sidebarAds = useMemo(() => activeAds.slice(3, 6), [activeAds]);      // 3 in sidebar (NEW display)
+  const inlineAds = useMemo(() => activeAds.slice(6, 8), [activeAds]);       // optional inline
+  const floatingAd = useMemo(() => activeAds[activeAds.length - 1] || activeAds[0] || null, [activeAds]);
+
+  /* ── NEW: floating bottom ad lifecycle ── */
+  useEffect(() => {
+    if (!floatingAd) return;
+    floatShowTimer.current = setTimeout(() => setShowFloatingAd(true), 2500);
+    return () => clearTimeout(floatShowTimer.current);
+  }, [floatingAd]);
+
+  useEffect(() => {
+    if (!showFloatingAd) return;
+    // Auto-hide after ~2 minutes
+    floatCloseTimer.current = setTimeout(() => handleCloseFloatingAd(), 120000);
+
+    // Stop covering the footer when it enters the viewport
+    const footer = document.querySelector('footer') || document.querySelector('footer, [data-footer]');
+    let observer;
+    if (footer) {
+      observer = new IntersectionObserver(entries => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) handleCloseFloatingAd();
+        });
+      }, { threshold: 0.05 });
+      observer.observe(footer);
+    }
+    return () => {
+      clearTimeout(floatCloseTimer.current);
+      if (observer) observer.disconnect();
+    };
+  }, [showFloatingAd]);
+
+  /* ── NEW: lock body scroll when comment modal open ── */
+  useEffect(() => {
+    document.body.style.overflow = showCommentModal ? 'hidden' : '';
+    return () => { document.body.style.overflow = ''; };
+  }, [showCommentModal]);
+
+  /* ── NEW: ESC key closes modal ── */
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') setShowCommentModal(false); };
+    if (showCommentModal) window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [showCommentModal]);
+
+  const handleCloseFloatingAd = () => {
+    setFloatingAdClosing(true);
+    setTimeout(() => { setShowFloatingAd(false); setFloatingAdClosing(false); }, 320);
+  };
+
   const handleReact = async (type) => {
     try {
       const res = await storiesAPI.react(id, type);
@@ -53,10 +120,19 @@ export default function StoryPage() {
   const handleComment = async (e) => {
     e.preventDefault();
     setSubmitting(true);
+    setCommentMsg('');
     try {
       await commentsAPI.create({ story_id: id, ...form });
       setCommentMsg('✅ Comment submitted for review!');
       setForm({ name: '', email: '', comment: '' });
+      // refresh comments silently inside modal
+      setRefreshingComments(true);
+      try {
+        const cRes = await commentsAPI.getByStory(id);
+        setComments(cRes.data || []);
+      } catch (_) {}
+      finally { setRefreshingComments(false); }
+      setTimeout(() => setCommentMsg(''), 4000);
     } catch { setCommentMsg('❌ Error submitting. Please try again.'); }
     finally { setSubmitting(false); }
   };
@@ -68,28 +144,88 @@ export default function StoryPage() {
 
   return (
     <PublicLayout>
-      <div style={{ maxWidth: 1260, margin: '0 auto', padding: '32px 20px 40px' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: 36, alignItems: 'start' }}>
+      {/* ── NEW: injected animations + responsive tweaks (additive only) ── */}
+      <style>{`
+        @keyframes mhkFloatUp { from { transform: translate(-50%, 120%); opacity: 0; } to { transform: translate(-50%, 0); opacity: 1; } }
+        @keyframes mhkFloatDown { from { transform: translate(-50%, 0); opacity: 1; } to { transform: translate(-50%, 120%); opacity: 0; } }
+        @keyframes mhkFade { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes mhkPop { from { transform: translateY(40px) scale(.98); opacity: 0; } to { transform: translateY(0) scale(1); opacity: 1; } }
+        @keyframes mhkSpin { to { transform: rotate(360deg); } }
+        .mhk-float-ad { animation: mhkFloatUp .5s cubic-bezier(.2,.8,.2,1) forwards; }
+        .mhk-float-ad.closing { animation: mhkFloatDown .32s ease-in forwards; }
+        .mhk-modal-bg { animation: mhkFade .25s ease-out forwards; }
+        .mhk-modal-card { animation: mhkPop .3s cubic-bezier(.2,.8,.2,1) forwards; }
+        .mhk-spin { display:inline-block; width:14px; height:14px; border:2px solid #fff; border-top-color:transparent; border-radius:50%; animation: mhkSpin .6s linear infinite; }
+        .mhk-react-btn { transition: all .2s ease; }
+        .mhk-react-btn:hover { background:#e8e4d8 !important; transform: translateY(-1px); }
+        .mhk-share-btn { transition: all .2s ease; }
+        .mhk-share-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 14px rgba(0,0,0,.18); }
+        .mhk-related-card { transition: transform .25s ease, box-shadow .25s ease; }
+        .mhk-related-card:hover { transform: translateY(-4px); box-shadow: 0 10px 24px rgba(0,0,0,.09); }
+        .mhk-related-card .mhk-related-img { transition: transform .4s ease; }
+        .mhk-related-card:hover .mhk-related-img { transform: scale(1.06); }
+        .mhk-comment-row { transition: background .2s; }
+        .mhk-comment-row:hover { background: rgba(240,236,224,.45); }
+        .mhk-story-img { transition: transform .4s ease; }
+        .mhk-story-img:hover { transform: scale(1.015); }
+        .mhk-ad-card { transition: transform .25s ease, box-shadow .25s ease; }
+        .mhk-ad-card:hover { transform: translateY(-2px); box-shadow: 0 8px 18px rgba(0,0,0,.10); }
+        /* Responsive — mobile first */
+        @media (max-width: 1024px) {
+          .mhk-story-grid { grid-template-columns: 1fr !important; gap: 24px !important; }
+          .mhk-sidebar-sticky { position: static !important; }
+        }
+        @media (max-width: 760px) {
+          .mhk-top-ads { grid-template-columns: 1fr 1fr !important; }
+          .mhk-top-ads .mhk-ad-card:nth-child(3) { grid-column: 1 / -1; }
+        }
+        @media (max-width: 560px) {
+          .mhk-top-ads { grid-template-columns: 1fr !important; }
+          .mhk-top-ads .mhk-ad-card:nth-child(3) { grid-column: auto; }
+          .mhk-comment-form-grid { grid-template-columns: 1fr !important; }
+          .mhk-float-inner { width: calc(100vw - 24px) !important; }
+          .mhk-modal-wrap { padding: 12px !important; }
+        }
+      `}</style>
+
+      <div style={{ maxWidth: 1180, margin: '0 auto', padding: '20px 16px 32px' }}>
+
+        {/* ── NEW: 3 ADS ABOVE ARTICLE (centered above article content) ── */}
+        {topAds.length > 0 && (
+          <div className="mhk-top-ads" style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(3, 1fr)',
+            gap: 12,
+            marginBottom: 18,
+          }}>
+            {topAds.map((ad, i) => (
+              <AdCard key={ad._id || ad.id || i} ad={ad} height={110} />
+            ))}
+          </div>
+        )}
+
+        {/* ── ARTICLE + SIDEBAR GRID (existing layout, tightened) ── */}
+        <div className="mhk-story-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: 28, alignItems: 'start' }}>
 
           {/* ── ARTICLE ──────────────────────────────────────── */}
           <article>
             {/* Breadcrumb */}
-            <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', color: '#bbb', display: 'flex', gap: 8, alignItems: 'center', marginBottom: 16 }}>
+            <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', color: '#bbb', display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12, flexWrap:'wrap' }}>
               <Link to="/" style={{ color: '#bbb', textDecoration: 'none' }}>Home</Link>
               <span>›</span>
               <Link to={`/category/${story.category}`} style={{ color: '#c0392b', textDecoration: 'none' }}>{story.category}</Link>
             </div>
 
-            <div style={{ marginBottom: 12 }}>
-              <Link to={`/category/${story.category}`} style={{ background: '#c0392b', color: '#fff', padding: '4px 12px', fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 800, fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', textDecoration: 'none' }}>{story.category}</Link>
+            <div style={{ marginBottom: 10 }}>
+              <Link to={`/category/${story.category}`} style={{ background: '#c0392b', color: '#fff', padding: '3px 10px', fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 800, fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', textDecoration: 'none', borderRadius: 2 }}>{story.category}</Link>
             </div>
 
-            <h1 style={{ fontFamily: "'Playfair Display',Georgia,serif", fontSize: 'clamp(1.8rem,4vw,3rem)', fontWeight: 900, lineHeight: 1.1, margin: '16px 0 14px' }}>{story.title}</h1>
+            <h1 style={{ fontFamily: "'Playfair Display',Georgia,serif", fontSize: 'clamp(1.45rem, 3.5vw, 2.4rem)', fontWeight: 900, lineHeight: 1.15, margin: '12px 0 10px' }}>{story.title}</h1>
 
-            <div style={{ display: 'flex', gap: 12, fontFamily: "'Barlow Condensed',sans-serif", fontSize: 12, color: '#5a5a5a', marginBottom: 24, flexWrap: 'wrap', alignItems: 'center', borderBottom: '1px solid #e8e4d8', paddingBottom: 16 }}>
+            <div style={{ display: 'flex', gap: 10, fontFamily: "'Barlow Condensed',sans-serif", fontSize: 11, color: '#5a5a5a', marginBottom: 18, flexWrap: 'wrap', alignItems: 'center', borderBottom: '1px solid #e8e4d8', paddingBottom: 12 }}>
               {authorAvatar && (
-                <img src={imgUrl(authorAvatar)} alt="" onError={e => { e.target.onerror = null; e.target.style.display = 'none'; }}
-                  style={{ width: 38, height: 38, borderRadius: '50%', objectFit: 'cover', border: '2px solid #e8e4d8' }} />
+                <img src={imgUrl(authorAvatar)} alt="" loading="lazy" onError={e => { e.target.onerror = null; e.target.style.display = 'none'; }}
+                  style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover', border: '2px solid #e8e4d8' }} />
               )}
               <Link to={`/author/${encodeURIComponent(story.author)}`} style={{ fontWeight: 700, textDecoration: 'none', color: '#0d0d0d' }}>{story.author}</Link>
               <span style={{ color: '#ddd' }}>·</span>
@@ -97,111 +233,261 @@ export default function StoryPage() {
               <span style={{ color: '#ddd' }}>·</span>
               <span>👁 {Number(story.views || 0).toLocaleString()} views</span>
               {story.tags && story.tags.split(',').slice(0, 3).map(t => (
-                <Link key={t} to={`/search?q=${encodeURIComponent(t.trim())}`} style={{ background: '#f0ece0', padding: '2px 8px', fontSize: 10, letterSpacing: 1, color: '#5a5a5a', textDecoration: 'none', border: '1px solid #e8e4d8' }}>#{t.trim()}</Link>
+                <Link key={t} to={`/search?q=${encodeURIComponent(t.trim())}`} style={{ background: '#f0ece0', padding: '2px 7px', fontSize: 9, letterSpacing: 1, color: '#5a5a5a', textDecoration: 'none', border: '1px solid #e8e4d8', borderRadius: 2 }}>#{t.trim()}</Link>
               ))}
             </div>
 
-<img 
-  src={imgUrl(story.image)} 
-  alt={story.title} 
-  loading="eager" 
-  onError={e => { 
-    e.target.onerror = null; 
-    e.target.src = '/placeholder.jpg'; 
-  }}
-  style={{ 
-    width: '50%', 
-    height: 'auto',
-    maxHeight: '650px',
-    minHeight: '350px',
-    aspectRatio: '16/9',
-    objectFit: 'cover',
-    borderRadius: '8px',
-    marginBottom: 28,
-    display: 'block'
-  }} 
-/>
+            <img className="mhk-story-img"
+              src={imgUrl(story.image)}
+              alt={story.title}
+              loading="eager"
+              onError={e => { e.target.onerror = null; e.target.src = '/placeholder.jpg'; }}
+              style={{
+                width: '100%',
+                maxWidth: 720,
+                height: 'auto',
+                maxHeight: 520,
+                minHeight: 260,
+                aspectRatio: '16/9',
+                objectFit: 'cover',
+                borderRadius: 6,
+                marginBottom: 22,
+                display: 'block',
+                marginInline: 'auto'
+              }}
+            />
 
-            <div style={{ fontSize: '1.1rem', lineHeight: 1.85, fontFamily: "'Source Serif 4',Georgia,serif", marginBottom: 28 }}
+            <div style={{ fontSize: '1.02rem', lineHeight: 1.78, fontFamily: "'Source Serif 4',Georgia,serif", marginBottom: 22 }}
               dangerouslySetInnerHTML={{ __html: story.description }} />
 
             {/* All tags */}
             {story.tags && (
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 28 }}>
+              <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', marginBottom: 22 }}>
                 {story.tags.split(',').map(t => (
                   <Link key={t} to={`/search?q=${encodeURIComponent(t.trim())}`}
-                    style={{ background: '#f0ece0', padding: '5px 12px', fontFamily: "'Barlow Condensed',sans-serif", fontSize: 11, fontWeight: 700, border: '1px solid #e8e4d8', textDecoration: 'none', color: '#0d0d0d' }}>#{t.trim()}</Link>
+                    style={{ background: '#f0ece0', padding: '4px 10px', fontFamily: "'Barlow Condensed',sans-serif", fontSize: 10, fontWeight: 700, border: '1px solid #e8e4d8', textDecoration: 'none', color: '#0d0d0d', borderRadius: 2 }}>#{t.trim()}</Link>
                 ))}
               </div>
             )}
 
             {/* Reactions + Share */}
-            <div style={{ display: 'flex', gap: 10, padding: '20px 0', borderTop: '1px solid #e8e4d8', borderBottom: '1px solid #e8e4d8', marginBottom: 28, flexWrap: 'wrap' }}>
-              <button onClick={() => handleReact('likes')} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 18px', background: '#f0ece0', border: '1px solid #e8e4d8', fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 700, fontSize: 13, cursor: 'pointer', transition: 'all .2s' }}>
+            <div style={{ display: 'flex', gap: 8, padding: '14px 0', borderTop: '1px solid #e8e4d8', borderBottom: '1px solid #e8e4d8', marginBottom: 22, flexWrap: 'wrap' }}>
+              <button className="mhk-react-btn" onClick={() => handleReact('likes')} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '7px 14px', background: '#f0ece0', border: '1px solid #e8e4d8', fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 700, fontSize: 12, cursor: 'pointer', borderRadius: 3 }}>
                 👍 {reactions.likes}
               </button>
-              <button onClick={() => handleReact('dislikes')} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 18px', background: '#f0ece0', border: '1px solid #e8e4d8', fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
+              <button className="mhk-react-btn" onClick={() => handleReact('dislikes')} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '7px 14px', background: '#f0ece0', border: '1px solid #e8e4d8', fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 700, fontSize: 12, cursor: 'pointer', borderRadius: 3 }}>
                 👎 {reactions.dislikes}
               </button>
               <div style={{ flex: 1 }} />
-              <a href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(window.location.href)}`} target="_blank" rel="noopener noreferrer"
-                style={{ padding: '9px 16px', background: '#1877f2', color: '#fff', fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 700, fontSize: 12, textDecoration: 'none', letterSpacing: 1 }}>Share</a>
-              <a href={`https://twitter.com/intent/tweet?url=${encodeURIComponent(window.location.href)}&text=${encodeURIComponent(story.title)}`} target="_blank" rel="noopener noreferrer"
-                style={{ padding: '9px 16px', background: '#0d0d0d', color: '#fff', fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 700, fontSize: 12, textDecoration: 'none', letterSpacing: 1 }}>Tweet</a>
-              <a href={`https://wa.me/?text=${encodeURIComponent(story.title + ' ' + window.location.href)}`} target="_blank" rel="noopener noreferrer"
-                style={{ padding: '9px 16px', background: '#25d366', color: '#fff', fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 700, fontSize: 12, textDecoration: 'none', letterSpacing: 1 }}>WhatsApp</a>
+              <a className="mhk-share-btn" href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(window.location.href)}`} target="_blank" rel="noopener noreferrer"
+                style={{ padding: '7px 12px', background: '#1877f2', color: '#fff', fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 700, fontSize: 11, textDecoration: 'none', letterSpacing: 1, borderRadius: 3 }}>Share</a>
+              <a className="mhk-share-btn" href={`https://twitter.com/intent/tweet?url=${encodeURIComponent(window.location.href)}&text=${encodeURIComponent(story.title)}`} target="_blank" rel="noopener noreferrer"
+                style={{ padding: '7px 12px', background: '#0d0d0d', color: '#fff', fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 700, fontSize: 11, textDecoration: 'none', letterSpacing: 1, borderRadius: 3 }}>Tweet</a>
+              <a className="mhk-share-btn" href={`https://wa.me/?text=${encodeURIComponent(story.title + ' ' + window.location.href)}`} target="_blank" rel="noopener noreferrer"
+                style={{ padding: '7px 12px', background: '#25d366', color: '#fff', fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 700, fontSize: 11, textDecoration: 'none', letterSpacing: 1, borderRadius: 3 }}>WhatsApp</a>
             </div>
 
             {/* Author box */}
-            <div style={{ background: '#f0ece0', padding: '24px', display: 'flex', gap: 18, alignItems: 'flex-start', marginBottom: 32, border: '1px solid #e8e4d8' }}>
+            <div style={{ background: '#f0ece0', padding: '18px', display: 'flex', gap: 14, alignItems: 'flex-start', marginBottom: 24, border: '1px solid #e8e4d8', borderRadius: 4 }}>
               {authorAvatar && (
-                <img src={imgUrl(authorAvatar)} alt="" onError={e => { e.target.onerror = null; e.target.style.display = 'none'; }}
-                  style={{ width: 62, height: 62, borderRadius: '50%', objectFit: 'cover', flexShrink: 0, border: '2px solid #e8e4d8' }} />
+                <img src={imgUrl(authorAvatar)} alt="" loading="lazy" onError={e => { e.target.onerror = null; e.target.style.display = 'none'; }}
+                  style={{ width: 54, height: 54, borderRadius: '50%', objectFit: 'cover', flexShrink: 0, border: '2px solid #e8e4d8' }} />
               )}
               <div>
-                <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: '#c0392b', marginBottom: 4 }}>About the Author</div>
-                <Link to={`/author/${encodeURIComponent(story.author)}`} style={{ fontFamily: "'Playfair Display',serif", fontSize: '1.1rem', fontWeight: 700, textDecoration: 'none', color: '#0d0d0d' }}>{story.author}</Link>
-                <p style={{ fontSize: 13, color: '#5a5a5a', fontStyle: 'italic', marginTop: 6, lineHeight: 1.6 }}>
+                <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: '#c0392b', marginBottom: 3 }}>About the Author</div>
+                <Link to={`/author/${encodeURIComponent(story.author)}`} style={{ fontFamily: "'Playfair Display',serif", fontSize: '1rem', fontWeight: 700, textDecoration: 'none', color: '#0d0d0d' }}>{story.author}</Link>
+                <p style={{ fontSize: 12, color: '#5a5a5a', fontStyle: 'italic', marginTop: 5, lineHeight: 1.55 }}>
                   {story.author_bio_full || story.author_bio || 'Staff writer at Mahoko Friday News, covering the stories that matter most to Rwanda\'s youth.'}
                 </p>
               </div>
             </div>
 
+            {/* EXISTING AdBanner kept intact (do NOT remove) */}
             <AdBanner ads={ads.slice(0, 2)} height={90} />
+
+            {/* NEW: optional extra inline ads (only if available) */}
+            {inlineAds.length > 0 && (
+              <div style={{ display:'grid', gridTemplateColumns: `repeat(${Math.min(inlineAds.length,2)},1fr)`, gap: 12, margin: '18px 0' }}>
+                {inlineAds.map((a,i)=>(<AdCard key={a._id||a.id||i} ad={a} height={80} />))}
+              </div>
+            )}
 
             {/* Related stories */}
             {related.length > 0 && (
-              <section style={{ marginBottom: 36 }}>
+              <section style={{ marginBottom: 28 }}>
                 <SectionLabel>Related Stories</SectionLabel>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(180px,1fr))', gap: 20 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(160px,1fr))', gap: 16 }}>
                   {related.map(s => (
-                    <Link key={s._id || s.id} to={`/story/${s._id || s.id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
-                      <img src={imgUrl(s.image)} alt="" loading="lazy" onError={e => { e.target.onerror = null; e.target.src = '/placeholder.jpg'; }}
-                       style={{
- width:'100%',
- aspectRatio:'16/10',
- height:'auto',
- objectFit:'cover',
- marginBottom:8,
- borderRadius:'6px'
-}} />
-                      <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 9, color: '#c0392b', fontWeight: 800, letterSpacing: 2, marginBottom: 4 }}>{s.category}</div>
-                      <div style={{ fontFamily: "'Playfair Display',serif", fontSize: '.88rem', fontWeight: 700, lineHeight: 1.3 }}>{(s.title || '').substring(0, 65)}</div>
+                    <Link key={s._id || s.id} to={`/story/${s._id || s.id}`} className="mhk-related-card" style={{ textDecoration: 'none', color: 'inherit', display: 'block', borderRadius: 6 }}>
+                      <img className="mhk-related-img" src={imgUrl(s.image)} alt="" loading="lazy" onError={e => { e.target.onerror = null; e.target.src = '/placeholder.jpg'; }}
+                        style={{ width:'100%', aspectRatio:'16/10', height:'auto', objectFit:'cover', marginBottom:6, borderRadius:6, display:'block' }} />
+                      <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 9, color: '#c0392b', fontWeight: 800, letterSpacing: 2, marginBottom: 3 }}>{s.category}</div>
+                      <div style={{ fontFamily: "'Playfair Display',serif", fontSize: '.82rem', fontWeight: 700, lineHeight: 1.3 }}>{(s.title || '').substring(0, 65)}</div>
                     </Link>
                   ))}
                 </div>
               </section>
             )}
 
-            {/* Comments section */}
+            {/* ── NEW: Comments section replaced by a button that opens a modal ── */}
             <section>
               <SectionLabel>Discussion ({comments.length})</SectionLabel>
+              <div style={{ background: '#f0ece0', padding: '26px 20px', border: '1px solid #e8e4d8', borderRadius: 6, textAlign: 'center' }}>
+                <div style={{ fontSize: 34, marginBottom: 8 }}>💬</div>
+                <h3 style={{ fontFamily: "'Playfair Display',serif", fontSize: '1.15rem', fontWeight: 700, marginBottom: 6 }}>
+                  {comments.length} {comments.length === 1 ? 'Comment' : 'Comments'}
+                </h3>
+                <p style={{ color: '#5a5a5a', fontSize: 12.5, marginBottom: 16, fontStyle: 'italic' }}>
+                  {comments.length > 0 ? 'Join the conversation and share your thoughts.' : 'Be the first to comment on this story.'}
+                </p>
+                <button
+                  onClick={() => setShowCommentModal(true)}
+                  style={{
+                    background: '#0d0d0d', color: '#fff', border: 'none', padding: '11px 26px',
+                    fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 800, fontSize: 12,
+                    letterSpacing: 2, textTransform: 'uppercase', cursor: 'pointer', borderRadius: 3,
+                    transition: 'all .2s'
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.background = '#c0392b'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = '#0d0d0d'; e.currentTarget.style.transform = 'translateY(0)'; }}
+                >
+                  {comments.length > 0 ? `💬 View Comments (${comments.length})` : '💬 Add a Comment'}
+                </button>
+              </div>
+            </section>
+          </article>
+
+          {/* ── SIDEBAR ─────────────────────────────────────── */}
+          <aside>
+            <div className="mhk-sidebar-sticky" style={{ position: 'sticky', top: 72 }}>
+              <div style={{ background: '#fff', border: '1px solid #e8e4d8', padding: 16, marginBottom: 18, borderTop: '3px solid #0d0d0d', borderRadius: 2 }}>
+                <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 800, fontSize: 10, letterSpacing: 2.5, textTransform: 'uppercase', borderBottom: '3px solid #0d0d0d', paddingBottom: 8, marginBottom: 12 }}>🔥 Most Read</div>
+                {popular.map((p, i) => <PopularItem key={p._id || p.id} story={p} rank={i + 1} />)}
+              </div>
+
+              <NewsletterWidget />
+
+              {/* ── NEW: 3 SIDEBAR ADS (separate from existing AdBanner) ── */}
+              {sidebarAds.length > 0 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 18 }}>
+                  {sidebarAds.map((ad, i) => (
+                    <AdCard key={ad._id || ad.id || i} ad={ad} height={120} />
+                  ))}
+                </div>
+              )}
+
+              {/* EXISTING AdBanner kept intact (do NOT remove) */}
+              <AdBanner ads={ads.slice(2, 5)} height={200} />
+
+              <WhatsAppCTA />
+            </div>
+          </aside>
+        </div>
+      </div>
+
+      {/* ───────────────────────────────────────────────────────────────
+          NEW: FLOATING BOTTOM AD  (slide-up, auto-hide after 2 min,
+          never covers footer — IntersectionObserver hides it)
+      ─────────────────────────────────────────────────────────────── */}
+      {showFloatingAd && floatingAd && (
+        <div
+          className={`mhk-float-ad ${floatingAdClosing ? 'closing' : ''}`}
+          style={{
+            position: 'fixed',
+            bottom: 14,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            zIndex: 9000,
+            maxWidth: 'calc(100vw - 24px)',
+            pointerEvents: 'auto'
+          }}
+        >
+          <div
+            className="mhk-float-inner"
+            style={{
+              position: 'relative',
+              background: '#fff',
+              borderRadius: 8,
+              boxShadow: '0 10px 36px rgba(0,0,0,.28)',
+              overflow: 'hidden',
+              border: '1px solid #e8e4d8',
+              width: 460,
+              maxWidth: 'calc(100vw - 24px)'
+            }}
+          >
+            <button
+              onClick={handleCloseFloatingAd}
+              aria-label="Close advertisement"
+              style={{
+                position: 'absolute', top: 6, right: 6, width: 26, height: 26,
+                borderRadius: '50%', background: 'rgba(0,0,0,.7)', color: '#fff',
+                border: 'none', cursor: 'pointer', fontSize: 16, lineHeight: 1,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                zIndex: 3, padding: 0, transition: 'background .2s'
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = '#c0392b'}
+              onMouseLeave={e => e.currentTarget.style.background = 'rgba(0,0,0,.7)'}
+            >×</button>
+            <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 8, letterSpacing: 1.5, textTransform: 'uppercase', color: '#bbb', padding: '4px 10px 0', background: '#f0ece0' }}>Sponsored</div>
+            <AdCard ad={floatingAd} height={170} floating />
+          </div>
+        </div>
+      )}
+
+      {/* ───────────────────────────────────────────────────────────────
+          NEW: COMMENT MODAL  (smooth, mobile responsive, scrollable,
+          loading indicators, error handling, ESC to close)
+      ─────────────────────────────────────────────────────────────── */}
+      {showCommentModal && (
+        <div
+          className="mhk-modal-bg"
+          onClick={(e) => { if (e.target === e.currentTarget) setShowCommentModal(false); }}
+          style={{
+            position: 'fixed', inset: 0, background: 'rgba(0,0,0,.62)',
+            zIndex: 10000, display: 'flex', alignItems: 'flex-start',
+            justifyContent: 'center', padding: '24px 16px', overflowY: 'auto',
+            backdropFilter: 'blur(3px)', WebkitBackdropFilter: 'blur(3px)'
+          }}
+        >
+          <div className="mhk-modal-card mhk-modal-wrap" style={{
+            background: '#fff', width: '100%', maxWidth: 640, borderRadius: 8,
+            boxShadow: '0 24px 64px rgba(0,0,0,.35)', overflow: 'hidden',
+            marginTop: 24, marginBottom: 24
+          }}>
+            {/* Modal header */}
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              padding: '14px 18px', borderBottom: '2px solid #0d0d0d',
+              background: '#0d0d0d', color: '#fff', position: 'sticky', top: 0, zIndex: 2
+            }}>
+              <div>
+                <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: '#c0392b', fontWeight: 800 }}>Discussion</div>
+                <h3 style={{ fontFamily: "'Playfair Display',serif", fontSize: '1.15rem', fontWeight: 700, margin: 0 }}>
+                  Comments ({comments.length})
+                  {refreshingComments && <span className="mhk-spin" style={{ marginLeft: 10, borderColor:'#fff', borderTopColor:'transparent' }} />}
+                </h3>
+              </div>
+              <button
+                onClick={() => setShowCommentModal(false)} aria-label="Close"
+                style={{
+                  width: 32, height: 32, borderRadius: '50%', background: 'rgba(255,255,255,.15)',
+                  color: '#fff', border: 'none', cursor: 'pointer', fontSize: 18,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0,
+                  transition: 'background .2s'
+                }}
+                onMouseEnter={e => e.currentTarget.style.background = '#c0392b'}
+                onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,.15)'}
+              >×</button>
+            </div>
+
+            {/* Scrollable comment list */}
+            <div style={{ maxHeight: '52vh', overflowY: 'auto' }}>
               {comments.length > 0 ? (
-                <div style={{ marginBottom: 28 }}>
+                <div style={{ padding: '8px 18px' }}>
                   {comments.map(c => (
-                    <div key={c._id || c.id} style={{ padding: '16px 0', borderBottom: '1px solid #e8e4d8' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-                        <div style={{ width: 36, height: 36, background: '#f0ece0', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Playfair Display',serif", fontWeight: 700, fontSize: 15, color: '#c0392b' }}>
+                    <div key={c._id || c.id} className="mhk-comment-row" style={{ padding: '12px 0', borderBottom: '1px solid #f0ece0' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+                        <div style={{ width: 34, height: 34, background: '#f0ece0', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Playfair Display',serif", fontWeight: 700, fontSize: 14, color: '#c0392b', flexShrink: 0 }}>
                           {(c.name || 'B').charAt(0).toUpperCase()}
                         </div>
                         <div>
@@ -209,59 +495,103 @@ export default function StoryPage() {
                           <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 10, color: '#bbb' }}>{timeAgo(c.created_at || c.createdAt)}</div>
                         </div>
                       </div>
-                      <p style={{ fontSize: 14, lineHeight: 1.7, paddingLeft: 46 }}>{c.comment}</p>
+                      <p style={{ fontSize: 13, lineHeight: 1.65, paddingLeft: 44, margin: 0 }}>{c.comment}</p>
                     </div>
                   ))}
                 </div>
               ) : (
-                <p style={{ color: '#bbb', fontStyle: 'italic', fontSize: 14, marginBottom: 24 }}>Be the first to comment on this story.</p>
+                <div style={{ padding: '28px 20px', textAlign: 'center' }}>
+                  <div style={{ fontSize: 30, marginBottom: 8 }}>💬</div>
+                  <p style={{ color: '#5a5a5a', fontStyle: 'italic', fontSize: 13 }}>Be the first to comment on this story.</p>
+                </div>
               )}
+            </div>
 
-              {/* Comment form */}
-              <div style={{ background: '#f0ece0', padding: '28px 24px', border: '1px solid #e8e4d8' }}>
-                <h3 style={{ fontFamily: "'Playfair Display',serif", fontSize: '1.2rem', fontWeight: 700, marginBottom: 20 }}>Leave a Comment</h3>
-                <form onSubmit={handleComment} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-                    <div>
-                      <label style={{ display: 'block', fontFamily: "'Barlow Condensed',sans-serif", fontSize: 10, fontWeight: 800, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 6, color: '#5a5a5a' }}>Name (blank = BANYA)</label>
-                      <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Your name…"
-                        style={{ width: '100%', padding: '11px 14px', border: '1px solid #e8e4d8', background: '#fff', fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }} />
-                    </div>
-                    <div>
-                      <label style={{ display: 'block', fontFamily: "'Barlow Condensed',sans-serif", fontSize: 10, fontWeight: 800, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 6, color: '#5a5a5a' }}>Email (optional)</label>
-                      <input type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder="your@email.com"
-                        style={{ width: '100%', padding: '11px 14px', border: '1px solid #e8e4d8', background: '#fff', fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }} />
-                    </div>
+            {/* Comment form (existing handleComment preserved) */}
+            <div style={{ background: '#f0ece0', padding: '18px', borderTop: '2px solid #e8e4d8' }}>
+              <h4 style={{ fontFamily: "'Playfair Display',serif", fontSize: '1.02rem', fontWeight: 700, marginBottom: 12 }}>Leave a Comment</h4>
+              <form onSubmit={handleComment} style={{ display: 'flex', flexDirection: 'column', gap: 11 }}>
+                <div className="mhk-comment-form-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 11 }}>
+                  <div>
+                    <label style={{ display: 'block', fontFamily: "'Barlow Condensed',sans-serif", fontSize: 9, fontWeight: 800, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 5, color: '#5a5a5a' }}>Name (blank = BANYA)</label>
+                    <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Your name…"
+                      style={{ width: '100%', padding: '10px 12px', border: '1px solid #e8e4d8', background: '#fff', fontSize: 13, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box', borderRadius: 3 }} />
                   </div>
                   <div>
-                    <label style={{ display: 'block', fontFamily: "'Barlow Condensed',sans-serif", fontSize: 10, fontWeight: 800, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 6, color: '#5a5a5a' }}>Comment *</label>
-                    <textarea value={form.comment} onChange={e => setForm(f => ({ ...f, comment: e.target.value }))} rows={5} required placeholder="Share your thoughts…"
-                      style={{ width: '100%', padding: '11px 14px', border: '1px solid #e8e4d8', background: '#fff', fontSize: 14, fontFamily: 'inherit', outline: 'none', resize: 'vertical', boxSizing: 'border-box' }} />
+                    <label style={{ display: 'block', fontFamily: "'Barlow Condensed',sans-serif", fontSize: 9, fontWeight: 800, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 5, color: '#5a5a5a' }}>Email (optional)</label>
+                    <input type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder="your@email.com"
+                      style={{ width: '100%', padding: '10px 12px', border: '1px solid #e8e4d8', background: '#fff', fontSize: 13, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box', borderRadius: 3 }} />
                   </div>
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontFamily: "'Barlow Condensed',sans-serif", fontSize: 9, fontWeight: 800, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 5, color: '#5a5a5a' }}>Comment *</label>
+                  <textarea value={form.comment} onChange={e => setForm(f => ({ ...f, comment: e.target.value }))} rows={4} required placeholder="Share your thoughts…"
+                    style={{ width: '100%', padding: '10px 12px', border: '1px solid #e8e4d8', background: '#fff', fontSize: 13, fontFamily: 'inherit', outline: 'none', resize: 'vertical', boxSizing: 'border-box', borderRadius: 3 }} />
+                </div>
+                <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
                   <button type="submit" disabled={submitting}
-                    style={{ background: '#0d0d0d', color: '#fff', border: 'none', padding: '14px', fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 800, fontSize: 12, letterSpacing: 2, textTransform: 'uppercase', cursor: submitting ? 'not-allowed' : 'pointer', opacity: submitting ? .7 : 1 }}>
-                    {submitting ? 'Submitting…' : 'Post Comment'}
+                    style={{
+                      background: '#0d0d0d', color: '#fff', border: 'none', padding: '11px 22px',
+                      fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 800, fontSize: 11,
+                      letterSpacing: 2, textTransform: 'uppercase', cursor: submitting ? 'not-allowed' : 'pointer',
+                      opacity: submitting ? .7 : 1, borderRadius: 3, display: 'flex', alignItems: 'center', gap: 8,
+                      transition: 'background .2s'
+                    }}
+                    onMouseEnter={e => { if (!submitting) e.currentTarget.style.background = '#c0392b'; }}
+                    onMouseLeave={e => { if (!submitting) e.currentTarget.style.background = '#0d0d0d'; }}
+                  >
+                    {submitting ? (<><span className="mhk-spin" /> Submitting…</>) : 'Post Comment'}
                   </button>
-                  {commentMsg && <p style={{ color: commentMsg.startsWith('✅') ? '#166534' : '#c0392b', fontSize: 13 }}>{commentMsg}</p>}
-                </form>
-              </div>
-            </section>
-          </article>
-
-          {/* ── SIDEBAR ─────────────────────────────────────── */}
-          <aside>
-            <div style={{ position: 'sticky', top: 72 }}>
-              <div style={{ background: '#fff', border: '1px solid #e8e4d8', padding: 20, marginBottom: 22, borderTop: '3px solid #0d0d0d' }}>
-                <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 800, fontSize: 11, letterSpacing: 2.5, textTransform: 'uppercase', borderBottom: '3px solid #0d0d0d', paddingBottom: 10, marginBottom: 16 }}>🔥 Most Read</div>
-                {popular.map((p, i) => <PopularItem key={p._id || p.id} story={p} rank={i + 1} />)}
-              </div>
-              <NewsletterWidget />
-              <AdBanner ads={ads.slice(2, 5)} height={200} />
-              <WhatsAppCTA />
+                  {commentMsg && (
+                    <p style={{
+                      color: commentMsg.startsWith('✅') ? '#166534' : '#c0392b',
+                      fontSize: 12, margin: 0, padding: '4px 10px', borderRadius: 3,
+                      background: commentMsg.startsWith('✅') ? 'rgba(22,101,52,.08)' : 'rgba(192,57,43,.08)'
+                    }}>{commentMsg}</p>
+                  )}
+                </div>
+              </form>
             </div>
-          </aside>
+          </div>
         </div>
-      </div>
+      )}
     </PublicLayout>
   );
 }
+
+/* ── NEW: reusable AdCard component (additive; existing AdBanner untouched) ── */
+const AdCard = React.memo(function AdCard({ ad, height = 110, floating = false }) {
+  if (!ad) return null;
+  const img = ad.image || ad.banner || ad.imageUrl || ad.img;
+  const link = ad.link || ad.url || ad.click_url || '#';
+  const title = ad.title || ad.name || 'Advertisement';
+  return (
+    <a
+      href={link}
+      target="_blank"
+      rel="noopener noreferrer sponsored"
+      className="mhk-ad-card"
+      style={{
+        display: 'block', textDecoration: 'none', background: '#fff',
+        border: '1px solid #e8e4d8', borderRadius: 4, overflow: 'hidden'
+      }}
+    >
+      {img ? (
+        <img
+          src={imgUrl(img)}
+          alt={title}
+          loading="lazy"
+          onError={e => { e.target.onerror = null; e.target.src = '/placeholder.jpg'; }}
+          style={{ width: '100%', height, objectFit: 'cover', display: 'block' }}
+        />
+      ) : (
+        <div style={{ width:'100%', height, display:'flex', alignItems:'center', justifyContent:'center', color:'#bbb', fontFamily:"'Barlow Condensed',sans-serif", fontSize: 12 }}>
+          {title}
+        </div>
+      )}
+      <div style={{ padding: '4px 10px', fontFamily: "'Barlow Condensed',sans-serif", fontSize: 8, letterSpacing: 1.5, textTransform: 'uppercase', color: '#bbb', background: '#f0ece0' }}>
+        {floating ? 'Sponsored' : 'Advertisement'}
+      </div>
+    </a>
+  );
+});
