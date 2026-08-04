@@ -6,9 +6,35 @@ import { useAuth } from '../../context/AuthContext';
 const inputStyle = { width: '100%', padding: '11px 14px', border: '1px solid #e2e8f0', borderRadius: 10, fontSize: 14, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', marginBottom: 14 };
 const labelStyle = { display: 'block', marginBottom: 6, fontWeight: 700, fontSize: 13, color: '#334155' };
 
-function Card({ children, style }) {
-  return <div style={{ background: '#fff', padding: 24, borderRadius: 20, border: '1px solid #e2e8f0', boxShadow: '0 4px 15px rgba(0,0,0,.03)', ...style }}>{children}</div>;
+function Card({ children, style, className }) {
+  return <div className={`admin-card-base ${className || ''}`} style={{ background: '#fff', padding: 24, borderRadius: 20, border: '1px solid #e2e8f0', boxShadow: '0 4px 15px rgba(0,0,0,.03)', ...style }}>{children}</div>;
 }
+
+// Inject responsive CSS once
+const responsiveCSS = `
+  @media (max-width: 768px) {
+    .admin-form-grid {
+      grid-template-columns: 1fr !important;
+    }
+    .admin-table-scroll {
+      overflow-x: auto !important;
+    }
+    .admin-table-scroll table {
+      min-width: 640px; /* Prevents table from squishing, enables horizontal scroll */
+    }
+    .admin-flex-wrap {
+      flex-wrap: wrap;
+    }
+  }
+  @media (max-width: 480px) {
+    .admin-card-base {
+      padding: 16px !important;
+    }
+    .admin-table-scroll table {
+      min-width: 540px;
+    }
+  }
+`;
 
 // ─── AUTHORS ─────────────────────────────────────────────────────────────────
 export function Authors() {
@@ -41,8 +67,9 @@ export function Authors() {
 
   return (
     <AdminLayout>
+      <style>{responsiveCSS}</style>
       <h1 style={{ fontWeight: 800, fontSize: '1.6rem', margin: '0 0 24px', letterSpacing: '-0.03em' }}>Author Profiles</h1>
-      <div style={{ display: 'grid', gridTemplateColumns: '340px 1fr', gap: 24 }}>
+      <div className="admin-form-grid" style={{ display: 'grid', gridTemplateColumns: '340px 1fr', gap: 24 }}>
         <Card>
           <h3 style={{ fontWeight: 800, margin: '0 0 20px', fontSize: '1rem' }}>Add New Author</h3>
           <form onSubmit={handleSubmit}>
@@ -61,7 +88,7 @@ export function Authors() {
             </button>
           </form>
         </Card>
-        <Card style={{ padding: 0, overflow: 'hidden' }}>
+        <Card className="admin-table-scroll" style={{ padding: 0, overflow: 'hidden' }}>
           <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0 }}>
             <thead>
               <tr>{['Photo','Name','Email','Stories','Actions'].map(h => (
@@ -111,16 +138,17 @@ export function Comments() {
 
   return (
     <AdminLayout>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+      <style>{responsiveCSS}</style>
+      <div className="admin-flex-wrap" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, gap: '12px' }}>
         <h1 style={{ fontWeight: 800, fontSize: '1.6rem', margin: 0 }}>Comments</h1>
-        <span style={{ background: '#fef9c3', color: '#854d0e', padding: '6px 14px', borderRadius: 8, fontWeight: 700, fontSize: 13 }}>{total} {status}</span>
+        <span style={{ background: '#fef9c3', color: '#854d0e', padding: '6px 14px', borderRadius: 8, fontWeight: 700, fontSize: 13, whiteSpace: 'nowrap' }}>{total} {status}</span>
       </div>
-      <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+      <div className="admin-flex-wrap" style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
         {['pending','approved','spam'].map(s => (
           <button key={s} onClick={() => setStatus(s)} style={{ padding: '8px 18px', background: status === s ? '#1a472a' : '#fff', color: status === s ? '#fff' : '#64748b', border: '1px solid #e2e8f0', borderRadius: 8, cursor: 'pointer', fontWeight: 700, fontSize: 13, textTransform: 'capitalize', fontFamily: 'inherit' }}>{s}</button>
         ))}
       </div>
-      <Card style={{ padding: 0, overflow: 'hidden' }}>
+      <Card className="admin-table-scroll" style={{ padding: 0, overflow: 'hidden' }}>
         {loading ? <div style={{ padding: 40, textAlign: 'center', color: '#94a3b8' }}>Loading…</div> : (
           <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0 }}>
             <thead>
@@ -145,10 +173,10 @@ export function Comments() {
                   <td style={{ padding: '14px 16px' }}>
                     <div style={{ display: 'flex', gap: 6 }}>
                       {status === 'pending' && can('approve_comments') && (
-                        <button onClick={async () => { await commentsAPI.approve(c.id); load(); }} style={{ padding: '5px 10px', background: '#dcfce7', color: '#166534', border: '1px solid #86efac', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontFamily: 'inherit' }}>✓ Approve</button>
+                        <button onClick={async () => { await commentsAPI.approve(c.id); load(); }} style={{ padding: '5px 10px', background: '#dcfce7', color: '#166534', border: '1px solid #86efac', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontFamily: 'inherit', whiteSpace: 'nowrap' }}>✓ Approve</button>
                       )}
                       {can('delete_content') && (
-                        <button onClick={async () => { if (window.confirm('Delete?')) { await commentsAPI.delete(c.id); load(); } }} style={{ padding: '5px 10px', background: '#fef2f2', color: '#ef4444', border: '1px solid #fca5a5', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontFamily: 'inherit' }}>Delete</button>
+                        <button onClick={async () => { if (window.confirm('Delete?')) { await commentsAPI.delete(c.id); load(); } }} style={{ padding: '5px 10px', background: '#fef2f2', color: '#ef4444', border: '1px solid #fca5a5', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontFamily: 'inherit', whiteSpace: 'nowrap' }}>Delete</button>
                       )}
                     </div>
                   </td>
@@ -187,8 +215,9 @@ export function Videos() {
 
   return (
     <AdminLayout>
+      <style>{responsiveCSS}</style>
       <h1 style={{ fontWeight: 800, fontSize: '1.6rem', margin: '0 0 24px' }}>Videos</h1>
-      <div style={{ display: 'grid', gridTemplateColumns: '360px 1fr', gap: 24 }}>
+      <div className="admin-form-grid" style={{ display: 'grid', gridTemplateColumns: '360px 1fr', gap: 24 }}>
         <Card>
           <h3 style={{ fontWeight: 800, margin: '0 0 20px', fontSize: '1rem' }}>Add YouTube Video</h3>
           <form onSubmit={handleSubmit}>
@@ -207,7 +236,7 @@ export function Videos() {
             </button>
           </form>
         </Card>
-        <Card style={{ padding: 0, overflow: 'hidden' }}>
+        <Card className="admin-table-scroll" style={{ padding: 0, overflow: 'hidden' }}>
           <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0 }}>
             <thead>
               <tr>{['Thumb','Title','Category','Date','Action'].map(h => (
@@ -260,8 +289,9 @@ export function Ads() {
 
   return (
     <AdminLayout>
+      <style>{responsiveCSS}</style>
       <h1 style={{ fontWeight: 800, fontSize: '1.6rem', margin: '0 0 24px' }}>Advertisements</h1>
-      <div style={{ display: 'grid', gridTemplateColumns: '360px 1fr', gap: 24 }}>
+      <div className="admin-form-grid" style={{ display: 'grid', gridTemplateColumns: '360px 1fr', gap: 24 }}>
         <Card>
           <h3 style={{ fontWeight: 800, margin: '0 0 20px', fontSize: '1rem' }}>Add Advertisement</h3>
           <form onSubmit={handleSubmit}>
@@ -288,7 +318,7 @@ export function Ads() {
             </button>
           </form>
         </Card>
-        <Card style={{ padding: 0, overflow: 'hidden' }}>
+        <Card className="admin-table-scroll" style={{ padding: 0, overflow: 'hidden' }}>
           <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0 }}>
             <thead>
               <tr>{['Preview','Type','Position','Link','Actions'].map(h => (
@@ -327,11 +357,12 @@ export function Subscribers() {
 
   return (
     <AdminLayout>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+      <style>{responsiveCSS}</style>
+      <div className="admin-flex-wrap" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, gap: '12px' }}>
         <h1 style={{ fontWeight: 800, fontSize: '1.6rem', margin: 0 }}>Subscribers</h1>
-        <span style={{ background: '#dcfce7', color: '#166534', padding: '6px 16px', borderRadius: 8, fontWeight: 700, fontSize: 14 }}>{subs.filter(s => s.status === 'active').length} active</span>
+        <span style={{ background: '#dcfce7', color: '#166534', padding: '6px 16px', borderRadius: 8, fontWeight: 700, fontSize: 14, whiteSpace: 'nowrap' }}>{subs.filter(s => s.status === 'active').length} active</span>
       </div>
-      <Card style={{ padding: 0, overflow: 'hidden' }}>
+      <Card className="admin-table-scroll" style={{ padding: 0, overflow: 'hidden' }}>
         <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0 }}>
           <thead>
             <tr>{['Email','Name','Joined','Status'].map(h => (
@@ -361,8 +392,9 @@ export function AuditLogs() {
 
   return (
     <AdminLayout>
+      <style>{responsiveCSS}</style>
       <h1 style={{ fontWeight: 800, fontSize: '1.6rem', margin: '0 0 24px' }}>Security Audit Logs</h1>
-      <Card style={{ padding: 0, overflow: 'hidden' }}>
+      <Card className="admin-table-scroll" style={{ padding: 0, overflow: 'hidden' }}>
         <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0 }}>
           <thead>
             <tr>{['User','Action','IP','Timestamp'].map(h => (
