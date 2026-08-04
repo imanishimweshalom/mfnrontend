@@ -36,16 +36,16 @@ export function AboutPage() {
         <div style={{ background: '#0d0d0d', color: '#fff', padding: '48px 40px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 40, marginBottom: 60 }}>
           <div>
             <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: '1.8rem', fontWeight: 900, marginBottom: 16 }}>Get in Touch</h2>
-            <p style={{ color: 'rgba(255,255,255,.65)', lineHeight: 1.7, marginBottom: 20, fontStyle: 'italic' }}>Have a story tip, advertising inquiry, or want to collaborate? We'd love to hear from you.</p>
+            <p style={{ color: 'rgba(255,255,255,.65)', lineHeight: 1.7, marginBottom: 20, fontStyle: 'italic' }}>Have a story tip, advertising inquiry, or want to collaborate and make youth voice be heard? We'd love to hear from you .</p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10, fontSize: 14, color: 'rgba(255,255,255,.7)' }}>
-              <span>📧 mahokofridaynews@gmail.com</span>
-              <span>📞 +250 739 903 542</span>
-              <span>📍 Kigali, Rwanda</span>
+              <span>📧 mfnyouthvoice@gmail.com</span>
+              <span>📞 +250 787426258</span>
+              <span>📍 RUBAVU, Rwanda</span>
             </div>
           </div>
           <div>
-            <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: '1.8rem', fontWeight: 900, marginBottom: 16 }}>Est. 2018</h2>
-            <p style={{ color: 'rgba(255,255,255,.65)', lineHeight: 1.7, fontStyle: 'italic' }}>Founded in Kigali, Rwanda, MFN has grown from a small community newsletter into one of Rwanda's most trusted youth news platforms.</p>
+            <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: '1.8rem', fontWeight: 900, marginBottom: 16 }}>Est. 2025</h2>
+            <p style={{ color: 'rgba(255,255,255,.65)', lineHeight: 1.7, fontStyle: 'italic' }}>Founded in RUBAVU, Rwanda, MFN has grown from a small community newsletter into one of Rwanda's most trusted youth news platforms.</p>
           </div>
         </div>
 
@@ -92,9 +92,9 @@ export function ContactPage() {
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 40, marginBottom: 48 }}>
           {[
-            ['📧', 'Email', 'mahokofridaynews@gmail.com', 'mailto:mahokofridaynews@gmail.com'],
-            ['📞', 'Phone', '+250 739 903 542', 'tel:+250739903542'],
-            ['📍', 'Location', 'Kigali, Rwanda', null],
+            ['📧', 'Email', 'mfnyouthvoice@gmail.com', 'mailto:mfnyouthvoice@gmail.com'],
+            ['📞', 'Phone', '+250 787426258', 'tel:+250787426258'],
+            ['📍', 'Location', 'RUBAVU, Rwanda', null],
             ['💬', 'WhatsApp', 'Join our group channel', 'https://chat.whatsapp.com/H40lstF5ft180ah97R1L9E'],
           ].map(([icon, label, value, href]) => (
             <div key={label} style={{ display: 'flex', gap: 16, alignItems: 'flex-start', padding: '20px', background: '#f0ece0', border: '1px solid #e8e4d8' }}>
@@ -213,7 +213,7 @@ export function PrivacyPage() {
     ['5. Content Policy', 'By submitting content, you grant MFN the right to publish it. You retain ownership and confirm the content is original.'],
     ['6. Security', 'We implement industry-standard security measures to protect your data, though no system is 100% secure.'],
     ['7. Children', 'Users under 18 should obtain parental permission before submitting personal data.'],
-    ['8. Contact', 'For privacy concerns: mahokofridaynews@gmail.com | +250 739 903 542'],
+    ['8. Contact', 'For privacy concerns: mfnyouthvoice@gmail.com | +250 787426258'],
   ];
 
   return (
