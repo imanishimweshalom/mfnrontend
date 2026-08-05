@@ -5,14 +5,14 @@ import { analyticsAPI } from '../../utils/api';
 import { useAuth } from '../../context/AuthContext';
 
 const StatCard = ({ label, value, icon, color = '#1a472a', sub }) => (
-  <div style={{ background: '#fff', padding: 24, borderRadius: 20, border: '1px solid #e2e8f0', boxShadow: '0 4px 15px rgba(0,0,0,.03)' }}>
+  <div style={{ background: '#fff', padding: 20, borderRadius: 16, border: '1px solid #e2e8f0', boxShadow: '0 4px 15px rgba(0,0,0,.03)' }}>
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
       <div>
-        <div style={{ fontWeight: 700, color: '#64748b', fontSize: 12, letterSpacing: '.05em', textTransform: 'uppercase', marginBottom: 8 }}>{label}</div>
-        <div style={{ fontWeight: 800, fontSize: '2.2rem', color: '#0f172a', lineHeight: 1 }}>{value}</div>
-        {sub && <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 6 }}>{sub}</div>}
+        <div style={{ fontWeight: 700, color: '#64748b', fontSize: 11, letterSpacing: '.05em', textTransform: 'uppercase', marginBottom: 8 }}>{label}</div>
+        <div style={{ fontWeight: 800, fontSize: '1.8rem', color: '#0f172a', lineHeight: 1 }}>{value}</div>
+        {sub && <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 6 }}>{sub}</div>}
       </div>
-      <div style={{ width: 48, height: 48, background: `${color}15`, borderRadius: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>{icon}</div>
+      <div style={{ width: 42, height: 42, background: `${color}15`, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>{icon}</div>
     </div>
   </div>
 );
@@ -23,42 +23,101 @@ export default function Dashboard() {
   const { user } = useAuth();
 
   useEffect(() => {
-    analyticsAPI.getOverview().then(r => { setData(r.data); setLoading(false); }).catch(() => setLoading(false));
+    let isMounted = true;
+    analyticsAPI.getOverview()
+      .then(r => { 
+        if(isMounted) { setData(r.data); setLoading(false); }
+      })
+      .catch(() => { if(isMounted) setLoading(false); });
+    
+    return () => { isMounted = false; };
   }, []);
 
   return (
     <AdminLayout>
-      {/* ── Mobile-First Responsive CSS Additions ── */}
+      {/* ── Mobile-First Responsive CSS ── */}
       <style>{`
-        .admin-dash-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 36px; gap: 16px; flex-wrap: wrap; }
-        .admin-stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 32px; }
-        .admin-main-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 24px; }
-        .admin-quick-actions { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+        /* Base Mobile Styles */
+        .admin-dash-header { 
+          display: flex; 
+          justify-content: space-between; 
+          align-items: center; 
+          margin-bottom: 24px; 
+          gap: 12px; 
+          flex-wrap: wrap; 
+        }
+        .admin-dash-header h1 { font-size: 1.4rem !important; }
         
-        @media (max-width: 1024px) {
-          /* Tablet Layout */
-          .admin-main-grid { grid-template-columns: 1fr !important; }
+        .admin-stats-grid { 
+          display: grid; 
+          grid-template-columns: 1fr; /* 1 column on mobile */
+          gap: 12px; 
+          margin-bottom: 24px; 
         }
         
-        @media (max-width: 768px) {
-          /* Mobile Layout */
-          .admin-dash-header { margin-bottom: 24px; }
-          .admin-dash-header h1 { font-size: 1.4rem !important; }
-          .admin-stats-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 12px !important; }
-          .admin-stats-grid > div { padding: 16px !important; }
-          .admin-stats-grid > div > div > div:last-child { width: 36px !important; height: 36px !important; font-size: 18px !important; }
+        .admin-main-grid { 
+          display: grid; 
+          grid-template-columns: 1fr; 
+          gap: 16px; 
+        }
+        .admin-main-grid > div { 
+          padding: 20px !important; 
+        }
+        
+        .admin-quick-actions { 
+          display: grid; 
+          grid-template-columns: repeat(2, 1fr); /* 2 columns on mobile */
+          gap: 10px; 
+        }
+        .admin-quick-actions > a { 
+          padding: 14px 8px !important; 
+          font-size: 12px !important; 
+        }
+        
+        .admin-table-wrap { 
+          width: 100%;
+          overflow-x: auto; 
+          -webkit-overflow-scrolling: touch;
+        }
+        .admin-table-wrap table { 
+          min-width: 400px; 
+        }
+
+        /* Tablet Styles (768px and up) */
+        @media (min-width: 768px) {
+          .admin-dash-header { margin-bottom: 32px; }
+          .admin-dash-header h1 { font-size: 1.8rem !important; }
           
-          .admin-main-grid > div { padding: 20px !important; }
-          .admin-quick-actions { grid-template-columns: repeat(3, 1fr) !important; }
-          .admin-quick-actions > a { padding: 12px 8px !important; font-size: 12px !important; }
+          .admin-stats-grid { 
+            grid-template-columns: repeat(2, 1fr); /* 2 columns on tablet */
+            gap: 20px; 
+          }
+          .admin-stats-grid > div { padding: 24px !important; }
+          
+          .admin-quick-actions { 
+            grid-template-columns: repeat(3, 1fr); 
+          }
         }
-        
-        @media (max-width: 480px) {
-          /* Small Mobile Layout */
-          .admin-stats-grid { grid-template-columns: 1fr !important; }
-          .admin-quick-actions { grid-template-columns: repeat(2, 1fr) !important; }
-          .admin-table-wrap { overflow-x: auto; }
-          .admin-table-wrap table { min-width: 500px; }
+
+        /* Desktop Styles (1024px and up) */
+        @media (min-width: 1024px) {
+          .admin-stats-grid { 
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); /* Auto fit on desktop */
+            gap: 20px; 
+          }
+          
+          .admin-main-grid { 
+            grid-template-columns: 2fr 1fr; /* Split layout on desktop */
+            gap: 24px; 
+          }
+          .admin-main-grid > div { 
+            padding: 28px !important; 
+          }
+          
+          .admin-quick-actions { 
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); 
+            gap: 12px; 
+          }
         }
       `}</style>
 
@@ -67,7 +126,7 @@ export default function Dashboard() {
           <h1 style={{ fontWeight: 800, fontSize: '1.8rem', letterSpacing: '-0.03em', margin: 0, color: '#0f172a' }}>Welcome back, {user?.username?.split(' ')[0]} 👋</h1>
           <p style={{ color: '#64748b', margin: '4px 0 0', fontSize: 14 }}>{new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
         </div>
-        <Link to="/admin/stories/new" style={{ background: '#1a472a', color: '#fff', padding: '12px 24px', borderRadius: 12, fontWeight: 700, fontSize: 14, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 8, height: 'fit-content' }}>
+        <Link to="/admin/stories/new" style={{ background: '#1a472a', color: '#fff', padding: '12px 24px', borderRadius: 12, fontWeight: 700, fontSize: 14, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 8, height: 'fit-content', whiteSpace: 'nowrap' }}>
           ✏️ New Story
         </Link>
       </div>
@@ -94,7 +153,7 @@ export default function Dashboard() {
                 <h3 style={{ fontWeight: 800, fontSize: '1.1rem', margin: 0 }}>🔥 Trending Stories</h3>
                 <Link to="/admin/stories" style={{ fontSize: 13, color: '#1a472a', fontWeight: 600 }}>View all →</Link>
               </div>
-              <div className="admin-table-wrap" style={{ width: '100%' }}>
+              <div className="admin-table-wrap">
                 <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0 }}>
                   <thead>
                     <tr>
