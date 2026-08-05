@@ -176,6 +176,7 @@ export default function StoryPage() {
         @keyframes mhkFade { from { opacity: 0; } to { opacity: 1; } }
         @keyframes mhkPop { from { transform: translateY(40px) scale(.98); opacity: 0; } to { transform: translateY(0) scale(1); opacity: 1; } }
         @keyframes mhkSpin { to { transform: rotate(360deg); } }
+        @keyframes mhkAdFade { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         
         .mhk-float-container { animation: mhkFloatUp .5s cubic-bezier(.2,.8,.2,1) forwards; }
         .mhk-float-container.closing { animation: mhkFloatDown .4s ease-in forwards; }
@@ -198,11 +199,11 @@ export default function StoryPage() {
         
         .mhk-ad-card { transition: transform .3s ease, box-shadow .3s ease; border: 1px solid #e8e4d8; border-radius: 6px; overflow: hidden; display: block; }
         .mhk-ad-card:hover { transform: translateY(-3px); box-shadow: 0 8px 18px rgba(0,0,0,.12); }
-        .mhk-ad-card img { transition: transform .4s ease; }
-        .mhk-ad-card:hover img { transform: scale(1.04); }
+        .mhk-ad-card img, .mhk-ad-card video { transition: transform .4s ease; }
+        .mhk-ad-card:hover img, .mhk-ad-card:hover video { transform: scale(1.04); }
         
-        .mhk-float-track { display: flex; flex-direction: column; transition: transform 0.5s cubic-bezier(.2,.8,.2,1); }
-        .mhk-float-slide { flex-shrink: 0; width: 100%; height: 160px; }
+        .mhk-float-fade { animation: mhkAdFade 0.5s ease; display: flex; gap: 12px; width: 100%; }
+        .mhk-float-extra { display: none; flex: 1; }
         
         .mhk-layout-grid {
           display: grid;
@@ -217,7 +218,7 @@ export default function StoryPage() {
           grid-template-columns: 1fr; 
           gap: 11px; 
         }
-        .mhk-float-container { width: calc(100vw - 24px) !important; }
+        .mhk-float-container { width: calc(100vw - 24px) !important; max-width: 400px; }
         .mhk-modal-wrap { padding: 12px !important; }
 
         @media (min-width: 768px) {
@@ -230,6 +231,9 @@ export default function StoryPage() {
           .mhk-comment-form-grid { 
             grid-template-columns: 1fr 1fr; 
           }
+          /* Show 3 ad areas on desktop */
+          .mhk-float-extra { display: flex; }
+          .mhk-float-container { max-width: 900px !important; }
         }
         
         @media (min-width: 1024px) {
@@ -408,6 +412,10 @@ export default function StoryPage() {
         </div>
       </div>
 
+      {/* ───────────────────────────────────────────────────────────────
+          FLOATING BOTTOM AD CAROUSEL 
+          (Displays 3 areas on desktop, 1 on mobile. Cycles all ads every 8s)
+      ─────────────────────────────────────────────────────────────── */}
       {floatVisible && floatAds.length > 0 && (
         <div
           className={`mhk-float-container ${floatClosing ? 'closing' : ''}`}
@@ -417,44 +425,24 @@ export default function StoryPage() {
             left: '50%',
             transform: 'translateX(-50%)',
             zIndex: 9000,
-            maxWidth: 'calc(100vw - 24px)',
             pointerEvents: 'auto'
           }}
         >
           <div
             style={{
               position: 'relative',
-              background: '#fff',
+              background: 'transparent',
               borderRadius: 8,
-              boxShadow: '0 10px 36px rgba(0,0,0,.28)',
-              overflow: 'hidden',
-              border: '1px solid #e8e4d8'
+              boxShadow: 'none',
+              overflow: 'visible',
+              border: 'none'
             }}
           >
-            <div style={{ position: 'relative', height: 160, overflow: 'hidden' }}>
-              <div 
-                className="mhk-float-track" 
-                style={{ transform: `translateY(-${floatIndex * 160}px)` }}
-              >
-                {floatAds.map((ad, i) => (
-                  <div key={ad._id || ad.id || i} className="mhk-float-slide">
-                    <AdCard ad={ad} fluid />
-                  </div>
-                ))}
-              </div>
+            <div key={floatIndex} className="mhk-float-fade">
+              <AdCard ad={floatAds[floatIndex % floatAds.length]} fluid />
+              <AdCard ad={floatAds[(floatIndex + 1) % floatAds.length]} fluid className="mhk-float-extra" />
+              <AdCard ad={floatAds[(floatIndex + 2) % floatAds.length]} fluid className="mhk-float-extra" />
             </div>
-            
-            {floatAds.length > 1 && (
-              <div style={{ position: 'absolute', bottom: 8, left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: 5, zIndex: 3 }}>
-                {floatAds.map((_, i) => (
-                  <div key={i} style={{
-                    width: 6, height: 6, borderRadius: '50%', 
-                    background: i === floatIndex ? '#fff' : 'rgba(255,255,255,0.5)',
-                    transition: 'background 0.3s'
-                  }} />
-                ))}
-              </div>
-            )}
           </div>
         </div>
       )}
@@ -577,11 +565,17 @@ export default function StoryPage() {
   );
 }
 
-const AdCard = React.memo(function AdCard({ ad, height = 180, fluid = false }) {
+/* ── Robust AdCard component that supports BOTH Video and Image ── */
+const AdCard = React.memo(function AdCard({ ad, height = 180, fluid = false, className = '' }) {
   if (!ad) return null;
   
-  const rawImg = ad.image_url || ad.imageUrl || ad.image || ad.banner || ad.bannerUrl || ad.img || ad.file_url || ad.photo || ad.file;
-  const img = rawImg ? imgUrl(rawImg) : null;
+  // Check all common API property names for the media file
+  const rawMedia = ad.image_url || ad.imageUrl || ad.image || ad.banner || ad.bannerUrl || ad.img || ad.file_url || ad.photo || ad.file;
+  const media = rawMedia ? imgUrl(rawMedia) : null;
+  
+  // Determine if the ad is a video based on type or file extension
+  const isVideo = ad.type === 'video' || (rawMedia && /\.(mp4|webm|ogg|mov)$/i.test(rawMedia));
+  
   const link = ad.link || ad.url || ad.click_url || ad.target_url || '#';
   const title = ad.title || ad.name || 'Sponsored Ad';
   
@@ -590,21 +584,33 @@ const AdCard = React.memo(function AdCard({ ad, height = 180, fluid = false }) {
       href={link}
       target="_blank"
       rel="noopener noreferrer sponsored"
-      className="mhk-ad-card"
+      className={`mhk-ad-card ${className}`}
       style={{
         display: 'flex', flexDirection: 'column', width: '100%', height: fluid ? '100%' : 'auto',
         textDecoration: 'none', background: '#fff',
-        marginBottom: fluid ? 0 : 12
+        marginBottom: fluid ? 0 : 12,
+        flex: fluid ? 1 : 'unset'
       }}
     >
-      {img ? (
-        <img
-          src={img}
-          alt={title}
-          loading="lazy"
-          onError={e => { e.target.onerror = null; e.target.src = PLACEHOLDER; }}
-          style={{ width: '100%', height: fluid ? '100%' : height, objectFit: 'cover', display: 'block', flex: 1 }}
-        />
+      {media ? (
+        isVideo ? (
+          <video
+            src={media}
+            autoPlay
+            muted
+            loop
+            playsInline
+            style={{ width: '100%', height: fluid ? '100%' : height, objectFit: 'cover', display: 'block', flex: 1 }}
+          />
+        ) : (
+          <img
+            src={media}
+            alt={title}
+            loading="lazy"
+            onError={e => { e.target.onerror = null; e.target.src = PLACEHOLDER; }}
+            style={{ width: '100%', height: fluid ? '100%' : height, objectFit: 'cover', display: 'block', flex: 1 }}
+          />
+        )
       ) : (
         <div style={{ 
           width: '100%', height: fluid ? '100%' : height, 
