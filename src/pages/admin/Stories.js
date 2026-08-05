@@ -6,6 +6,18 @@ import { useAuth } from '../../context/AuthContext';
 
 const CATEGORIES = ['Business','Sport','Technology','Health','Culture','Environment','Le Phare','Music','Transport','Education','Opinion'];
 
+// Fix: Centralized API base and secure image URL getter to prevent 404s
+const API_BASE = process.env.REACT_APP_API_URL?.replace('/api', '') || 'https://mahokofridaynewsbackend.onrender.com';
+const PLACEHOLDER = `${API_BASE}/uploads/placeholder.jpg`;
+
+const getImgUrl = (path) => {
+  if (!path || typeof path !== 'string') return PLACEHOLDER;
+  if (path.startsWith('http://') || path.startsWith('https://')) return path;
+  if (path.includes('..')) return PLACEHOLDER; // Prevent directory traversal
+  const cleanPath = path.replace(/^uploads?\//, '').replace(/^\/+/, '');
+  return `${API_BASE}/uploads/${cleanPath}`;
+};
+
 // ─── RESPONSIVE & MODERN STYLES ──────────────────────────────────────────────
 const ResponsiveStyles = () => (
   <style>{`
@@ -16,17 +28,14 @@ const ResponsiveStyles = () => (
     .s-container { font-family: 'Plus Jakarta Sans', sans-serif; animation: fadeIn .4s ease-out; }
     @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 
-    /* Grids - Mobile First */
-    .grid-1 { display: grid; grid-template-columns: 1fr; gap: 24px; }
-    @media (min-width: 1024px) { .grid-form-table { grid-template-columns: 1fr 380px; } .sidebar-section { order: 1; } }
-    @media (max-width: 1023px) { .sidebar-section { order: -1; } /* Move publish settings to top on mobile */ }
-
-    /* Cards */
-    .s-card { background: var(--bg-card); padding: 28px; border-radius: 20px; border: 1px solid var(--border); box-shadow: 0 4px 15px rgba(0,0,0,.03); margin-bottom: 24px; transition: box-shadow .3s; }
+    /* Base Mobile Styles */
+    .s-card { background: var(--bg-card); padding: 20px; border-radius: 16px; border: 1px solid var(--border); box-shadow: 0 4px 15px rgba(0,0,0,.03); margin-bottom: 16px; transition: box-shadow .3s; }
     .s-card:hover { box-shadow: 0 8px 25px rgba(0,0,0,.06); }
-    .s-card-title { font-weight: 800; margin: 0 0 24px; font-size: 1.05rem; display: flex; align-items: center; gap: 10px; color: var(--text-main); }
+    .s-card-title { font-weight: 800; margin: 0 0 20px; font-size: 1rem; display: flex; align-items: center; gap: 10px; color: var(--text-main); }
 
-    /* Inputs - Modern Floating */
+    .grid-1 { display: grid; grid-template-columns: 1fr; gap: 16px; }
+    .sidebar-section { order: -1; /* Move publish settings to top on mobile */ }
+
     .s-input-group { position: relative; margin-bottom: 20px; }
     .s-input { width: 100%; padding: 20px 16px 8px 16px; border: 2px solid var(--border); border-radius: 12px; font-size: 14px; outline: none; font-family: inherit; box-sizing: border-box; transition: border-color .2s, box-shadow .2s; background: transparent; color: var(--text-main); font-weight: 600; }
     .s-input:focus { border-color: var(--primary); box-shadow: 0 0 0 4px rgba(26, 71, 42, 0.1); }
@@ -34,8 +43,7 @@ const ResponsiveStyles = () => (
     .s-input:focus ~ .s-floating-label, .s-input:not(:placeholder-shown) ~ .s-floating-label { top: 10px; transform: translateY(0); font-size: 10px; color: var(--primary); font-weight: 700; text-transform: uppercase; letter-spacing: .05em; }
     .s-select { width: 100%; padding: 14px 16px; border: 2px solid var(--border); border-radius: 12px; font-size: 14px; outline: none; font-family: inherit; box-sizing: border-box; background: #fff; font-weight: 600; color: var(--text-main); appearance: none; margin-bottom: 20px; }
 
-    /* Buttons */
-    .s-btn { background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%); color: #fff; border: none; padding: 14px 24px; border-radius: 12px; font-weight: 700; font-size: 14px; cursor: pointer; font-family: inherit; transition: all .2s; box-shadow: 0 4px 6px -1px rgba(26, 71, 42, 0.2); display: inline-flex; align-items: center; justify-content: center; gap: 8px; text-decoration: none; white-space: nowrap; }
+    .s-btn { background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%); color: #fff; border: none; padding: 12px 20px; border-radius: 10px; font-weight: 700; font-size: 13px; cursor: pointer; font-family: inherit; transition: all .2s; box-shadow: 0 4px 6px -1px rgba(26, 71, 42, 0.2); display: inline-flex; align-items: center; justify-content: center; gap: 8px; text-decoration: none; white-space: nowrap; }
     .s-btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 10px 15px -3px rgba(26, 71, 42, 0.3); }
     .s-btn:disabled { background: var(--text-faint); cursor: not-allowed; box-shadow: none; }
     .s-btn-full { width: 100%; justify-content: center; }
@@ -43,23 +51,35 @@ const ResponsiveStyles = () => (
     .s-btn-outline:hover { border-color: var(--primary); color: var(--primary); }
     .s-btn-danger { background: #fef2f2; color: #ef4444; border: 1px solid #fca5a5; box-shadow: none; padding: 8px 14px; font-size: 12px; border-radius: 8px; }
     
-    /* Table */
     .s-table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; background: #fff; border-radius: 16px; border: 1px solid var(--border); box-shadow: 0 4px 15px rgba(0,0,0,.03); }
     .s-table { width: 100%; border-collapse: separate; border-spacing: 0; min-width: 800px; }
-    .s-table thead th { padding: 14px 16px; background: var(--bg-subtle); color: var(--text-muted); font-size: 11px; text-transform: uppercase; font-weight: 800; letterSpacing: .05em; borderBottom: '1px solid var(--border)'; textAlign: 'left'; whiteSpace: 'nowrap'; }
+    /* Fix: Converted camelCase React styles to standard kebab-case CSS */
+    .s-table thead th { padding: 14px 16px; background: var(--bg-subtle); color: var(--text-muted); font-size: 11px; text-transform: uppercase; font-weight: 800; letter-spacing: .05em; border-bottom: 1px solid var(--border); text-align: left; white-space: nowrap; }
     .s-table tbody tr { transition: background .2s; }
     .s-table tbody tr:hover { background: #f8fafc; }
     .s-table tbody td { padding: 16px; border-bottom: 1px solid #f1f5f9; font-size: 14px; }
 
-    /* Badges */
     .badge { padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 700; display: inline-block; white-space: nowrap; }
 
-    /* Enforce Times New Roman, 12px inside the editor */
     .rich-editor p, .rich-editor div, .rich-editor span, .rich-editor h1, .rich-editor h2, .rich-editor h3, .rich-editor h4, .rich-editor li { font-family: 'Times New Roman', Times, serif !important; font-size: 12px !important; }
     .rich-editor h1 { font-size: 18px !important; font-weight: bold !important; }
     .rich-editor h2 { font-size: 16px !important; font-weight: bold !important; }
     .rich-editor h3 { font-size: 14px !important; font-weight: bold !important; }
     .rich-editor img { max-width: 100%; width: 400px; height: auto; display: block; margin: 10px auto; cursor: pointer; border-radius: 4px; }
+
+    /* Tablet & Desktop Styles (768px and up) */
+    @media (min-width: 768px) {
+      .s-card { padding: 28px; border-radius: 20px; margin-bottom: 24px; }
+      .s-card-title { font-size: 1.05rem; margin-bottom: 24px; }
+      .grid-1 { gap: 24px; }
+      .s-btn { padding: 14px 24px; font-size: 14px; border-radius: 12px; }
+    }
+
+    /* Desktop Layout (1024px and up) */
+    @media (min-width: 1024px) {
+      .grid-form-table { grid-template-columns: 1fr 380px; }
+      .sidebar-section { order: 1; /* Move back to sidebar on desktop */ }
+    }
   `}</style>
 );
 
@@ -128,7 +148,14 @@ export function StoriesList() {
               <tbody>
                 {stories.map(s => (
                   <tr key={s.id}>
-                    <td><img src={s.image?.startsWith('http') ? s.image : `${process.env.REACT_APP_API_URL?.replace('/api','')}/uploads/${s.image?.replace('uploads/','')}` || '/placeholder.jpg'} alt="" style={{ width: 56, height: 56, borderRadius: 12, objectFit: 'cover' }} onError={e => e.target.src='/placeholder.jpg'} /></td>
+                    <td>
+                      <img 
+                        src={getImgUrl(s.image)} 
+                        alt="" 
+                        style={{ width: 56, height: 56, borderRadius: 12, objectFit: 'cover' }} 
+                        onError={e => { e.target.onerror = null; e.target.src = PLACEHOLDER; }} 
+                      />
+                    </td>
                     <td>
                       <div style={{ fontWeight: 700, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: 2, color: 'var(--text-main)' }}>{s.title}</div>
                       <div style={{ fontSize: 12, color: 'var(--text-faint)' }}>ID: {s.id}</div>
@@ -361,7 +388,7 @@ export function StoryForm() {
           scheduled_at: s.scheduled_at ? s.scheduled_at.slice(0,16) : '', featured: Boolean(s.featured),
         });
         if (s.image) {
-          setPreview(s.image.startsWith('http') ? s.image : `${process.env.REACT_APP_API_URL?.replace('/api','')}/uploads/${s.image.replace('uploads/','')}`);
+          setPreview(getImgUrl(s.image)); // Fix: Use centralized URL getter
         }
         setLoading(false);
       });
