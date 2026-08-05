@@ -36,23 +36,23 @@ api.interceptors.response.use(
 );
 
 
-// FIX IMAGE URL
+// FIX IMAGE URL (Aliases for both resolveImg and imgUrl to prevent errors across components)
 export const resolveImg = (path) => {
-
   if (!path) {
     return '/placeholder.jpg';
   }
 
-  // niba ari URL yuzuye
-  if (path.startsWith('http')) {
+  if (path.startsWith('http') || path.startsWith('data:')) {
     return path;
   }
 
-  // gukuraho uploads/ niba ihari
   const cleanPath = path.replace(/^uploads\//, '');
+  const formattedPath = cleanPath.startsWith('/') ? cleanPath : `/${cleanPath}`;
 
-  return `${API_URL}/uploads/${cleanPath}`;
+  return `${API_URL}/uploads${formattedPath}`;
 };
+
+export const imgUrl = resolveImg;
 
 
 export const storiesAPI = {
