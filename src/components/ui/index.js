@@ -2,6 +2,21 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { subscribeAPI } from '../../utils/api';
 
+// Helper hook for mobile-first approach
+const useIsMobile = () => {
+  const [isMobile, setIsMobile] = useState(
+    typeof window !== 'undefined' && window.innerWidth < 768
+  );
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  return isMobile;
+};
+
 export const timeAgo = (dateStr) => {
   if (!dateStr) return '';
   const diff = Math.floor((Date.now() - new Date(dateStr)) / 1000);
@@ -25,22 +40,37 @@ export const imgUrl = (path) => {
   return `https://mahokofridaynewsbackend.onrender.com/uploads/${cleanPath}`;
 };
 
-/* ── STORY CARD (horizontal) ─────────────────────────────── */
+// Fallback image to fix the 404 error
+const FALLBACK_IMG = 'https://mahokofridaynewsbackend.onrender.com/uploads/placeholder.jpg';
+
+/* ── STORY CARD (horizontal on desktop, vertical on mobile) ─────────────────────────────── */
 export const StoryCard = ({ story, size = 'md' }) => {
+  const isMobile = useIsMobile();
   const isLarge = size === 'lg';
+  
   return (
     <Link
       to={`/story/${story._id || story.id}`}
       style={{
-        display: 'flex', flexDirection: isLarge ? 'column' : 'row',
-        gap: 14, padding: '14px 0', borderTop: '2px solid #e8e4d8',
-        textDecoration: 'none', color: 'inherit', transition: 'border-color .2s',
+        display: 'flex', 
+        flexDirection: isMobile || isLarge ? 'column' : 'row', // Mobile-first: column
+        gap: 14, 
+        padding: '14px 0', 
+        borderTop: '2px solid #e8e4d8',
+        textDecoration: 'none', 
+        color: 'inherit', 
+        transition: 'border-color .2s',
       }}
     >
       <img
         src={imgUrl(story.image)} alt="" loading="lazy"
-        onError={e => { e.target.onerror = null; e.target.src = '/placeholder.jpg'; }}
-        style={{ width: isLarge ? '100%' : 120, height: isLarge ? 200 : 80, objectFit: 'cover', flexShrink: 0 }}
+        onError={e => { e.target.onerror = null; e.target.src = FALLBACK_IMG; }}
+        style={{ 
+          width: isMobile || isLarge ? '100%' : 120, 
+          height: isMobile ? 180 : (isLarge ? 200 : 80), 
+          objectFit: 'cover', 
+          flexShrink: 0 
+        }}
       />
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 9, fontWeight: 800, letterSpacing: 2, textTransform: 'uppercase', color: '#c0392b', marginBottom: 4 }}>{story.category}</div>
@@ -55,38 +85,58 @@ export const StoryCard = ({ story, size = 'md' }) => {
 };
 
 /* ── GRID CARD ────────────────────────────────────────────── */
-export const GridCard = ({ story }) => (
-  <Link to={`/story/${story._id || story.id}`} style={{ display: 'flex', flexDirection: 'column', gap: 10, textDecoration: 'none', color: 'inherit', borderTop: '2px solid #e8e4d8', paddingTop: 14 }}>
-    <div style={{ overflow: 'hidden', aspectRatio: '16/10' }}>
-      <img src={imgUrl(story.image)} alt="" loading="lazy" onError={e => { e.target.onerror = null; e.target.src = '/placeholder.jpg'; }} style={{ width: '100%', height: '100%', objectFit: 'cover', transition: 'transform .4s' }} />
-    </div>
-    <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 9, fontWeight: 800, letterSpacing: 2, textTransform: 'uppercase', color: '#c0392b' }}>{story.category}</div>
-    <div style={{ fontFamily: "'Playfair Display',Georgia,serif", fontSize: '.92rem', fontWeight: 700, lineHeight: 1.25 }}>{story.title}</div>
-    <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 10, color: '#bbb', display: 'flex', gap: 10 }}>
-      <span>🕐 {timeAgo(story.created_at || story.createdAt)}</span>
-      <span>👁 {Number(story.views || 0).toLocaleString()}</span>
-    </div>
-  </Link>
-);
-
-/* ── HERO CARD ────────────────────────────────────────────── */
-export const HeroCard = ({ story }) => (
-  <Link to={`/story/${story._id || story.id}`} style={{ display: 'block', position: 'relative', overflow: 'hidden', background: '#000', minHeight: 500, textDecoration: 'none' }}>
-    <img src={imgUrl(story.image)} alt="" loading="eager" onError={e => { e.target.onerror = null; e.target.src = '/placeholder.jpg'; }} style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: .8, position: 'absolute', inset: 0, transition: 'transform .7s' }} />
-    <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'linear-gradient(transparent,rgba(0,0,0,.95))', padding: '60px 28px 28px' }}>
-      <div style={{ background: '#c0392b', display: 'inline-flex', alignItems: 'center', fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 800, fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', color: '#fff', padding: '4px 12px', marginBottom: 12 }}>{story.category}</div>
-      <h2 style={{ fontFamily: "'Playfair Display',serif", fontSize: 'clamp(1.5rem,2.8vw,2.5rem)', fontWeight: 900, color: '#fff', lineHeight: 1.15, marginBottom: 10 }}>{story.title}</h2>
-      <p style={{ color: 'rgba(255,255,255,.72)', fontSize: 14, fontStyle: 'italic', lineHeight: 1.55, marginBottom: 14 }}>
-        {(story.description || '').replace(/<[^>]+>/g, '').substring(0, 160)}…
-      </p>
-      <div style={{ display: 'flex', gap: 16, fontFamily: "'Barlow Condensed',sans-serif", fontSize: 11, letterSpacing: 1, color: 'rgba(255,255,255,.5)' }}>
-        <span>👤 {story.author}</span>
+export const GridCard = ({ story }) => {
+  const isMobile = useIsMobile();
+  
+  return (
+    <Link to={`/story/${story._id || story.id}`} style={{ display: 'flex', flexDirection: 'column', gap: 10, textDecoration: 'none', color: 'inherit', borderTop: '2px solid #e8e4d8', paddingTop: 14 }}>
+      <div style={{ overflow: 'hidden', aspectRatio: isMobile ? '16/9' : '16/10' }}>
+        <img 
+          src={imgUrl(story.image)} 
+          alt="" 
+          loading="lazy" 
+          onError={e => { e.target.onerror = null; e.target.src = FALLBACK_IMG; }} 
+          style={{ width: '100%', height: '100%', objectFit: 'cover', transition: 'transform .4s' }} 
+        />
+      </div>
+      <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 9, fontWeight: 800, letterSpacing: 2, textTransform: 'uppercase', color: '#c0392b' }}>{story.category}</div>
+      <div style={{ fontFamily: "'Playfair Display',Georgia,serif", fontSize: '.92rem', fontWeight: 700, lineHeight: 1.25 }}>{story.title}</div>
+      <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 10, color: '#bbb', display: 'flex', gap: 10 }}>
         <span>🕐 {timeAgo(story.created_at || story.createdAt)}</span>
         <span>👁 {Number(story.views || 0).toLocaleString()}</span>
       </div>
-    </div>
-  </Link>
-);
+    </Link>
+  );
+};
+
+/* ── HERO CARD ────────────────────────────────────────────── */
+export const HeroCard = ({ story }) => {
+  const isMobile = useIsMobile();
+  
+  return (
+    <Link to={`/story/${story._id || story.id}`} style={{ display: 'block', position: 'relative', overflow: 'hidden', background: '#000', minHeight: isMobile ? 350 : 500, textDecoration: 'none' }}>
+      <img 
+        src={imgUrl(story.image)} 
+        alt="" 
+        loading="eager" 
+        onError={e => { e.target.onerror = null; e.target.src = FALLBACK_IMG; }} 
+        style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: .8, position: 'absolute', inset: 0, transition: 'transform .7s' }} 
+      />
+      <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'linear-gradient(transparent,rgba(0,0,0,.95))', padding: isMobile ? '40px 20px 20px' : '60px 28px 28px' }}>
+        <div style={{ background: '#c0392b', display: 'inline-flex', alignItems: 'center', fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 800, fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', color: '#fff', padding: '4px 12px', marginBottom: 12 }}>{story.category}</div>
+        <h2 style={{ fontFamily: "'Playfair Display',serif", fontSize: 'clamp(1.5rem,2.8vw,2.5rem)', fontWeight: 900, color: '#fff', lineHeight: 1.15, marginBottom: 10 }}>{story.title}</h2>
+        <p style={{ color: 'rgba(255,255,255,.72)', fontSize: 14, fontStyle: 'italic', lineHeight: 1.55, marginBottom: 14 }}>
+          {(story.description || '').replace(/<[^>]+>/g, '').substring(0, 160)}…
+        </p>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, fontFamily: "'Barlow Condensed',sans-serif", fontSize: 11, letterSpacing: 1, color: 'rgba(255,255,255,.5)' }}>
+          <span>👤 {story.author}</span>
+          <span>🕐 {timeAgo(story.created_at || story.createdAt)}</span>
+          <span>👁 {Number(story.views || 0).toLocaleString()}</span>
+        </div>
+      </div>
+    </Link>
+  );
+};
 
 /* ── POPULAR ITEM ─────────────────────────────────────────── */
 export const PopularItem = ({ story, rank }) => (
@@ -104,21 +154,31 @@ export const PopularItem = ({ story, rank }) => (
 
 /* ── AD BANNER ───────────────────────────────────────────── */
 export const AdBanner = ({ ads = [], height = 90 }) => {
+  const isMobile = useIsMobile();
   const [cur, setCur] = useState(0);
+  
   useEffect(() => {
     if (!ads.length) return;
     const t = setInterval(() => setCur(c => (c + 1) % ads.length), 10000);
     return () => clearInterval(t);
   }, [ads.length]);
+  
   if (!ads.length) return null;
   const ad = ads[cur];
+  const currentHeight = isMobile ? 60 : height; // Shorter height on mobile
+  
   return (
-    <div style={{ position: 'relative', background: '#f0ece0', border: '1px solid #e8e4d8', overflow: 'hidden', height, marginBottom: 24 }}>
+    <div style={{ position: 'relative', background: '#f0ece0', border: '1px solid #e8e4d8', overflow: 'hidden', height: currentHeight, marginBottom: 24 }}>
       <span style={{ position: 'absolute', top: 4, right: 8, fontFamily: "'Barlow Condensed',sans-serif", fontSize: 9, letterSpacing: 2, color: '#bbb', textTransform: 'uppercase', zIndex: 1 }}>Advertisement</span>
       {ad.type === 'video'
         ? <video autoPlay muted loop playsInline style={{ width: '100%', height: '100%', objectFit: 'cover' }}><source src={imgUrl(ad.file)} /></video>
         : <a href={ad.link || '#'} target="_blank" rel="noopener noreferrer" style={{ display: 'block', height: '100%' }}>
-            <img src={imgUrl(ad.file)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={e => { e.target.onerror = null; e.target.style.display = 'none'; }} />
+            <img 
+              src={imgUrl(ad.file)} 
+              alt="" 
+              style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+              onError={e => { e.target.onerror = null; e.target.src = FALLBACK_IMG; }} 
+            />
           </a>
       }
     </div>
@@ -202,11 +262,16 @@ export const EmptyState = ({ icon = '📰', title = 'Nothing here yet', message 
 
 /* ── PAGINATION ───────────────────────────────────────────── */
 export const Pagination = ({ page, totalPages, onChange }) => {
+  const isMobile = useIsMobile();
+  
   if (totalPages <= 1) return null;
   const pages = [];
-  for (let i = 1; i <= Math.min(totalPages, 8); i++) pages.push(i);
+  // Show fewer pages on mobile
+  const maxPages = isMobile ? 4 : 8;
+  for (let i = 1; i <= Math.min(totalPages, maxPages); i++) pages.push(i);
+  
   return (
-    <div style={{ display: 'flex', gap: 4, marginTop: 30, flexWrap: 'wrap' }}>
+    <div style={{ display: 'flex', gap: 4, marginTop: 30, flexWrap: 'wrap', justifyContent: isMobile ? 'center' : 'flex-start' }}>
       {page > 1 && (
         <button onClick={() => onChange(page - 1)} style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 12, fontWeight: 700, letterSpacing: 1, padding: '8px 14px', border: '1.5px solid #e8e4d8', background: '#fff', cursor: 'pointer' }}>← Prev</button>
       )}
