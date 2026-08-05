@@ -4,6 +4,10 @@ import PublicLayout from '../../components/layout/PublicLayout';
 import { PopularItem, AdBanner, SectionLabel, NewsletterWidget, WhatsAppCTA, Spinner, EmptyState, imgUrl, timeAgo } from '../../components/ui';
 import { storiesAPI, commentsAPI, adsAPI } from '../../utils/api';
 
+// Fix: Define a centralized placeholder image to prevent 404 errors
+const API_BASE = process.env.REACT_APP_API_URL?.replace('/api', '') || 'https://mahokofridaynewsbackend.onrender.com';
+const PLACEHOLDER = `${API_BASE}/uploads/placeholder.jpg`;
+
 export default function StoryPage() {
   const { id } = useParams();
   const [story, setStory] = useState(null);
@@ -218,26 +222,38 @@ export default function StoryPage() {
         .mhk-float-track { display: flex; flex-direction: column; transition: transform 0.5s cubic-bezier(.2,.8,.2,1); }
         .mhk-float-slide { flex-shrink: 0; width: 100%; height: 160px; }
         
-        /* Responsive Layout Grid (Mobile First) */
+        /* Base Mobile-First Styles */
         .mhk-layout-grid {
           display: grid;
-          grid-template-columns: 1fr; /* Mobile */
+          grid-template-columns: 1fr; /* 1 column on mobile */
           gap: 20px;
         }
         .mhk-left-col, .mhk-right-col { width: 100%; }
+        .mhk-left-col { display: none; } /* Hide left ads by default on mobile to save space */
         
+        .mhk-comment-form-grid { 
+          display: grid; 
+          grid-template-columns: 1fr; /* 1 column on mobile */
+          gap: 11px; 
+        }
+        .mhk-float-container { width: calc(100vw - 24px) !important; }
+        .mhk-modal-wrap { padding: 12px !important; }
+
+        /* Tablet Styles (768px and up) */
         @media (min-width: 768px) {
-          /* Tablet */
           .mhk-layout-grid {
             grid-template-columns: 1fr 240px; /* Content + Right Sidebar */
             gap: 24px;
           }
           .mhk-right-col { width: 240px; position: sticky; top: 72px; align-self: start; max-height: calc(100vh - 90px); overflow-y: auto; }
-          .mhk-left-col { display: none; } /* Hide left ads on tablet to save space */
+          .mhk-left-col { display: none; } /* Still hide left ads on tablet */
+          .mhk-comment-form-grid { 
+            grid-template-columns: 1fr 1fr; /* 2 columns for form inputs on tablet */
+          }
         }
         
+        /* Desktop Styles (1024px and up) */
         @media (min-width: 1024px) {
-          /* Desktop */
           .mhk-layout-grid {
             grid-template-columns: 220px 1fr 280px; /* Left Sidebar + Content + Right Sidebar */
             gap: 32px;
@@ -247,12 +263,6 @@ export default function StoryPage() {
           /* Custom scrollbar for sidebars */
           .mhk-left-col::-webkit-scrollbar, .mhk-right-col::-webkit-scrollbar { width: 4px; }
           .mhk-left-col::-webkit-scrollbar-thumb, .mhk-right-col::-webkit-scrollbar-thumb { background: #ccc; border-radius: 2px; }
-        }
-        
-        @media (max-width: 560px) {
-          .mhk-comment-form-grid { gridTemplateColumns: '1fr' !important; }
-          .mhk-float-container { width: calc(100vw - 24px) !important; }
-          .mhk-modal-wrap { padding: 12px !important; }
         }
       `}</style>
 
@@ -303,7 +313,7 @@ export default function StoryPage() {
               src={imgUrl(story.image)}
               alt={story.title}
               loading="eager"
-              onError={e => { e.target.onerror = null; e.target.src = '/placeholder.jpg'; }}
+              onError={e => { e.target.onerror = null; e.target.src = PLACEHOLDER; }}
               style={{
                 width: '100%',
                 maxWidth: 720,
@@ -374,7 +384,7 @@ export default function StoryPage() {
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(160px,1fr))', gap: 16 }}>
                   {related.map(s => (
                     <Link key={s._id || s.id} to={`/story/${s._id || s.id}`} className="mhk-related-card" style={{ textDecoration: 'none', color: 'inherit', display: 'block', borderRadius: 6 }}>
-                      <img className="mhk-related-img" src={imgUrl(s.image)} alt="" loading="lazy" onError={e => { e.target.onerror = null; e.target.src = '/placeholder.jpg'; }}
+                      <img className="mhk-related-img" src={imgUrl(s.image)} alt="" loading="lazy" onError={e => { e.target.onerror = null; e.target.src = PLACEHOLDER; }}
                         style={{ width:'100%', aspectRatio:'16/10', height:'auto', objectFit:'cover', marginBottom:6, borderRadius:6, display:'block' }} />
                       <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 9, color: '#c0392b', fontWeight: 800, letterSpacing: 2, marginBottom: 3 }}>{s.category}</div>
                       <div style={{ fontFamily: "'Playfair Display',serif", fontSize: '.82rem', fontWeight: 700, lineHeight: 1.3 }}>{(s.title || '').substring(0, 65)}</div>
@@ -444,7 +454,6 @@ export default function StoryPage() {
             left: '50%',
             transform: 'translateX(-50%)',
             zIndex: 9000,
-            width: 380,
             maxWidth: 'calc(100vw - 24px)',
             pointerEvents: 'auto'
           }}
@@ -565,7 +574,7 @@ export default function StoryPage() {
             <div style={{ background: '#f0ece0', padding: '18px', borderTop: '2px solid #e8e4d8' }}>
               <h4 style={{ fontFamily: "'Playfair Display',serif", fontSize: '1.02rem', fontWeight: 700, marginBottom: 12 }}>Leave a Comment</h4>
               <form onSubmit={handleComment} style={{ display: 'flex', flexDirection: 'column', gap: 11 }}>
-                <div className="mhk-comment-form-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 11 }}>
+                <div className="mhk-comment-form-grid">
                   <div>
                     <label style={{ display: 'block', fontFamily: "'Barlow Condensed',sans-serif", fontSize: 9, fontWeight: 800, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 5, color: '#5a5a5a' }}>Name (blank = BANYA)</label>
                     <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Your name…"
@@ -642,7 +651,7 @@ const AdCard = React.memo(function AdCard({ ad, height = 180, fluid = false }) {
           src={img}
           alt={title}
           loading="lazy"
-          onError={e => { e.target.onerror = null; e.target.src = '/placeholder.jpg'; }}
+          onError={e => { e.target.onerror = null; e.target.src = PLACEHOLDER; }}
           style={{ width: '100%', height: fluid ? '100%' : height, objectFit: 'cover', display: 'block', flex: 1 }}
         />
       ) : (
