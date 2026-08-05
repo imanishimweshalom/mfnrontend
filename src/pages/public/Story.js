@@ -24,10 +24,8 @@ export default function StoryPage() {
   const [showCommentModal, setShowCommentModal] = useState(false);
   const [refreshingComments, setRefreshingComments] = useState(false);
 
-  const [floatVisible, setFloatVisible] = useState(false);
-  const [floatClosing, setFloatClosing] = useState(false);
-  const [floatIndex, setFloatIndex] = useState(0);
-  const [hasStarted, setHasStarted] = useState(false);
+  // Simplified state for the bottom carousel
+  const [adIndex, setAdIndex] = useState(0);
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -58,73 +56,25 @@ export default function StoryPage() {
     load();
   }, [id]);
 
+  // Process active ads safely
   const activeAds = useMemo(() => {
     return (ads || []).filter(a => 
       a && (a.is_active !== false && a.status !== 'inactive' && a.status !== 'paused' && a.status !== 'draft')
     );
   }, [ads]);
 
-  const leftAds = useMemo(() => activeAds, [activeAds]); 
-  const floatAds = useMemo(() => activeAds, [activeAds]); 
+  // Restrict ad areas to exactly 3 ads per section
+  const leftAds = useMemo(() => activeAds.slice(0, 3), [activeAds]); 
+  const floatAds = useMemo(() => activeAds.slice(0, 3), [activeAds]); 
 
+  // Simple interval to cycle the bottom ad carousel every 8 seconds
   useEffect(() => {
-    if (floatAds.length > 0 && !hasStarted) {
-      const timer = setTimeout(() => {
-        setFloatVisible(true);
-        setHasStarted(true);
-      }, 2500); 
-      return () => clearTimeout(timer);
-    }
-  }, [floatAds, hasStarted]);
-
-  useEffect(() => {
-    if (!hasStarted || floatAds.length === 0) return;
-
-    let timer;
-    if (floatVisible) {
-      timer = setTimeout(() => {
-        if (floatIndex === floatAds.length - 1) {
-          setFloatClosing(true);
-          timer = setTimeout(() => {
-            setFloatVisible(false);
-            setFloatClosing(false);
-          }, 400); 
-        } else {
-          setFloatIndex(prev => prev + 1);
-        }
-      }, 8000); 
-    } else if (hasStarted) {
-      timer = setTimeout(() => {
-        setFloatIndex(0);
-        setFloatVisible(true);
-      }, 5000); 
-    }
-
-    return () => clearTimeout(timer);
-  }, [hasStarted, floatVisible, floatIndex, floatAds]);
-
-  useEffect(() => {
-    if (!floatVisible) return;
-    const footer = document.querySelector('footer') || document.querySelector('[data-footer]');
-    let observer;
-    if (footer) {
-      observer = new IntersectionObserver(entries => {
-        entries.forEach(entry => {
-          if (entry.isIntersecting) {
-            setFloatClosing(true);
-            setTimeout(() => {
-              setFloatVisible(false);
-              setFloatClosing(false);
-            }, 400);
-          }
-        });
-      }, { threshold: 0.05 });
-      observer.observe(footer);
-    }
-    return () => {
-      if (observer) observer.disconnect();
-    };
-  }, [floatVisible]);
+    if (floatAds.length === 0) return;
+    const timer = setInterval(() => {
+      setAdIndex(prev => (prev + 1) % floatAds.length);
+    }, 8000);
+    return () => clearInterval(timer);
+  }, [floatAds]);
 
   useEffect(() => {
     document.body.style.overflow = showCommentModal ? 'hidden' : '';
@@ -171,15 +121,11 @@ export default function StoryPage() {
   return (
     <PublicLayout>
       <style>{`
-        @keyframes mhkFloatUp { from { transform: translate(-50%, 120%); opacity: 0; } to { transform: translate(-50%, 0); opacity: 1; } }
-        @keyframes mhkFloatDown { from { transform: translate(-50%, 0); opacity: 1; } to { transform: translate(-50%, 120%); opacity: 0; } }
         @keyframes mhkFade { from { opacity: 0; } to { opacity: 1; } }
         @keyframes mhkPop { from { transform: translateY(40px) scale(.98); opacity: 0; } to { transform: translateY(0) scale(1); opacity: 1; } }
         @keyframes mhkSpin { to { transform: rotate(360deg); } }
         @keyframes mhkAdFade { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         
-        .mhk-float-container { animation: mhkFloatUp .5s cubic-bezier(.2,.8,.2,1) forwards; }
-        .mhk-float-container.closing { animation: mhkFloatDown .4s ease-in forwards; }
         .mhk-modal-bg { animation: mhkFade .25s ease-out forwards; }
         .mhk-modal-card { animation: mhkPop .3s cubic-bezier(.2,.8,.2,1) forwards; }
         .mhk-spin { display:inline-block; width:14px; height:14px; border:2px solid #fff; border-top-color:transparent; border-radius:50%; animation: mhkSpin .6s linear infinite; }
@@ -197,12 +143,12 @@ export default function StoryPage() {
         .mhk-story-img { transition: transform .4s ease; }
         .mhk-story-img:hover { transform: scale(1.015); }
         
-        .mhk-ad-card { transition: transform .3s ease, box-shadow .3s ease; border: 1px solid #e8e4d8; border-radius: 6px; overflow: hidden; display: block; }
+        .mhk-ad-card { transition: transform .3s ease, box-shadow .3s ease; border: 1px solid #e8e4d8; border-radius: 6px; overflow: hidden; display: flex; flex-direction: column; }
         .mhk-ad-card:hover { transform: translateY(-3px); box-shadow: 0 8px 18px rgba(0,0,0,.12); }
         .mhk-ad-card img, .mhk-ad-card video { transition: transform .4s ease; }
         .mhk-ad-card:hover img, .mhk-ad-card:hover video { transform: scale(1.04); }
         
-        .mhk-float-fade { animation: mhkAdFade 0.5s ease; display: flex; gap: 12px; width: 100%; }
+        .mhk-float-fade { animation: mhkAdFade 0.5s ease; display: flex; gap: 16px; width: 100%; align-items: stretch; }
         .mhk-float-extra { display: none; flex: 1; }
         
         .mhk-layout-grid {
@@ -218,7 +164,6 @@ export default function StoryPage() {
           grid-template-columns: 1fr; 
           gap: 11px; 
         }
-        .mhk-float-container { width: calc(100vw - 24px) !important; max-width: 400px; }
         .mhk-modal-wrap { padding: 12px !important; }
 
         @media (min-width: 768px) {
@@ -233,7 +178,6 @@ export default function StoryPage() {
           }
           /* Show 3 ad areas on desktop */
           .mhk-float-extra { display: flex; }
-          .mhk-float-container { max-width: 900px !important; }
         }
         
         @media (min-width: 1024px) {
@@ -248,10 +192,11 @@ export default function StoryPage() {
         }
       `}</style>
 
-      <div style={{ maxWidth: 1280, margin: '0 auto', padding: '20px 16px 32px' }}>
+      <div style={{ maxWidth: 1280, margin: '0 auto', padding: '20px 16px 60px' }}>
 
         <div className="mhk-layout-grid">
 
+          {/* ── LEFT ADVERTISEMENT SIDEBAR (Max 3 Ads) ── */}
           {leftAds.length > 0 && (
             <aside className="mhk-left-col">
               {leftAds.map((ad, i) => (
@@ -260,6 +205,7 @@ export default function StoryPage() {
             </aside>
           )}
 
+          {/* ── ARTICLE ──────────────────────────────────────── */}
           <article className="mhk-center-col">
             <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', color: '#bbb', display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12, flexWrap:'wrap' }}>
               <Link to="/" style={{ color: '#bbb', textDecoration: 'none' }}>Home</Link>
@@ -350,7 +296,8 @@ export default function StoryPage() {
               </div>
             </div>
 
-            <AdBanner ads={ads.slice(0, 2)} height={90} />
+            {/* Inline Ad - Max 3 Ads Rotating */}
+            <AdBanner ads={ads.slice(0, 3)} height={90} />
 
             {related.length > 0 && (
               <section style={{ marginBottom: 28 }}>
@@ -395,6 +342,7 @@ export default function StoryPage() {
             </section>
           </article>
 
+          {/* ── RIGHT SIDEBAR ── */}
           <aside className="mhk-right-col">
             <div>
               <div style={{ background: '#fff', border: '1px solid #e8e4d8', padding: 16, marginBottom: 18, borderTop: '3px solid #0d0d0d', borderRadius: 2 }}>
@@ -404,49 +352,34 @@ export default function StoryPage() {
 
               <NewsletterWidget />
 
-              <AdBanner ads={ads.slice(2, 5)} height={200} />
+              {/* Right Sidebar Ad - Max 3 Ads Rotating */}
+              <AdBanner ads={ads.slice(0, 3)} height={200} />
 
               <WhatsAppCTA />
             </div>
           </aside>
         </div>
+
+        {/* ───────────────────────────────────────────────────────────────
+            BOTTOM AD CAROUSEL 
+            (Placed at the bottom so it doesn't block the story. 
+            Displays 3 areas on desktop, 1 on mobile. Cycles every 8s)
+        ─────────────────────────────────────────────────────────────── */}
+        {floatAds.length > 0 && (
+          <div style={{ marginTop: 40 }}>
+            <SectionLabel>Our Sponsors</SectionLabel>
+            <div key={adIndex} className="mhk-float-fade" style={{ minHeight: 180 }}>
+              <AdCard ad={floatAds[adIndex % floatAds.length]} fluid />
+              <AdCard ad={floatAds[(adIndex + 1) % floatAds.length]} fluid className="mhk-float-extra" />
+              <AdCard ad={floatAds[(adIndex + 2) % floatAds.length]} fluid className="mhk-float-extra" />
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ───────────────────────────────────────────────────────────────
-          FLOATING BOTTOM AD CAROUSEL 
-          (Displays 3 areas on desktop, 1 on mobile. Cycles all ads every 8s)
+          COMMENT MODAL 
       ─────────────────────────────────────────────────────────────── */}
-      {floatVisible && floatAds.length > 0 && (
-        <div
-          className={`mhk-float-container ${floatClosing ? 'closing' : ''}`}
-          style={{
-            position: 'fixed',
-            bottom: 15,
-            left: '50%',
-            transform: 'translateX(-50%)',
-            zIndex: 9000,
-            pointerEvents: 'auto'
-          }}
-        >
-          <div
-            style={{
-              position: 'relative',
-              background: 'transparent',
-              borderRadius: 8,
-              boxShadow: 'none',
-              overflow: 'visible',
-              border: 'none'
-            }}
-          >
-            <div key={floatIndex} className="mhk-float-fade">
-              <AdCard ad={floatAds[floatIndex % floatAds.length]} fluid />
-              <AdCard ad={floatAds[(floatIndex + 1) % floatAds.length]} fluid className="mhk-float-extra" />
-              <AdCard ad={floatAds[(floatIndex + 2) % floatAds.length]} fluid className="mhk-float-extra" />
-            </div>
-          </div>
-        </div>
-      )}
-
       {showCommentModal && (
         <div
           className="mhk-modal-bg"
@@ -586,8 +519,10 @@ const AdCard = React.memo(function AdCard({ ad, height = 180, fluid = false, cla
       rel="noopener noreferrer sponsored"
       className={`mhk-ad-card ${className}`}
       style={{
-        display: 'flex', flexDirection: 'column', width: '100%', height: fluid ? '100%' : 'auto',
-        textDecoration: 'none', background: '#fff',
+        width: '100%', 
+        height: fluid ? '100%' : height,
+        textDecoration: 'none', 
+        background: '#fff',
         marginBottom: fluid ? 0 : 12,
         flex: fluid ? 1 : 'unset'
       }}
@@ -600,7 +535,7 @@ const AdCard = React.memo(function AdCard({ ad, height = 180, fluid = false, cla
             muted
             loop
             playsInline
-            style={{ width: '100%', height: fluid ? '100%' : height, objectFit: 'cover', display: 'block', flex: 1 }}
+            style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', flex: 1 }}
           />
         ) : (
           <img
@@ -608,12 +543,12 @@ const AdCard = React.memo(function AdCard({ ad, height = 180, fluid = false, cla
             alt={title}
             loading="lazy"
             onError={e => { e.target.onerror = null; e.target.src = PLACEHOLDER; }}
-            style={{ width: '100%', height: fluid ? '100%' : height, objectFit: 'cover', display: 'block', flex: 1 }}
+            style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', flex: 1 }}
           />
         )
       ) : (
         <div style={{ 
-          width: '100%', height: fluid ? '100%' : height, 
+          width: '100%', height: '100%', 
           display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', 
           color: '#bbb', fontFamily: "'Barlow Condensed',sans-serif", fontSize: 14, 
           flex: 1, background: '#f8f9fa', padding: '10px', textAlign: 'center' 
