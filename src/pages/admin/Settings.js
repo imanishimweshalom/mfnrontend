@@ -53,23 +53,17 @@ export default function Settings() {
         .s-container { font-family: 'Plus Jakarta Sans', sans-serif; animation: fadeIn .4s ease-out; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 
-        .s-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 32px; flex-wrap: wrap; gap: 16px; }
-        .s-title { font-weight: 800; font-size: 1.8rem; letter-spacing: -0.03em; margin: 0; color: var(--text-main); }
+        /* Base Mobile Styles */
+        .s-header { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; margin-bottom: 24px; }
+        .s-title { font-weight: 800; font-size: 1.5rem; letter-spacing: -0.03em; margin: 0; color: var(--text-main); }
 
-        /* Cards */
-        .s-card { background: var(--bg-card); padding: 28px; border-radius: 20px; border: 1px solid var(--border); box-shadow: 0 4px 15px rgba(0,0,0,.03); margin-bottom: 24px; transition: box-shadow .3s; }
+        .s-card { background: var(--bg-card); padding: 20px; border-radius: 16px; border: 1px solid var(--border); box-shadow: 0 4px 15px rgba(0,0,0,.03); margin-bottom: 16px; transition: box-shadow .3s; }
         .s-card:hover { box-shadow: 0 8px 25px rgba(0,0,0,.06); }
-        .s-card-title { font-weight: 800; margin: 0 0 24px; font-size: 1.05rem; display: flex; align-items: center; gap: 10px; color: var(--text-main); }
+        .s-card-title { font-weight: 800; margin: 0 0 20px; font-size: 1rem; display: flex; align-items: center; gap: 10px; color: var(--text-main); }
         
-        /* Grids - Mobile First */
-        .grid-1 { display: grid; grid-template-columns: 1fr; gap: 24px; }
-        @media (min-width: 768px) { .grid-2 { grid-template-columns: 1fr 1fr; } }
-        @media (min-width: 1024px) { .grid-form-table { grid-template-columns: 380px 1fr; } }
-        .grid-auto { display: grid; grid-template-columns: 1fr; gap: 16px; }
-        @media (min-width: 640px) { .grid-auto { grid-template-columns: repeat(2, 1fr); } }
-        @media (min-width: 1024px) { .grid-auto-3 { grid-template-columns: repeat(3, 1fr); } }
+        .grid-1, .grid-2, .grid-form-table { display: grid; grid-template-columns: 1fr; gap: 16px; }
+        .grid-auto { display: grid; grid-template-columns: 1fr; gap: 12px; }
 
-        /* Inputs - Modern Floating */
         .s-input-group { position: relative; margin-bottom: 20px; }
         .s-input { width: 100%; padding: 20px 16px 8px 48px; border: 2px solid var(--border); border-radius: 12px; font-size: 14px; outline: none; font-family: inherit; box-sizing: border-box; transition: border-color .2s, box-shadow .2s; background: transparent; color: var(--text-main); font-weight: 600; }
         .s-input:focus { border-color: var(--primary); box-shadow: 0 0 0 4px rgba(26, 71, 42, 0.1); }
@@ -78,38 +72,46 @@ export default function Settings() {
         .s-floating-label { position: absolute; left: 48px; top: 50%; transform: translateY(-50%); color: var(--text-faint); font-size: 14px; pointer-events: none; transition: all .2s ease; font-weight: 500; }
         .s-input:focus ~ .s-floating-label, .s-input:not(:placeholder-shown) ~ .s-floating-label { top: 10px; transform: translateY(0); font-size: 10px; color: var(--primary); font-weight: 700; text-transform: uppercase; letter-spacing: .05em; }
 
-        /* Select override */
         .s-select { width: 100%; padding: 14px 16px 14px 48px; border: 2px solid var(--border); border-radius: 12px; font-size: 14px; outline: none; font-family: inherit; box-sizing: border-box; background: #fff; font-weight: 600; color: var(--text-main); appearance: none; }
         
-        /* Buttons */
         .s-btn { background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%); color: #fff; border: none; padding: 14px 24px; border-radius: 12px; font-weight: 700; font-size: 14px; cursor: pointer; font-family: inherit; transition: all .2s; box-shadow: 0 4px 6px -1px rgba(26, 71, 42, 0.2); display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
         .s-btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 10px 15px -3px rgba(26, 71, 42, 0.3); }
         .s-btn:disabled { background: var(--text-faint); cursor: not-allowed; box-shadow: none; }
         .s-btn-full { width: 100%; justify-content: center; }
 
-        /* Alerts */
         .s-alert { padding: 12px 16px; border-radius: 10px; margin-bottom: 20px; font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
         .s-alert-ok { background: #f0fdf4; color: #166534; border: 1px solid #86efac; }
         .s-alert-err { background: #fef2f2; color: #b91c1c; border: 1px solid #fca5a5; }
 
-        /* Table */
         .s-table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
         .s-table { width: 100%; border-collapse: separate; border-spacing: 0; min-width: 640px; }
-        .s-table thead th { padding: 14px 16px; background: var(--bg-subtle); color: var(--text-muted); font-size: 11px; text-transform: uppercase; font-weight: 800; borderBottom: '1px solid var(--border)'; textAlign: 'left'; letterSpacing: .05em; }
+        .s-table thead th { padding: 14px 16px; background: var(--bg-subtle); color: var(--text-muted); font-size: 11px; text-transform: uppercase; font-weight: 800; border-bottom: 1px solid var(--border); text-align: left; letter-spacing: .05em; }
         .s-table tbody tr { transition: background .2s; }
         .s-table tbody tr:hover { background: #f8fafc; }
         .s-table tbody td { padding: 16px; border-bottom: 1px solid #f1f5f9; font-size: 14px; }
 
-        /* Badges */
         .badge { padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 700; display: inline-block; }
 
-        /* Profile Info Rows */
-        .profile-row { display: flex; justify-content: space-between; padding: 14px 16px; background: var(--bg-subtle); borderRadius: 10; border: 1px solid var(--border); transition: background .2s; }
+        .profile-row { display: flex; justify-content: space-between; padding: 14px 16px; background: var(--bg-subtle); border-radius: 10px; border: 1px solid var(--border); transition: background .2s; }
         .profile-row:hover { background: #f1f5f9; }
 
-        /* Social Links */
         .social-link { display: flex; align-items: center; gap: 12px; padding: 14px 16px; background: var(--bg-subtle); border-radius: 12px; border: 1px solid var(--border); text-decoration: none; color: var(--text-main); font-size: 14px; font-weight: 600; transition: all .2s; }
         .social-link:hover { border-color: var(--primary); background: #fff; transform: translateY(-1px); }
+
+        /* Tablet Styles (768px and up) */
+        @media (min-width: 768px) {
+          .s-header { flex-direction: row; justify-content: space-between; align-items: center; margin-bottom: 32px; }
+          .s-title { font-size: 1.8rem; }
+          .s-card { padding: 28px; border-radius: 20px; margin-bottom: 24px; }
+          .grid-2 { grid-template-columns: 1fr 1fr; }
+          .grid-auto { grid-template-columns: repeat(2, 1fr); }
+        }
+
+        /* Desktop Styles (1024px and up) */
+        @media (min-width: 1024px) {
+          .grid-form-table { grid-template-columns: 380px 1fr; }
+          .grid-auto-3 { grid-template-columns: repeat(3, 1fr); }
+        }
       `}</style>
 
       <div className="s-container">
@@ -117,7 +119,7 @@ export default function Settings() {
           <h1 className="s-title">Settings</h1>
         </div>
 
-        <div className="grid-1 grid-2" style={{ display: 'grid' }}>
+        <div className="grid-1 grid-2">
           {/* ── Change Password ───────────────────────────────── */}
           <div className="s-card">
             <h3 className="s-card-title"><span>🔐</span> Change Password</h3>
@@ -173,7 +175,7 @@ export default function Settings() {
 
         {/* ── Admin Users Management ────────────────────────── */}
         {user?.role === 'Admin' && (
-          <div className="grid-1 grid-form-table" style={{ display: 'grid' }}>
+          <div className="grid-1 grid-form-table">
             <div className="s-card">
               <h3 className="s-card-title"><span>➕</span> Create Admin User</h3>
               <form onSubmit={handleCreateUser}>
@@ -255,7 +257,7 @@ export default function Settings() {
         {/* ── Site Information ─────────────────────────────── */}
         <div className="s-card">
           <h3 className="s-card-title"><span>🌐</span> Site Information</h3>
-          <div className="grid-auto grid-auto-3" style={{ display: 'grid' }}>
+          <div className="grid-auto grid-auto-3">
             {[
               ['Site Name', 'Mahoko Friday News'], ['Tagline', "Make Youth's Voice Be Heard"], ['Language', 'Kinyarwanda / English'], ['Location', 'Kigali, Rwanda'], ['Founded', '2018'], ['Email', 'mahokofridaynews@gmail.com'], ['Phone', '+250 739 903 542'], ['Database', 'MongoDB'], ['Backend', 'Node.js + Express'], ['Frontend', 'React.js'],
             ].map(([label, val]) => (
@@ -270,7 +272,7 @@ export default function Settings() {
         {/* ── Social Media Links ────────────────────────────── */}
         <div className="s-card" style={{ marginBottom: 40 }}>
           <h3 className="s-card-title"><span>📱</span> Social Media</h3>
-          <div className="grid-auto" style={{ display: 'grid' }}>
+          <div className="grid-auto">
             {[
               ['Facebook', 'https://www.facebook.com/profile.php?id=61579631955116', '#1877f2'],
               ['Twitter / X', 'https://x.com/ZigaMichel28110', '#0d0d0d'],
