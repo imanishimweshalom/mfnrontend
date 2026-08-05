@@ -4,9 +4,9 @@ import PublicLayout from '../../components/layout/PublicLayout';
 import { PopularItem, AdBanner, SectionLabel, NewsletterWidget, WhatsAppCTA, Spinner, EmptyState, imgUrl, timeAgo } from '../../components/ui';
 import { storiesAPI, commentsAPI, adsAPI } from '../../utils/api';
 
-// Fix: Define a centralized placeholder image to prevent 404 errors
-const API_BASE = process.env.REACT_APP_API_URL?.replace('/api', '') || 'https://mahokofridaynewsbackend.onrender.com';
-const PLACEHOLDER = `${API_BASE}/uploads/placeholder.jpg`;
+// Fix: Embedded Data URI placeholder. This guarantees an image will always show, 
+// even if the backend placeholder file is missing or fails to load.
+const PLACEHOLDER = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16'%3E%3Crect width='16' height='16' fill='%23e8e4d8'/%3E%3C/svg%3E";
 
 export default function StoryPage() {
   const { id } = useParams();
@@ -21,11 +21,9 @@ export default function StoryPage() {
   const [commentMsg, setCommentMsg] = useState('');
   const [reactions, setReactions] = useState({ likes: 0, dislikes: 0 });
 
-  /* ── NEW STATE (added on top, no existing state touched) ── */
   const [showCommentModal, setShowCommentModal] = useState(false);
   const [refreshingComments, setRefreshingComments] = useState(false);
 
-  /* ── FLOATING AD STATE MACHINE ── */
   const [floatVisible, setFloatVisible] = useState(false);
   const [floatClosing, setFloatClosing] = useState(false);
   const [floatIndex, setFloatIndex] = useState(0);
@@ -48,12 +46,10 @@ export default function StoryPage() {
         setComments(cRes.data || []);
         setPopular(pRes.data || []);
         
-        // Safely parse ads API response
         const adsData = aRes.data;
         const adsArray = Array.isArray(adsData) ? adsData : (adsData?.ads || adsData?.data || adsData?.items || []);
         setAds(adsArray);
 
-        // Related
         const relRes = await storiesAPI.getAll({ category: s.category, limit: 5, status: 'published' });
         setRelated((relRes.data.stories || []).filter(r => (r._id || r.id).toString() !== id).slice(0, 4));
       } catch (e) { console.error(e); }
@@ -62,49 +58,42 @@ export default function StoryPage() {
     load();
   }, [id]);
 
-  /* ── Process active ads safely (Ignore position, use ALL active ads) ── */
   const activeAds = useMemo(() => {
     return (ads || []).filter(a => 
       a && (a.is_active !== false && a.status !== 'inactive' && a.status !== 'paused' && a.status !== 'draft')
     );
   }, [ads]);
 
-  const leftAds = useMemo(() => activeAds, [activeAds]); // All ads go to left sidebar
-  const floatAds = useMemo(() => activeAds, [activeAds]); // All ads used for floating rotation
+  const leftAds = useMemo(() => activeAds, [activeAds]); 
+  const floatAds = useMemo(() => activeAds, [activeAds]); 
 
-  /* ── Initial trigger for floating ad ── */
   useEffect(() => {
     if (floatAds.length > 0 && !hasStarted) {
       const timer = setTimeout(() => {
         setFloatVisible(true);
         setHasStarted(true);
-      }, 2500); // Wait 2.5s initially before first appearance
+      }, 2500); 
       return () => clearTimeout(timer);
     }
   }, [floatAds, hasStarted]);
 
-  /* ── Core Floating Ad Cycle Logic (8s visible, 5s hidden, restart) ── */
   useEffect(() => {
     if (!hasStarted || floatAds.length === 0) return;
 
     let timer;
     if (floatVisible) {
-      // Ad is currently visible
       timer = setTimeout(() => {
         if (floatIndex === floatAds.length - 1) {
-          // Last ad in the cycle reached -> Close smoothly
           setFloatClosing(true);
           timer = setTimeout(() => {
             setFloatVisible(false);
             setFloatClosing(false);
-          }, 400); // Wait for slide-down animation
+          }, 400); 
         } else {
-          // Move to next ad
           setFloatIndex(prev => prev + 1);
         }
-      }, 8000); // Stay on each ad for 8 seconds
+      }, 8000); 
     } else if (hasStarted) {
-      // Ad is hidden, wait 5 seconds then restart from beginning
       timer = setTimeout(() => {
         setFloatIndex(0);
         setFloatVisible(true);
@@ -114,7 +103,6 @@ export default function StoryPage() {
     return () => clearTimeout(timer);
   }, [hasStarted, floatVisible, floatIndex, floatAds]);
 
-  /* ── Stop covering the footer when it enters the viewport ── */
   useEffect(() => {
     if (!floatVisible) return;
     const footer = document.querySelector('footer') || document.querySelector('[data-footer]');
@@ -138,13 +126,11 @@ export default function StoryPage() {
     };
   }, [floatVisible]);
 
-  /* ── lock body scroll when comment modal open ── */
   useEffect(() => {
     document.body.style.overflow = showCommentModal ? 'hidden' : '';
     return () => { document.body.style.overflow = ''; };
   }, [showCommentModal]);
 
-  /* ── ESC key closes modal ── */
   useEffect(() => {
     const onKey = (e) => { if (e.key === 'Escape') setShowCommentModal(false); };
     if (showCommentModal) window.addEventListener('keydown', onKey);
@@ -166,7 +152,6 @@ export default function StoryPage() {
       await commentsAPI.create({ story_id: id, ...form });
       setCommentMsg('✅ Comment submitted for review!');
       setForm({ name: '', email: '', comment: '' });
-      // refresh comments silently inside modal
       setRefreshingComments(true);
       try {
         const cRes = await commentsAPI.getByStory(id);
@@ -185,7 +170,6 @@ export default function StoryPage() {
 
   return (
     <PublicLayout>
-      {/* ── Injected animations + mobile-first responsive tweaks ── */}
       <style>{`
         @keyframes mhkFloatUp { from { transform: translate(-50%, 120%); opacity: 0; } to { transform: translate(-50%, 0); opacity: 1; } }
         @keyframes mhkFloatDown { from { transform: translate(-50%, 0); opacity: 1; } to { transform: translate(-50%, 120%); opacity: 0; } }
@@ -212,55 +196,49 @@ export default function StoryPage() {
         .mhk-story-img { transition: transform .4s ease; }
         .mhk-story-img:hover { transform: scale(1.015); }
         
-        /* Ad Card Animation */
         .mhk-ad-card { transition: transform .3s ease, box-shadow .3s ease; border: 1px solid #e8e4d8; border-radius: 6px; overflow: hidden; display: block; }
         .mhk-ad-card:hover { transform: translateY(-3px); box-shadow: 0 8px 18px rgba(0,0,0,.12); }
         .mhk-ad-card img { transition: transform .4s ease; }
         .mhk-ad-card:hover img { transform: scale(1.04); }
         
-        /* Floating Ad Carousel Track */
         .mhk-float-track { display: flex; flex-direction: column; transition: transform 0.5s cubic-bezier(.2,.8,.2,1); }
         .mhk-float-slide { flex-shrink: 0; width: 100%; height: 160px; }
         
-        /* Base Mobile-First Styles */
         .mhk-layout-grid {
           display: grid;
-          grid-template-columns: 1fr; /* 1 column on mobile */
+          grid-template-columns: 1fr; 
           gap: 20px;
         }
         .mhk-left-col, .mhk-right-col { width: 100%; }
-        .mhk-left-col { display: none; } /* Hide left ads by default on mobile to save space */
+        .mhk-left-col { display: none; } 
         
         .mhk-comment-form-grid { 
           display: grid; 
-          grid-template-columns: 1fr; /* 1 column on mobile */
+          grid-template-columns: 1fr; 
           gap: 11px; 
         }
         .mhk-float-container { width: calc(100vw - 24px) !important; }
         .mhk-modal-wrap { padding: 12px !important; }
 
-        /* Tablet Styles (768px and up) */
         @media (min-width: 768px) {
           .mhk-layout-grid {
-            grid-template-columns: 1fr 240px; /* Content + Right Sidebar */
+            grid-template-columns: 1fr 240px; 
             gap: 24px;
           }
           .mhk-right-col { width: 240px; position: sticky; top: 72px; align-self: start; max-height: calc(100vh - 90px); overflow-y: auto; }
-          .mhk-left-col { display: none; } /* Still hide left ads on tablet */
+          .mhk-left-col { display: none; } 
           .mhk-comment-form-grid { 
-            grid-template-columns: 1fr 1fr; /* 2 columns for form inputs on tablet */
+            grid-template-columns: 1fr 1fr; 
           }
         }
         
-        /* Desktop Styles (1024px and up) */
         @media (min-width: 1024px) {
           .mhk-layout-grid {
-            grid-template-columns: 220px 1fr 280px; /* Left Sidebar + Content + Right Sidebar */
+            grid-template-columns: 220px 1fr 280px; 
             gap: 32px;
           }
           .mhk-left-col { display: flex; flex-direction: column; gap: 12px; position: sticky; top: 72px; align-self: start; max-height: calc(100vh - 90px); overflow-y: auto; padding-right: 4px; }
           .mhk-right-col { width: 280px; }
-          /* Custom scrollbar for sidebars */
           .mhk-left-col::-webkit-scrollbar, .mhk-right-col::-webkit-scrollbar { width: 4px; }
           .mhk-left-col::-webkit-scrollbar-thumb, .mhk-right-col::-webkit-scrollbar-thumb { background: #ccc; border-radius: 2px; }
         }
@@ -270,7 +248,6 @@ export default function StoryPage() {
 
         <div className="mhk-layout-grid">
 
-          {/* ── LEFT ADVERTISEMENT SIDEBAR (Displays ALL Ads) ── */}
           {leftAds.length > 0 && (
             <aside className="mhk-left-col">
               {leftAds.map((ad, i) => (
@@ -279,9 +256,7 @@ export default function StoryPage() {
             </aside>
           )}
 
-          {/* ── ARTICLE ──────────────────────────────────────── */}
           <article className="mhk-center-col">
-            {/* Breadcrumb */}
             <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', color: '#bbb', display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12, flexWrap:'wrap' }}>
               <Link to="/" style={{ color: '#bbb', textDecoration: 'none' }}>Home</Link>
               <span>›</span>
@@ -296,7 +271,7 @@ export default function StoryPage() {
 
             <div style={{ display: 'flex', gap: 10, fontFamily: "'Barlow Condensed',sans-serif", fontSize: 11, color: '#5a5a5a', marginBottom: 18, flexWrap: 'wrap', alignItems: 'center', borderBottom: '1px solid #e8e4d8', paddingBottom: 12 }}>
               {authorAvatar && (
-                <img src={imgUrl(authorAvatar)} alt="" loading="lazy" onError={e => { e.target.onerror = null; e.target.style.display = 'none'; }}
+                <img src={imgUrl(authorAvatar)} alt="" loading="lazy" onError={e => { e.target.onerror = null; e.target.src = PLACEHOLDER; }}
                   style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover', border: '2px solid #e8e4d8' }} />
               )}
               <Link to={`/author/${encodeURIComponent(story.author)}`} style={{ fontWeight: 700, textDecoration: 'none', color: '#0d0d0d' }}>{story.author}</Link>
@@ -332,7 +307,6 @@ export default function StoryPage() {
             <div style={{ fontSize: '1.02rem', lineHeight: 1.78, fontFamily: "'Source Serif 4',Georgia,serif", marginBottom: 22 }}
               dangerouslySetInnerHTML={{ __html: story.description }} />
 
-            {/* All tags */}
             {story.tags && (
               <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', marginBottom: 22 }}>
                 {story.tags.split(',').map(t => (
@@ -342,7 +316,6 @@ export default function StoryPage() {
               </div>
             )}
 
-            {/* Reactions + Share */}
             <div style={{ display: 'flex', gap: 8, padding: '14px 0', borderTop: '1px solid #e8e4d8', borderBottom: '1px solid #e8e4d8', marginBottom: 22, flexWrap: 'wrap' }}>
               <button className="mhk-react-btn" onClick={() => handleReact('likes')} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '7px 14px', background: '#f0ece0', border: '1px solid #e8e4d8', fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 700, fontSize: 12, cursor: 'pointer', borderRadius: 3 }}>
                 👍 {reactions.likes}
@@ -359,10 +332,9 @@ export default function StoryPage() {
                 style={{ padding: '7px 12px', background: '#25d366', color: '#fff', fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 700, fontSize: 11, textDecoration: 'none', letterSpacing: 1, borderRadius: 3 }}>WhatsApp</a>
             </div>
 
-            {/* Author box */}
             <div style={{ background: '#f0ece0', padding: '18px', display: 'flex', gap: 14, alignItems: 'flex-start', marginBottom: 24, border: '1px solid #e8e4d8', borderRadius: 4 }}>
               {authorAvatar && (
-                <img src={imgUrl(authorAvatar)} alt="" loading="lazy" onError={e => { e.target.onerror = null; e.target.style.display = 'none'; }}
+                <img src={imgUrl(authorAvatar)} alt="" loading="lazy" onError={e => { e.target.onerror = null; e.target.src = PLACEHOLDER; }}
                   style={{ width: 54, height: 54, borderRadius: '50%', objectFit: 'cover', flexShrink: 0, border: '2px solid #e8e4d8' }} />
               )}
               <div>
@@ -374,10 +346,8 @@ export default function StoryPage() {
               </div>
             </div>
 
-            {/* EXISTING AdBanner kept intact (do NOT remove) */}
             <AdBanner ads={ads.slice(0, 2)} height={90} />
 
-            {/* Related stories */}
             {related.length > 0 && (
               <section style={{ marginBottom: 28 }}>
                 <SectionLabel>Related Stories</SectionLabel>
@@ -394,7 +364,6 @@ export default function StoryPage() {
               </section>
             )}
 
-            {/* ── Comments section replaced by a button that opens a modal ── */}
             <section>
               <SectionLabel>Discussion ({comments.length})</SectionLabel>
               <div style={{ background: '#f0ece0', padding: '26px 20px', border: '1px solid #e8e4d8', borderRadius: 6, textAlign: 'center' }}>
@@ -422,7 +391,6 @@ export default function StoryPage() {
             </section>
           </article>
 
-          {/* ── RIGHT SIDEBAR (NO ADS, Only Existing Widgets) ── */}
           <aside className="mhk-right-col">
             <div>
               <div style={{ background: '#fff', border: '1px solid #e8e4d8', padding: 16, marginBottom: 18, borderTop: '3px solid #0d0d0d', borderRadius: 2 }}>
@@ -432,7 +400,6 @@ export default function StoryPage() {
 
               <NewsletterWidget />
 
-              {/* EXISTING AdBanner kept intact (do NOT remove) */}
               <AdBanner ads={ads.slice(2, 5)} height={200} />
 
               <WhatsAppCTA />
@@ -441,10 +408,6 @@ export default function StoryPage() {
         </div>
       </div>
 
-      {/* ───────────────────────────────────────────────────────────────
-          FLOATING BOTTOM AD CAROUSEL 
-          (Cycles all ads every 8s, disappears for 5s, then restarts)
-      ─────────────────────────────────────────────────────────────── */}
       {floatVisible && floatAds.length > 0 && (
         <div
           className={`mhk-float-container ${floatClosing ? 'closing' : ''}`}
@@ -481,7 +444,6 @@ export default function StoryPage() {
               </div>
             </div>
             
-            {/* Carousel Dots Indicator */}
             {floatAds.length > 1 && (
               <div style={{ position: 'absolute', bottom: 8, left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: 5, zIndex: 3 }}>
                 {floatAds.map((_, i) => (
@@ -497,10 +459,6 @@ export default function StoryPage() {
         </div>
       )}
 
-      {/* ───────────────────────────────────────────────────────────────
-          COMMENT MODAL  (smooth, mobile responsive, scrollable,
-          loading indicators, error handling, ESC to close)
-      ─────────────────────────────────────────────────────────────── */}
       {showCommentModal && (
         <div
           className="mhk-modal-bg"
@@ -517,7 +475,6 @@ export default function StoryPage() {
             boxShadow: '0 24px 64px rgba(0,0,0,.35)', overflow: 'hidden',
             marginTop: 24, marginBottom: 24
           }}>
-            {/* Modal header */}
             <div style={{
               display: 'flex', alignItems: 'center', justifyContent: 'space-between',
               padding: '14px 18px', borderBottom: '2px solid #0d0d0d',
@@ -543,7 +500,6 @@ export default function StoryPage() {
               >×</button>
             </div>
 
-            {/* Scrollable comment list */}
             <div style={{ maxHeight: '52vh', overflowY: 'auto' }}>
               {comments.length > 0 ? (
                 <div style={{ padding: '8px 18px' }}>
@@ -570,7 +526,6 @@ export default function StoryPage() {
               )}
             </div>
 
-            {/* Comment form (existing handleComment preserved) */}
             <div style={{ background: '#f0ece0', padding: '18px', borderTop: '2px solid #e8e4d8' }}>
               <h4 style={{ fontFamily: "'Playfair Display',serif", fontSize: '1.02rem', fontWeight: 700, marginBottom: 12 }}>Leave a Comment</h4>
               <form onSubmit={handleComment} style={{ display: 'flex', flexDirection: 'column', gap: 11 }}>
@@ -622,14 +577,10 @@ export default function StoryPage() {
   );
 }
 
-/* ── Robust AdCard component that checks all possible image property names from API ── */
 const AdCard = React.memo(function AdCard({ ad, height = 180, fluid = false }) {
   if (!ad) return null;
   
-  // Check all common API property names for the image
   const rawImg = ad.image_url || ad.imageUrl || ad.image || ad.banner || ad.bannerUrl || ad.img || ad.file_url || ad.photo || ad.file;
-  
-  // Use the project's imgUrl utility, fallback to null if empty
   const img = rawImg ? imgUrl(rawImg) : null;
   const link = ad.link || ad.url || ad.click_url || ad.target_url || '#';
   const title = ad.title || ad.name || 'Sponsored Ad';
