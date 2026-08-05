@@ -3,6 +3,18 @@ import AdminLayout from '../../components/layout/AdminLayout';
 import { authorsAPI, commentsAPI, videosAPI, adsAPI, subscribeAPI, analyticsAPI } from '../../utils/api';
 import { useAuth } from '../../context/AuthContext';
 
+// Fix: Centralized API base and secure image URL getter
+const API_BASE = process.env.REACT_APP_API_URL?.replace('/api', '') || 'https://mahokofridaynewsbackend.onrender.com';
+const PLACEHOLDER = `${API_BASE}/uploads/placeholder.jpg`;
+
+const getImgUrl = (path) => {
+  if (!path || typeof path !== 'string') return PLACEHOLDER;
+  if (path.startsWith('http://') || path.startsWith('https://')) return path;
+  if (path.includes('..')) return PLACEHOLDER; // Prevent directory traversal
+  const cleanPath = path.replace(/^uploads?\//, '').replace(/^\/+/, '');
+  return `${API_BASE}/uploads/${cleanPath}`;
+};
+
 const inputStyle = { width: '100%', padding: '11px 14px', border: '1px solid #e2e8f0', borderRadius: 10, fontSize: 14, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', marginBottom: 14 };
 const labelStyle = { display: 'block', marginBottom: 6, fontWeight: 700, fontSize: 13, color: '#334155' };
 
@@ -10,28 +22,36 @@ function Card({ children, style, className }) {
   return <div className={`admin-card-base ${className || ''}`} style={{ background: '#fff', padding: 24, borderRadius: 20, border: '1px solid #e2e8f0', boxShadow: '0 4px 15px rgba(0,0,0,.03)', ...style }}>{children}</div>;
 }
 
-// Inject responsive CSS once
+// Inject responsive CSS (Mobile-First)
 const responsiveCSS = `
-  @media (max-width: 768px) {
-    .admin-form-grid {
-      grid-template-columns: 1fr !important;
-    }
-    .admin-table-scroll {
-      overflow-x: auto !important;
-    }
-    .admin-table-scroll table {
-      min-width: 640px; /* Prevents table from squishing, enables horizontal scroll */
-    }
-    .admin-flex-wrap {
-      flex-wrap: wrap;
-    }
+  /* Base Mobile Styles */
+  .admin-form-grid {
+    display: grid;
+    grid-template-columns: 1fr; /* Stack vertically on mobile */
+    gap: 16px;
   }
-  @media (max-width: 480px) {
-    .admin-card-base {
-      padding: 16px !important;
+  .admin-table-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .admin-table-scroll table {
+    min-width: 640px; /* Forces horizontal scroll on small screens */
+  }
+  .admin-flex-wrap {
+    flex-wrap: wrap;
+  }
+  .admin-card-base {
+    padding: 16px !important;
+  }
+
+  /* Tablet & Desktop Styles (768px and up) */
+  @media (min-width: 768px) {
+    .admin-form-grid {
+      grid-template-columns: 360px 1fr; /* Side-by-side on larger screens */
+      gap: 24px;
     }
-    .admin-table-scroll table {
-      min-width: 540px;
+    .admin-card-base {
+      padding: 24px !important;
     }
   }
 `;
@@ -69,7 +89,7 @@ export function Authors() {
     <AdminLayout>
       <style>{responsiveCSS}</style>
       <h1 style={{ fontWeight: 800, fontSize: '1.6rem', margin: '0 0 24px', letterSpacing: '-0.03em' }}>Author Profiles</h1>
-      <div className="admin-form-grid" style={{ display: 'grid', gridTemplateColumns: '340px 1fr', gap: 24 }}>
+      <div className="admin-form-grid">
         <Card>
           <h3 style={{ fontWeight: 800, margin: '0 0 20px', fontSize: '1rem' }}>Add New Author</h3>
           <form onSubmit={handleSubmit}>
@@ -99,7 +119,12 @@ export function Authors() {
               {authors.map(a => (
                 <tr key={a.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
                   <td style={{ padding: '14px 16px' }}>
-                    <img src={a.profile_image?.startsWith('http') ? a.profile_image : `${process.env.REACT_APP_API_URL?.replace('/api','')}/uploads/${a.profile_image?.replace('uploads/','')}` || '/placeholder.jpg'} alt="" style={{ width: 44, height: 44, borderRadius: '50%', objectFit: 'cover' }} onError={e => e.target.src='/placeholder.jpg'} />
+                    <img 
+                      src={getImgUrl(a.profile_image)} 
+                      alt="" 
+                      style={{ width: 44, height: 44, borderRadius: '50%', objectFit: 'cover' }} 
+                      onError={e => { e.target.onerror = null; e.target.src = PLACEHOLDER; }} 
+                    />
                   </td>
                   <td style={{ padding: '14px 16px' }}>
                     <div style={{ fontWeight: 700, fontSize: 14 }}>{a.name}</div>
@@ -217,7 +242,7 @@ export function Videos() {
     <AdminLayout>
       <style>{responsiveCSS}</style>
       <h1 style={{ fontWeight: 800, fontSize: '1.6rem', margin: '0 0 24px' }}>Videos</h1>
-      <div className="admin-form-grid" style={{ display: 'grid', gridTemplateColumns: '360px 1fr', gap: 24 }}>
+      <div className="admin-form-grid">
         <Card>
           <h3 style={{ fontWeight: 800, margin: '0 0 20px', fontSize: '1rem' }}>Add YouTube Video</h3>
           <form onSubmit={handleSubmit}>
@@ -247,7 +272,7 @@ export function Videos() {
               {videos.map(v => (
                 <tr key={v.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
                   <td style={{ padding: '12px 16px' }}>
-                    {v.thumbnail ? <img src={`${process.env.REACT_APP_API_URL?.replace('/api','')}/uploads/${v.thumbnail?.replace('uploads/','')}`} alt="" style={{ width: 80, height: 50, objectFit: 'cover', borderRadius: 6 }} onError={e => e.target.style.display='none'} /> : <div style={{ width: 80, height: 50, background: '#f1f5f9', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>🎬</div>}
+                    {v.thumbnail ? <img src={getImgUrl(v.thumbnail)} alt="" style={{ width: 80, height: 50, objectFit: 'cover', borderRadius: 6 }} onError={e => e.target.style.display='none'} /> : <div style={{ width: 80, height: 50, background: '#f1f5f9', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>🎬</div>}
                   </td>
                   <td style={{ padding: '12px 16px', fontWeight: 600, fontSize: 14 }}>{v.title}</td>
                   <td style={{ padding: '12px 16px' }}><span style={{ background: '#f1f5f9', padding: '3px 10px', borderRadius: 6, fontSize: 12, fontWeight: 700 }}>{v.category}</span></td>
@@ -291,7 +316,7 @@ export function Ads() {
     <AdminLayout>
       <style>{responsiveCSS}</style>
       <h1 style={{ fontWeight: 800, fontSize: '1.6rem', margin: '0 0 24px' }}>Advertisements</h1>
-      <div className="admin-form-grid" style={{ display: 'grid', gridTemplateColumns: '360px 1fr', gap: 24 }}>
+      <div className="admin-form-grid">
         <Card>
           <h3 style={{ fontWeight: 800, margin: '0 0 20px', fontSize: '1rem' }}>Add Advertisement</h3>
           <form onSubmit={handleSubmit}>
@@ -330,8 +355,8 @@ export function Ads() {
                 <tr key={ad.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
                   <td style={{ padding: '12px 16px' }}>
                     {ad.type === 'video'
-                      ? <video src={`${process.env.REACT_APP_API_URL?.replace('/api','')}/uploads/${ad.file?.replace('uploads/','')}`} style={{ width: 100, height: 60, objectFit: 'cover', borderRadius: 6 }} muted />
-                      : <img src={`${process.env.REACT_APP_API_URL?.replace('/api','')}/uploads/${ad.file?.replace('uploads/','')}`} alt="" style={{ width: 100, height: 60, objectFit: 'cover', borderRadius: 6 }} onError={e => e.target.style.display='none'} />
+                      ? <video src={getImgUrl(ad.file)} style={{ width: 100, height: 60, objectFit: 'cover', borderRadius: 6 }} muted />
+                      : <img src={getImgUrl(ad.file)} alt="" style={{ width: 100, height: 60, objectFit: 'cover', borderRadius: 6 }} onError={e => e.target.style.display='none'} />
                     }
                   </td>
                   <td style={{ padding: '12px 16px' }}><span style={{ background: '#e0f2fe', color: '#0369a1', padding: '3px 10px', borderRadius: 6, fontSize: 12, fontWeight: 700 }}>{ad.type}</span></td>
