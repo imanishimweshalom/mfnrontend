@@ -1,7 +1,7 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
-
+import Newsletter from "./pages/admin/Newsletter";
 // Public Pages
 import Home from './pages/public/Home';
 import StoryPage from './pages/public/Story';
@@ -52,6 +52,10 @@ function AppRoutes() {
 
       {/* ── ADMIN ── */}
       <Route path="/admin/login" element={<AdminLogin />} />
+      <Route
+path="/admin/newsletter"
+element={<ProtectedRoute><Newsletter /></ProtectedRoute>}
+/>
       <Route path="/admin/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
       <Route path="/admin/stories" element={<ProtectedRoute><StoriesList /></ProtectedRoute>} />
       <Route path="/admin/stories/new" element={<ProtectedRoute><StoryForm /></ProtectedRoute>} />

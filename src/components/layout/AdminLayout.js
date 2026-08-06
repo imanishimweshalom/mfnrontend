@@ -11,6 +11,7 @@ const NAV = [
   { icon: '🎬', label: 'Videos', path: '/admin/videos' },
   { icon: '📢', label: 'Ads', path: '/admin/ads' },
   { icon: '📧', label: 'Subscribers', path: '/admin/subscribers' },
+  { icon: '📨', label: 'Newsletter', path: '/admin/newsletter' },
   { icon: '🔒', label: 'Audit Logs', path: '/admin/audit' },
   { icon: '⚙️', label: 'Settings', path: '/admin/settings' },
 ];
