@@ -4,182 +4,150 @@ import axios from "axios";
 
 const Newsletter = () => {
 
-const [subject,setSubject] = useState("");
-const [message,setMessage] = useState("");
+  const [subject, setSubject] = useState("");
+  const [message, setMessage] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState("");
 
-const [loading,setLoading] = useState(false);
-const [result,setResult] = useState("");
 
+  const sendNewsletter = async (e) => {
 
+    e.preventDefault();
 
-const sendNewsletter = async(e)=>{
+    try {
 
-e.preventDefault();
+      setLoading(true);
+      setResult("");
 
 
-try{
+      const token = localStorage.getItem("token");
 
-setLoading(true);
-setResult("");
 
-const token = localStorage.getItem("token");
+      const res = await axios.post(
 
+        `${process.env.REACT_APP_API_URL}/api/newsletter/send`,
 
-const res = await axios.post(
+        {
+          subject,
+          message
+        },
 
-`${process.env.REACT_APP_API_URL}/api/newsletter/send`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        }
 
-{
-subject,
-message
-},
+      );
 
-{
-headers:{
-Authorization:`Bearer ${token}`
-}
-}
 
-);
+      setResult(
+        `Success: ${res.data.message} (${res.data.sentTo} subscribers)`
+      );
 
 
+      setSubject("");
+      setMessage("");
 
-setResult(
-`Success: ${res.data.message}`
-);
 
+    } catch (error) {
 
-setSubject("");
-setMessage("");
+      console.log(error);
 
 
-}catch(err){
+      setResult(
+        error.response?.data?.error ||
+        "Failed to send newsletter"
+      );
 
 
-console.log(err);
+    } finally {
 
+      setLoading(false);
 
-setResult(
-err.response?.data?.error ||
-"Failed to send newsletter"
-);
+    }
 
+  };
 
-}finally{
 
-setLoading(false);
+  return (
 
-}
+    <div>
 
-};
+      <h2>Send Newsletter</h2>
 
 
+      <form onSubmit={sendNewsletter}>
 
 
-return (
+        <input
 
-<div className="admin-page">
+          type="text"
 
+          value={subject}
 
-<h1>
-Newsletter
-</h1>
+          onChange={(e)=>setSubject(e.target.value)}
 
+          placeholder="Newsletter subject"
 
-<p>
-Send email to all subscribers
-</p>
+          required
 
+        />
 
 
-<form onSubmit={sendNewsletter}>
+        <br />
 
 
-<div>
+        <textarea
 
-<label>
-Subject
-</label>
+          value={message}
 
+          onChange={(e)=>setMessage(e.target.value)}
 
-<input
+          placeholder="Write newsletter message"
 
-type="text"
+          rows="8"
 
-value={subject}
+          required
 
-onChange={(e)=>setSubject(e.target.value)}
+        />
 
-placeholder="Newsletter subject"
 
-/>
+        <br />
 
-</div>
 
+        <button
 
+          type="submit"
 
+          disabled={loading}
 
-<div>
+        >
 
-<label>
-Message
-</label>
+          {
+            loading
+            ? "Sending..."
+            : "Send Newsletter"
+          }
 
+        </button>
 
-<textarea
 
-rows="8"
+      </form>
 
-value={message}
 
-onChange={(e)=>setMessage(e.target.value)}
+      {
+        result &&
 
-placeholder="Write your newsletter message here..."
+        <p>
+          {result}
+        </p>
+      }
 
-/>
 
+    </div>
 
-</div>
-
-
-
-
-<button disabled={loading}>
-
-
-{
-loading
-?
-"Sending..."
-:
-"Send Newsletter"
-}
-
-
-</button>
-
-
-
-</form>
-
-
-
-{
-result &&
-
-<div className="message">
-
-{result}
-
-</div>
-
-}
-
-
-
-</div>
-
-);
+  );
 
 };
 
