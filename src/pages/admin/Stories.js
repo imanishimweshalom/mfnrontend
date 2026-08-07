@@ -4,7 +4,7 @@ import AdminLayout from '../../components/layout/AdminLayout';
 import { storiesAPI, authorsAPI } from '../../utils/api';
 import { useAuth } from '../../context/AuthContext';
 
-const CATEGORIES = ['Business','Sport','Technology','Health','Culture','Environment','Le Phare','Music','Transport','Education','Opinion'];
+const CATEGORIES = ['Business','Sport','Technology','Health','Culture','Environment','Le Phare','Music','Transport','Education','Entertainment','Job Links','Opinion'];
 
 // Fix: Centralized API base and secure image URL getter to prevent 404s
 const API_BASE = process.env.REACT_APP_API_URL?.replace('/api', '') || 'https://mahokofridaynewsbackend.onrender.com';
