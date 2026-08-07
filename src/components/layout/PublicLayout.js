@@ -9,6 +9,7 @@ const CATEGORIES = [
   { label: 'Technology', path: '/category/Technology' },
   { label: 'Health', path: '/category/Health' },
   { label: 'Culture', path: '/category/Culture' },
+   { label: 'Entertainment', path: '/category/Entertainment' },
     { label: 'Education', path: '/category/Education' },
   { label: 'Video', path: '/videos', icon: '▶' },
   { label: 'More', sub: [
@@ -16,6 +17,7 @@ const CATEGORIES = [
     { label: 'Environment', path: '/category/Environment' },
     { label: 'Music', path: '/category/Music' },
     { label: 'Transport', path: '/category/Transport' },
+     { label: 'job links', path: '/category/job-links' },
     
   ]},
 ];
