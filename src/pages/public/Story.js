@@ -78,6 +78,7 @@ export default function StoryPage() {
     likes: 0, dislikes: 0, love: 0, laugh: 0, wow: 0, sad: 0, angry: 0, celebrate: 0
   });
 
+  // Tracks which emoji the user clicked to highlight it
   const [userReaction, setUserReaction] = useState(null);
 
   /* -------- LOAD DATA -------- */
@@ -112,7 +113,6 @@ export default function StoryPage() {
 
   /* -------- ADS LOGIC -------- */
   const activeAds = useMemo(() => (ads || []).filter(a => a && a.is_active !== false && a.status !== 'inactive' && a.status !== 'paused' && a.status !== 'draft'), [ads]);
-  
   const heroAd = useMemo(() => activeAds.find(a => String(a.position || a.placement || '').toLowerCase() === 'hero') || null, [activeAds]);
   const leftAds = useMemo(() => { const p = activeAds.filter(a => String(a.position || a.placement || '').toLowerCase() === 'left'); return p.length > 0 ? p.slice(0, 3) : activeAds.slice(0, 3); }, [activeAds]);
   const rightAds = useMemo(() => { const p = activeAds.filter(a => String(a.position || a.placement || '').toLowerCase() === 'right'); return p.length > 0 ? p.slice(0, 3) : (activeAds.slice(3, 6).length > 0 ? activeAds.slice(3, 6) : activeAds.slice(0, 3)); }, [activeAds]);
@@ -123,7 +123,7 @@ export default function StoryPage() {
   useEffect(() => { document.body.style.overflow = showCommentModal ? 'hidden' : ''; return () => { document.body.style.overflow = ''; }; }, [showCommentModal]);
   useEffect(() => { const k = (e) => { if (e.key === 'Escape') setShowCommentModal(false); }; if (showCommentModal) window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k); }, [showCommentModal]);
 
-  /* -------- OPTIMISTIC REACTIONS (Fixes "Only Like Clickable" Issue) -------- */
+  /* -------- OPTIMISTIC REACTIONS (Ensures all emojis click & save) -------- */
   const handleReact = async (type) => {
     // 1. Instantly update UI so user sees feedback immediately
     setReactions(prev => ({ ...prev, [type]: (prev[type] || 0) + 1 }));
@@ -131,14 +131,14 @@ export default function StoryPage() {
 
     try {
       const res = await storiesAPI.react(id, type);
-      // 2. If backend returns actual counts, overwrite optimistic ones
+      // 2. If backend returns actual counts, overwrite to stay perfectly in sync
       if (res?.data) {
         setReactions(prev => ({ ...prev, ...res.data }));
       }
     } catch (e) {
-      // 3. If it fails, revert the optimistic increment
+      // 3. If network fails, revert the increment so count isn't wrong
       setReactions(prev => ({ ...prev, [type]: Math.max(0, (prev[type] || 0) - 1) }));
-      console.error('Reaction failed:', e);
+      console.error('Reaction save failed:', e);
     }
   };
 
@@ -158,82 +158,72 @@ export default function StoryPage() {
   if (!story) return (<PublicLayout><EmptyState /></PublicLayout>);
 
   const authorAvatar = story.author_avatar || story.author_image;
+  
+  // All 8 emojis
   const reactionButtons = [
-    { type: 'likes', emoji: '👍', label: 'Like' }, { type: 'love', emoji: '❤️', label: 'Love' },
-    { type: 'laugh', emoji: '😂', label: 'Haha' }, { type: 'wow', emoji: '😮', label: 'Wow' },
-    { type: 'sad', emoji: '😢', label: 'Sad' }, { type: 'angry', emoji: '😡', label: 'Angry' },
-    { type: 'celebrate', emoji: '👏', label: 'Celebrate' }, { type: 'dislikes', emoji: '👎', label: 'Dislike' }
+    { type: 'likes', emoji: '👍' }, { type: 'love', emoji: '❤️' },
+    { type: 'laugh', emoji: '😂' }, { type: 'wow', emoji: '😮' },
+    { type: 'sad', emoji: '😢' }, { type: 'angry', emoji: '😡' },
+    { type: 'celebrate', emoji: '👏' }, { type: 'dislikes', emoji: '👎' }
   ];
 
   return (
     <PublicLayout>
       <style>{`
-        /* --- Animations --- */
         @keyframes mhkFade { from { opacity: 0; } to { opacity: 1; } }
         @keyframes mhkPop { from { transform: translateY(40px) scale(.98); opacity: 0; } to { transform: translateY(0) scale(1); opacity: 1; } }
         @keyframes mhkSpin { to { transform: rotate(360deg); } }
         @keyframes mhkAdFade { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        @keyframes mhkBounce { 0%,100% { transform: scale(1); } 50% { transform: scale(1.4); } }
         
         .mhk-modal-bg { animation: mhkFade .25s ease-out forwards; }
         .mhk-modal-card { animation: mhkPop .3s cubic-bezier(.2,.8,.2,1) forwards; }
         .mhk-spin { display:inline-block; width:14px; height:14px; border:2px solid #fff; border-top-color:transparent; border-radius:50%; animation: mhkSpin .6s linear infinite; }
 
-        /* --- Premium Editorial Layout --- */
         .story-container { max-width: 1200px; margin: 0 auto; padding: 24px 16px; }
         .story-grid { display: grid; grid-template-columns: 1fr; gap: 32px; }
         .story-left-col { display: none; }
         .story-main-col { min-width: 0; }
         .story-right-col { display: none; }
 
-        /* Drop Cap for Article Body */
+        /* Drop Cap */
         .story-body-text::first-letter {
           float: left; font-size: 4em; line-height: 0.8; padding-right: 10px; padding-top: 6px;
           font-family: 'Playfair Display', serif; color: #c0392b; font-weight: 900;
         }
 
-        /* Reactions Bar */
-        .reaction-bar {
-          display: flex; gap: 8px; padding: 14px 16px; flex-wrap: wrap; align-items: center;
-          background: #faf9f5; border: 1px solid #e8e4d8; border-radius: 50px; margin: 28px 0;
+        /* Minimized Reactions */
+        .mhk-react-btn {
+          transition: all .2s ease; user-select: none; display: inline-flex;
+          align-items: center; gap: 4px; padding: 4px 8px; background: #f0ece0;
+          border: 1px solid #e8e4d8; border-radius: 3px; cursor: pointer;
+          font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 11px;
         }
-        .react-btn {
-          display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px;
-          background: #fff; border: 1px solid #e8e4d8; border-radius: 50px; cursor: pointer;
-          font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 13px;
-          color: #333; transition: all .2s ease; user-select: none;
+        .mhk-react-btn:hover { background:#e8e4d8 !important; transform: translateY(-1px); }
+        .mhk-react-btn.active {
+          background: #fdf0ee !important; border-color: #c0392b !important; color: #c0392b !important;
         }
-        .react-btn:hover { background: #e8e4d8; transform: translateY(-2px); box-shadow: 0 4px 10px rgba(0,0,0,.08); }
-        .react-btn.active { background: #fff0ee; border-color: #c0392b; color: #c0392b; box-shadow: 0 2px 8px rgba(192,57,43,.15); }
-        .react-btn.active .r-emoji { animation: mhkBounce .4s ease; }
 
-        /* Share Buttons */
-        .share-pill {
-          padding: 8px 16px; border-radius: 50px; color: #fff; text-decoration: none;
-          font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 12px;
-          transition: all .2s ease; display: inline-block; border: none; cursor: pointer;
-        }
-        .share-pill:hover { transform: translateY(-2px); filter: brightness(1.1); }
+        /* Original Share System */
+        .mhk-share-btn { transition: all .2s ease; }
+        .mhk-share-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 14px rgba(0,0,0,.18); }
 
-        /* Cards & Ads */
-        .mhk-ad-card { transition: transform .3s ease, box-shadow .3s ease; border: 1px solid #e8e4d8; border-radius: 8px; overflow: hidden; display: flex; flex-direction: column; }
+        /* Layout & Ads */
+        .mhk-ad-card { transition: transform .3s ease, box-shadow .3s ease; border: 1px solid #e8e4d8; border-radius: 6px; overflow: hidden; display: flex; flex-direction: column; }
         .mhk-ad-card:hover { transform: translateY(-3px); box-shadow: 0 8px 18px rgba(0,0,0,.1); }
         .mhk-ad-card img, .mhk-ad-card video { transition: transform .4s ease; }
         .mhk-ad-card:hover img, .mhk-ad-card:hover video { transform: scale(1.04); }
         .mhk-float-fade { animation: mhkAdFade .5s ease; display: flex; gap: 16px; width: 100%; align-items: stretch; }
         .mhk-float-extra { display: none; flex: 1; }
         
-        .mhk-related-card { transition: transform .25s ease, box-shadow .25s ease; border-radius: 8px; overflow: hidden; border: 1px solid #e8e4d8; background: #fff; }
+        .mhk-related-card { transition: transform .25s ease, box-shadow .25s ease; border-radius: 6px; overflow: hidden; border: 1px solid #e8e4d8; background: #fff; }
         .mhk-related-card:hover { transform: translateY(-4px); box-shadow: 0 12px 24px rgba(0,0,0,.08); }
         .mhk-related-card img { transition: transform .4s ease; }
         .mhk-related-card:hover img { transform: scale(1.05); }
 
-        /* Modal */
         .mhk-comment-row { transition: background .2s; }
         .mhk-comment-row:hover { background: rgba(240,236,224,.5); }
         .mhk-comment-form-grid { display: grid; grid-template-columns: 1fr; gap: 12px; }
 
-        /* Responsive */
         @media (min-width: 768px) {
           .story-grid { grid-template-columns: 1fr 300px; }
           .story-right-col { display: flex; flex-direction: column; gap: 20px; position: sticky; top: 80px; align-self: start; max-height: calc(100vh - 100px); overflow-y: auto; }
@@ -249,16 +239,9 @@ export default function StoryPage() {
       `}</style>
 
       <div className="story-container">
-        {/* HERO AD */}
-        {heroAd && (
-          <div style={{ marginBottom: 24, borderRadius: 8, overflow: 'hidden', border: '1px solid #e8e4d8' }}>
-            <AdCard ad={heroAd} height={110} />
-          </div>
-        )}
+        {heroAd && (<div style={{ marginBottom: 24, borderRadius: 8, overflow: 'hidden', border: '1px solid #e8e4d8' }}><AdCard ad={heroAd} height={110} /></div>)}
 
         <div className="story-grid">
-          
-          {/* LEFT ADS */}
           {leftAds.length > 0 && (
             <aside className="story-left-col">
               <div style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: 8, fontWeight: 800, letterSpacing: 2, textTransform: 'uppercase', color: '#bbb', marginBottom: 8, textAlign: 'center' }}>Sponsors</div>
@@ -266,51 +249,33 @@ export default function StoryPage() {
             </aside>
           )}
 
-          {/* MAIN ARTICLE */}
           <main className="story-main-col">
             <nav style={{ display: 'flex', gap: 8, fontFamily: "'Barlow Condensed', sans-serif", fontSize: 11, letterSpacing: 1.5, textTransform: 'uppercase', color: '#999', marginBottom: 16 }}>
-              <Link to="/" style={{ color: '#999', textDecoration: 'none' }}>Home</Link>
-              <span>›</span>
+              <Link to="/" style={{ color: '#999', textDecoration: 'none' }}>Home</Link><span>›</span>
               <Link to={`/category/${story.category}`} style={{ color: '#c0392b', textDecoration: 'none', fontWeight: 700 }}>{story.category}</Link>
             </nav>
 
-            <h1 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 'clamp(1.8rem, 4vw, 2.8rem)', fontWeight: 900, lineHeight: 1.15, margin: '0 0 16px', color: '#0d0d0d' }}>
-              {story.title}
-            </h1>
+            <h1 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 'clamp(1.8rem, 4vw, 2.8rem)', fontWeight: 900, lineHeight: 1.15, margin: '0 0 16px', color: '#0d0d0d' }}>{story.title}</h1>
 
             <div style={{ display: 'flex', gap: 12, alignItems: 'center', fontFamily: "'Barlow Condensed', sans-serif", fontSize: 12, color: '#666', paddingBottom: 20, marginBottom: 24, borderBottom: '1px solid #e8e4d8', flexWrap: 'wrap' }}>
               {authorAvatar && <img src={imgUrl(authorAvatar)} alt="" onError={e => { e.target.onerror = null; e.target.src = PLACEHOLDER; }} style={{ width: 40, height: 40, borderRadius: '50%', objectFit: 'cover', border: '2px solid #e8e4d8' }} />}
               <div>
                 <Link to={`/author/${encodeURIComponent(story.author)}`} style={{ fontWeight: 700, textDecoration: 'none', color: '#0d0d0d', fontSize: 14 }}>{story.author}</Link>
                 <div style={{ display: 'flex', gap: 10, marginTop: 2, color: '#888' }}>
-                  <span>{timeAgo(story.created_at || story.createdAt)}</span>
-                  <span>·</span>
+                  <span>{timeAgo(story.created_at || story.createdAt)}</span><span>·</span>
                   <span>👁 {Number(story.views || 0).toLocaleString()} views</span>
                 </div>
               </div>
             </div>
 
-            {/* HERO IMAGE - Full Width of Column */}
-            <img
-              src={imgUrl(story.image)} alt={story.title} loading="eager"
-              onError={(e) => { e.target.onerror = null; e.target.src = PLACEHOLDER; }}
-              style={{ width: '100%', height: 'auto', aspectRatio: '16/9', objectFit: 'cover', borderRadius: 10, marginBottom: 28, display: 'block' }}
-            />
+            <img src={imgUrl(story.image)} alt={story.title} loading="eager" onError={(e) => { e.target.onerror = null; e.target.src = PLACEHOLDER; }} style={{ width: '100%', height: 'auto', aspectRatio: '16/9', objectFit: 'cover', borderRadius: 10, marginBottom: 28, display: 'block' }} />
 
-            {/* INLINE AD 1 */}
             {inlineAds[0] && <div style={{ marginBottom: 28 }}><AdCard ad={inlineAds[0]} height={90} /></div>}
 
-            {/* STORY BODY with Drop Cap */}
-            <div
-              className="story-body-text"
-              style={{ fontSize: '1.1rem', lineHeight: 1.85, fontFamily: "'Source Serif 4', Georgia, serif", color: '#1a1a1a', marginBottom: 10 }}
-              dangerouslySetInnerHTML={{ __html: story.description }}
-            />
+            <div className="story-body-text" style={{ fontSize: '1.1rem', lineHeight: 1.85, fontFamily: "'Source Serif 4', Georgia, serif", color: '#1a1a1a', marginBottom: 10 }} dangerouslySetInnerHTML={{ __html: story.description }} />
 
-            {/* INLINE AD 2 */}
             {inlineAds[1] && <div style={{ margin: '28px 0' }}><AdCard ad={inlineAds[1]} height={90} /></div>}
 
-            {/* TAGS */}
             {story.tags && (
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', margin: '24px 0 32px' }}>
                 {story.tags.split(',').map(t => (
@@ -319,27 +284,31 @@ export default function StoryPage() {
               </div>
             )}
 
-            {/* INLINE AD 3 */}
             {inlineAds[2] && <div style={{ marginBottom: 32 }}><AdCard ad={inlineAds[2]} height={90} /></div>}
 
-            {/* ALL EMOJI REACTIONS */}
-            <div className="reaction-bar">
+            {/* MINIMIZED EMOJIS + YOUR EXACT ORIGINAL SHARE SYSTEM */}
+            <div style={{ display: 'flex', gap: 6, padding: '14px 0', borderTop: '1px solid #e8e4d8', borderBottom: '1px solid #e8e4d8', marginBottom: 24, flexWrap: 'wrap', alignItems: 'center' }}>
               {reactionButtons.map((r) => (
                 <button
                   key={r.type}
                   type="button"
-                  className={`react-btn ${userReaction === r.type ? 'active' : ''}`}
+                  className={`mhk-react-btn ${userReaction === r.type ? 'active' : ''}`}
                   onClick={() => handleReact(r.type)}
-                  title={r.label}
+                  title={r.type}
                 >
-                  <span className="r-emoji" style={{ fontSize: 18 }}>{r.emoji}</span>
+                  <span style={{ fontSize: 14, lineHeight: 1 }}>{r.emoji}</span>
                   <span>{Number(reactions[r.type] || 0)}</span>
                 </button>
               ))}
+
               <div style={{ flex: 1 }} />
-              <a href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(window.location.href)}`} target="_blank" rel="noopener noreferrer" className="share-pill" style={{ background: '#1877f2' }}>Share</a>
-              <a href={`https://wa.me/?text=${encodeURIComponent(story.title + ' ' + window.location.href)}`} target="_blank" rel="noopener noreferrer" className="share-pill" style={{ background: '#25d366' }}>WhatsApp</a>
-              <a href={`https://twitter.com/intent/tweet?url=${encodeURIComponent(window.location.href)}&text=${encodeURIComponent(story.title)}`} target="_blank" rel="noopener noreferrer" className="share-pill" style={{ background: '#0d0d0d' }}>Tweet</a>
+
+              <a className="mhk-share-btn" href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(window.location.href)}`} target="_blank" rel="noopener noreferrer"
+                style={{ padding: '7px 12px', background: '#1877f2', color: '#fff', fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 700, fontSize: 11, textDecoration: 'none', letterSpacing: 1, borderRadius: 3 }}>Share</a>
+              <a className="mhk-share-btn" href={`https://twitter.com/intent/tweet?url=${encodeURIComponent(window.location.href)}&text=${encodeURIComponent(story.title)}`} target="_blank" rel="noopener noreferrer"
+                style={{ padding: '7px 12px', background: '#0d0d0d', color: '#fff', fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 700, fontSize: 11, textDecoration: 'none', letterSpacing: 1, borderRadius: 3 }}>Tweet</a>
+              <a className="mhk-share-btn" href={`https://wa.me/?text=${encodeURIComponent(story.title + ' ' + window.location.href)}`} target="_blank" rel="noopener noreferrer"
+                style={{ padding: '7px 12px', background: '#25d366', color: '#fff', fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 700, fontSize: 11, textDecoration: 'none', letterSpacing: 1, borderRadius: 3 }}>WhatsApp</a>
             </div>
 
             {/* AUTHOR BOX */}
@@ -379,7 +348,9 @@ export default function StoryPage() {
                 <div style={{ fontSize: 40, marginBottom: 12 }}>💬</div>
                 <h3 style={{ fontFamily: "'Playfair Display', serif", fontSize: '1.3rem', fontWeight: 700, marginBottom: 8 }}>{comments.length} {comments.length === 1 ? 'Comment' : 'Comments'}</h3>
                 <p style={{ color: '#666', fontSize: 14, marginBottom: 20, fontStyle: 'italic' }}>{comments.length > 0 ? 'Join the conversation and share your thoughts.' : 'Be the first to comment on this story.'}</p>
-                <button type="button" onClick={() => setShowCommentModal(true)} className="share-pill" style={{ background: '#0d0d0d', padding: '12px 32px', fontSize: 13, letterSpacing: 1.5 }}>
+                <button type="button" onClick={() => setShowCommentModal(true)} style={{ background: '#0d0d0d', color: '#fff', border: 'none', padding: '11px 26px', fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 800, fontSize: 12, letterSpacing: 2, textTransform: 'uppercase', cursor: 'pointer', borderRadius: 3, transition: 'all .2s' }}
+                  onMouseEnter={e => { e.currentTarget.style.background = '#c0392b'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = '#0d0d0d'; e.currentTarget.style.transform = 'translateY(0)'; }}>
                   {comments.length > 0 ? `💬 View Comments (${comments.length})` : '💬 Add a Comment'}
                 </button>
               </div>
@@ -392,9 +363,7 @@ export default function StoryPage() {
               <div style={{ fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 800, fontSize: 11, letterSpacing: 2.5, textTransform: 'uppercase', borderBottom: '2px solid #0d0d0d', paddingBottom: 10, marginBottom: 14 }}>🔥 Most Read</div>
               {popular.map((p, i) => <PopularItem key={p._id || p.id} story={p} rank={i + 1} />)}
             </div>
-
             <NewsletterWidget />
-
             {rightAds.length > 0 && (
               <div>
                 <div style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: 8, fontWeight: 800, letterSpacing: 2, textTransform: 'uppercase', color: '#bbb', marginBottom: 8, textAlign: 'center' }}>Sponsors</div>
@@ -475,10 +444,12 @@ export default function StoryPage() {
                   <textarea value={form.comment} onChange={e => setForm(f => ({ ...f, comment: e.target.value }))} rows={4} required placeholder="Share your thoughts…" style={{ width: '100%', padding: '10px 14px', border: '1px solid #e8e4d8', background: '#fff', fontSize: 14, borderRadius: 8, outline: 'none', resize: 'vertical', boxSizing: 'border-box' }} />
                 </div>
                 <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-                  <button type="submit" disabled={submitting} className="share-pill" style={{ background: submitting ? '#999' : '#0d0d0d', padding: '12px 24px', fontSize: 13, opacity: submitting ? 0.7 : 1, display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <button type="submit" disabled={submitting} style={{ background: submitting ? '#999' : '#0d0d0d', color: '#fff', border: 'none', padding: '11px 22px', fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 800, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', cursor: submitting ? 'not-allowed' : 'pointer', opacity: submitting ? 0.7 : 1, borderRadius: 3, display: 'flex', alignItems: 'center', gap: 8, transition: 'background .2s' }}
+                    onMouseEnter={e => { if (!submitting) e.currentTarget.style.background = '#c0392b'; }}
+                    onMouseLeave={e => { if (!submitting) e.currentTarget.style.background = '#0d0d0d'; }}>
                     {submitting ? (<><span className="mhk-spin" /> Submitting…</>) : 'Post Comment'}
                   </button>
-                  {commentMsg && <p style={{ color: commentMsg.startsWith('✅') ? '#166534' : '#c0392b', fontSize: 13, margin: 0, padding: '6px 14px', borderRadius: 50, background: commentMsg.startsWith('✅') ? 'rgba(22,101,52,.1)' : 'rgba(192,57,43,.1)' }}>{commentMsg}</p>}
+                  {commentMsg && <p style={{ color: commentMsg.startsWith('✅') ? '#166534' : '#c0392b', fontSize: 12, margin: 0, padding: '4px 10px', borderRadius: 3, background: commentMsg.startsWith('✅') ? 'rgba(22,101,52,.08)' : 'rgba(192,57,43,.08)' }}>{commentMsg}</p>}
                 </div>
               </form>
             </div>
