@@ -20,8 +20,7 @@ useEffect(() => {window.scrollTo(0, 0);const load = async () => {setLoading(true
   finally { setLoading(false); }
 };
 load();
-
-}, [id]);
+                 }, [id]);
 
 // Process active ads safelyconst activeAds = useMemo(() => {return (ads || []).filter(a =>a && (a.is_active !== false && a.status !== 'inactive' && a.status !== 'paused' && a.status !== 'draft'));}, [ads]);
 
@@ -411,9 +410,9 @@ return (<PublicLayout><style>{`@keyframes mhkFade { from { opacity: 0; } to { op
       </div>
     </div>
   )}
-</PublicLayout>
-
-);}
+</Pu
+blicLayout>
+    );}
 
 /* ── Robust AdCard component that supports BOTH Video and Image ── */const AdCard = React.memo(function AdCard({ ad, height = 180, fluid = false, className = '' }) {if (!ad) return null;
 
