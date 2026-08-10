@@ -9,6 +9,7 @@ const CATEGORIES = [
   { label: 'Technology', path: '/category/Technology' },
   { label: 'Health', path: '/category/Health' },
   { label: 'Culture', path: '/category/Culture' },
+  { label: 'Religion', path: '/category/Religion' },
    { label: 'Entertainment', path: '/category/Entertainment' },
     { label: 'Education', path: '/category/Education' },
   { label: 'Video', path: '/videos', icon: '▶' },
