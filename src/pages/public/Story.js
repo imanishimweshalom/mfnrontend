@@ -22,6 +22,8 @@ export default function StoryPage() {
   const [reactions, setReactions] = useState({ likes: 0, dislikes: 0 });
 
   const [showCommentModal, setShowCommentModal] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [shareCopied, setShareCopied] = useState(false);
   const [refreshingComments, setRefreshingComments] = useState(false);
 
   // Simplified state for the bottom carousel
@@ -77,21 +79,71 @@ export default function StoryPage() {
   }, [floatAds]);
 
   useEffect(() => {
-    document.body.style.overflow = showCommentModal ? 'hidden' : '';
+    document.body.style.overflow = (showCommentModal || showShareModal) ? 'hidden' : '';
     return () => { document.body.style.overflow = ''; };
-  }, [showCommentModal]);
+  }, [showCommentModal, showShareModal]);
 
   useEffect(() => {
-    const onKey = (e) => { if (e.key === 'Escape') setShowCommentModal(false); };
-    if (showCommentModal) window.addEventListener('keydown', onKey);
+    const onKey = (e) => {
+      if (e.key === 'Escape') {
+        setShowCommentModal(false);
+        setShowShareModal(false);
+      }
+    };
+    if (showCommentModal || showShareModal) window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [showCommentModal]);
+  }, [showCommentModal, showShareModal]);
 
   const handleReact = async (type) => {
     try {
       const res = await storiesAPI.react(id, type);
       setReactions(res.data);
     } catch (e) { console.error(e); }
+  };
+
+  // Share the current story using the device's native share sheet when available.
+  // If native sharing is unavailable, the social share modal provides direct links.
+  const shareUrl = typeof window !== 'undefined' ? window.location.href : '';
+  const shareText = story?.title ? `${story.title} ${shareUrl}` : shareUrl;
+
+  const handleNativeShare = async () => {
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: story?.title || 'Mahoko Friday News',
+          text: story?.title || 'Read this story on Mahoko Friday News',
+          url: shareUrl
+        });
+        return;
+      } catch (e) {
+        // User cancelled the native share sheet; keep the modal closed only if
+        // the browser explicitly reports an abort.
+        if (e?.name === 'AbortError') return;
+      }
+    }
+    setShowShareModal(true);
+  };
+
+  const handleCopyShareLink = async () => {
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setShareCopied(true);
+      setTimeout(() => setShareCopied(false), 2500);
+    } catch (e) {
+      // Fallback for browsers where Clipboard API is unavailable.
+      try {
+        const input = document.createElement('input');
+        input.value = shareUrl;
+        document.body.appendChild(input);
+        input.select();
+        document.execCommand('copy');
+        input.remove();
+        setShareCopied(true);
+        setTimeout(() => setShareCopied(false), 2500);
+      } catch (_) {
+        console.error('Unable to copy share link', e);
+      }
+    }
   };
 
   const handleComment = async (e) => {
@@ -134,6 +186,8 @@ export default function StoryPage() {
         .mhk-react-btn:hover { background:#e8e4d8 !important; transform: translateY(-1px); }
         .mhk-share-btn { transition: all .2s ease; }
         .mhk-share-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 14px rgba(0,0,0,.18); }
+        .mhk-share-option { transition: all .2s ease; }
+        .mhk-share-option:hover { transform: translateY(-2px); box-shadow: 0 7px 16px rgba(0,0,0,.12); }
         .mhk-related-card { transition: transform .25s ease, box-shadow .25s ease; }
         .mhk-related-card:hover { transform: translateY(-4px); box-shadow: 0 10px 24px rgba(0,0,0,.09); }
         .mhk-related-card .mhk-related-img { transition: transform .4s ease; }
@@ -274,12 +328,10 @@ export default function StoryPage() {
                 👎 {reactions.dislikes}
               </button>
               <div style={{ flex: 1 }} />
-              <a className="mhk-share-btn" href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(window.location.href)}`} target="_blank" rel="noopener noreferrer"
-                style={{ padding: '7px 12px', background: '#1877f2', color: '#fff', fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 700, fontSize: 11, textDecoration: 'none', letterSpacing: 1, borderRadius: 3 }}>Share</a>
-              <a className="mhk-share-btn" href={`https://twitter.com/intent/tweet?url=${encodeURIComponent(window.location.href)}&text=${encodeURIComponent(story.title)}`} target="_blank" rel="noopener noreferrer"
-                style={{ padding: '7px 12px', background: '#0d0d0d', color: '#fff', fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 700, fontSize: 11, textDecoration: 'none', letterSpacing: 1, borderRadius: 3 }}>Tweet</a>
-              <a className="mhk-share-btn" href={`https://wa.me/?text=${encodeURIComponent(story.title + ' ' + window.location.href)}`} target="_blank" rel="noopener noreferrer"
-                style={{ padding: '7px 12px', background: '#25d366', color: '#fff', fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 700, fontSize: 11, textDecoration: 'none', letterSpacing: 1, borderRadius: 3 }}>WhatsApp</a>
+              <button type="button" className="mhk-share-btn" onClick={handleNativeShare}
+                style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '7px 14px', background: '#0d0d0d', color: '#fff', border: 'none', fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 700, fontSize: 11, cursor: 'pointer', letterSpacing: 1, borderRadius: 3 }}>
+                ↗ Share
+              </button>
             </div>
 
             <div style={{ background: '#f0ece0', padding: '18px', display: 'flex', gap: 14, alignItems: 'flex-start', marginBottom: 24, border: '1px solid #e8e4d8', borderRadius: 4 }}>
@@ -376,6 +428,107 @@ export default function StoryPage() {
           </div>
         )}
       </div>
+
+      {/* ───────────────────────────────────────────────────────────────
+          SOCIAL SHARE MODAL
+      ─────────────────────────────────────────────────────────────── */}
+      {showShareModal && (
+        <div
+          className="mhk-modal-bg"
+          onClick={(e) => { if (e.target === e.currentTarget) setShowShareModal(false); }}
+          style={{
+            position: 'fixed', inset: 0, background: 'rgba(0,0,0,.62)',
+            zIndex: 10001, display: 'flex', alignItems: 'center',
+            justifyContent: 'center', padding: '20px', overflowY: 'auto',
+            backdropFilter: 'blur(3px)', WebkitBackdropFilter: 'blur(3px)'
+          }}
+        >
+          <div className="mhk-modal-card" style={{
+            background: '#fff', width: '100%', maxWidth: 520, borderRadius: 8,
+            boxShadow: '0 24px 64px rgba(0,0,0,.35)', overflow: 'hidden'
+          }}>
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              padding: '14px 18px', borderBottom: '2px solid #0d0d0d',
+              background: '#0d0d0d', color: '#fff'
+            }}>
+              <div>
+                <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: '#c0392b', fontWeight: 800 }}>Share Story</div>
+                <h3 style={{ fontFamily: "'Playfair Display',serif", fontSize: '1.15rem', fontWeight: 700, margin: 0 }}>Share this story</h3>
+              </div>
+              <button
+                onClick={() => setShowShareModal(false)} aria-label="Close share dialog"
+                style={{
+                  width: 32, height: 32, borderRadius: '50%', background: 'rgba(255,255,255,.15)',
+                  color: '#fff', border: 'none', cursor: 'pointer', fontSize: 18,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0
+                }}
+              >×</button>
+            </div>
+
+            <div style={{ padding: 18 }}>
+              <div style={{
+                background: '#f0ece0', border: '1px solid #e8e4d8', borderRadius: 5,
+                padding: '10px 12px', marginBottom: 16, fontFamily: "'Barlow Condensed',sans-serif",
+                fontSize: 12, color: '#5a5a5a', wordBreak: 'break-word'
+              }}>
+                {story.title}
+              </div>
+
+              <div style={{
+                display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(125px,1fr))',
+                gap: 10
+              }}>
+                <a className="mhk-share-option" href={`https://wa.me/?text=${encodeURIComponent(shareText)}`} target="_blank" rel="noopener noreferrer"
+                  style={{ padding: '12px 10px', background: '#25d366', color: '#fff', textDecoration: 'none', borderRadius: 5, textAlign: 'center', fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 700, fontSize: 12 }}>
+                  💬 WhatsApp
+                </a>
+
+                <a className="mhk-share-option" href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}`} target="_blank" rel="noopener noreferrer"
+                  style={{ padding: '12px 10px', background: '#1877f2', color: '#fff', textDecoration: 'none', borderRadius: 5, textAlign: 'center', fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 700, fontSize: 12 }}>
+                  f Facebook
+                </a>
+
+                <a className="mhk-share-option" href={`https://twitter.com/intent/tweet?url=${encodeURIComponent(shareUrl)}&text=${encodeURIComponent(story.title)}`} target="_blank" rel="noopener noreferrer"
+                  style={{ padding: '12px 10px', background: '#0d0d0d', color: '#fff', textDecoration: 'none', borderRadius: 5, textAlign: 'center', fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 700, fontSize: 12 }}>
+                  𝕏 X
+                </a>
+
+                <a className="mhk-share-option" href={`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(shareUrl)}`} target="_blank" rel="noopener noreferrer"
+                  style={{ padding: '12px 10px', background: '#0a66c2', color: '#fff', textDecoration: 'none', borderRadius: 5, textAlign: 'center', fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 700, fontSize: 12 }}>
+                  in LinkedIn
+                </a>
+
+                <a className="mhk-share-option" href={`https://t.me/share/url?url=${encodeURIComponent(shareUrl)}&text=${encodeURIComponent(story.title)}`} target="_blank" rel="noopener noreferrer"
+                  style={{ padding: '12px 10px', background: '#229ed9', color: '#fff', textDecoration: 'none', borderRadius: 5, textAlign: 'center', fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 700, fontSize: 12 }}>
+                  ✈ Telegram
+                </a>
+
+                <a className="mhk-share-option" href={`mailto:?subject=${encodeURIComponent(story.title)}&body=${encodeURIComponent(shareText)}`}
+                  style={{ padding: '12px 10px', background: '#555', color: '#fff', textDecoration: 'none', borderRadius: 5, textAlign: 'center', fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 700, fontSize: 12 }}>
+                  ✉ Email
+                </a>
+
+                <button type="button" className="mhk-share-option" onClick={handleCopyShareLink}
+                  style={{ padding: '12px 10px', background: '#f0ece0', color: '#0d0d0d', border: '1px solid #e8e4d8', borderRadius: 5, cursor: 'pointer', fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 700, fontSize: 12 }}>
+                  🔗 {shareCopied ? 'Link Copied!' : 'Copy Link'}
+                </button>
+
+                <button type="button" className="mhk-share-option" onClick={async () => {
+                  await handleCopyShareLink();
+                }}
+                  style={{ padding: '12px 10px', background: '#c0392b', color: '#fff', border: 'none', borderRadius: 5, cursor: 'pointer', fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 700, fontSize: 12 }}>
+                  📸 Instagram
+                </button>
+              </div>
+
+              <p style={{ margin: '14px 0 0', fontSize: 11.5, lineHeight: 1.5, color: '#777', textAlign: 'center' }}>
+                Instagram does not provide a standard website share URL, so the Instagram option copies the story link for you to paste into Instagram. On supported phones/browsers, the main Share button can also open the device's native share sheet.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ───────────────────────────────────────────────────────────────
           COMMENT MODAL 
