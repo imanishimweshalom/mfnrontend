@@ -6,21 +6,37 @@ const Newsletter = () => {
 
   const [subject, setSubject] = useState("");
   const [message, setMessage] = useState("");
+
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState("");
+
 
 
   const sendNewsletter = async (e) => {
 
     e.preventDefault();
 
-    try {
+
+    if(!subject.trim() || !message.trim()){
+
+      setResult("Please fill subject and message");
+
+      return;
+
+    }
+
+
+
+    try{
+
 
       setLoading(true);
       setResult("");
 
 
+
       const token = localStorage.getItem("token");
+
 
 
       const res = await axios.post(
@@ -33,116 +49,178 @@ const Newsletter = () => {
         },
 
         {
-          headers: {
-            Authorization: `Bearer ${token}`
+
+          headers:{
+
+            Authorization:`Bearer ${token}`
+
           }
+
         }
 
       );
 
 
+
+      console.log("Newsletter response:", res.data);
+
+
+
       setResult(
-        `Success: ${res.data.message} (${res.data.sentTo} subscribers)`
+
+        `Success: ${
+          res.data.message ||
+          "Newsletter sent successfully"
+        } ${
+          res.data.total
+          ?
+          `(${res.data.total} subscribers)`
+          :
+          ""
+        }`
+
       );
+
 
 
       setSubject("");
+
       setMessage("");
 
 
-    } catch (error) {
 
-      console.log(error);
+    }catch(err){
+
+
+      console.log("Newsletter error:", err);
+
 
 
       setResult(
-        error.response?.data?.error ||
+
+        err.response?.data?.error ||
+
         "Failed to send newsletter"
+
       );
 
 
-    } finally {
+    }finally{
+
 
       setLoading(false);
 
+
     }
+
 
   };
 
 
+
+
   return (
 
-    <div>
+    <div className="admin-page">
 
-      <h2>Send Newsletter</h2>
+
+      <h1>
+        Newsletter
+      </h1>
+
+
+      <p>
+        Send email to all subscribers
+      </p>
+
 
 
       <form onSubmit={sendNewsletter}>
 
 
-        <input
+        <div>
 
-          type="text"
-
-          value={subject}
-
-          onChange={(e)=>setSubject(e.target.value)}
-
-          placeholder="Newsletter subject"
-
-          required
-
-        />
+          <label>
+            Subject
+          </label>
 
 
-        <br />
+          <input
+
+            type="text"
+
+            value={subject}
+
+            onChange={(e)=>setSubject(e.target.value)}
+
+            placeholder="Newsletter subject"
+
+          />
+
+        </div>
 
 
-        <textarea
-
-          value={message}
-
-          onChange={(e)=>setMessage(e.target.value)}
-
-          placeholder="Write newsletter message"
-
-          rows="8"
-
-          required
-
-        />
 
 
-        <br />
+        <div>
+
+          <label>
+            Message
+          </label>
 
 
-        <button
+          <textarea
 
-          type="submit"
+            rows="8"
 
-          disabled={loading}
+            value={message}
 
-        >
+            onChange={(e)=>setMessage(e.target.value)}
+
+            placeholder="Write your newsletter message here..."
+
+          />
+
+
+        </div>
+
+
+
+
+        <button disabled={loading}>
+
 
           {
             loading
-            ? "Sending..."
-            : "Send Newsletter"
+            ?
+            "Sending..."
+            :
+            "Send Newsletter"
           }
 
+
         </button>
+
+
 
 
       </form>
 
 
+
+
       {
+
         result &&
 
-        <p>
+        <div className="message">
+
           {result}
-        </p>
+
+        </div>
+
       }
+
 
 
     </div>
