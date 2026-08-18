@@ -10,7 +10,9 @@ import {
 } from '../../utils/api';
 import { useAuth } from '../../context/AuthContext';
 
-// ─── API / IMAGE CONFIG ──────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
+// API / IMAGE HELPERS
+// ─────────────────────────────────────────────────────────────
 
 const API_BASE =
   process.env.REACT_APP_API_URL?.replace('/api', '') ||
@@ -34,36 +36,34 @@ const getImgUrl = (path) => {
   return `${API_BASE}/uploads/${cleanPath}`;
 };
 
-// ─── STYLES ──────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
+// STYLES
+// ─────────────────────────────────────────────────────────────
 
 const inputStyle = {
   width: '100%',
-  padding: '11px 14px',
+  padding: '9px 11px',
   border: '1px solid #e2e8f0',
-  borderRadius: 10,
-  fontSize: 14,
+  borderRadius: 8,
+  fontSize: 13,
   outline: 'none',
   fontFamily: 'inherit',
   boxSizing: 'border-box',
-  marginBottom: 14,
+  marginBottom: 10,
   background: '#fff'
 };
 
 const labelStyle = {
   display: 'block',
-  marginBottom: 6,
+  marginBottom: 4,
   fontWeight: 700,
-  fontSize: 13,
+  fontSize: 12,
   color: '#334155'
 };
 
-const sectionTitleStyle = {
-  fontSize: 13,
-  fontWeight: 800,
-  color: '#1e293b',
-  margin: '20px 0 12px',
-  paddingBottom: 8,
-  borderBottom: '1px solid #e2e8f0'
+const socialInputStyle = {
+  ...inputStyle,
+  marginBottom: 8
 };
 
 function Card({ children, style, className }) {
@@ -84,7 +84,9 @@ function Card({ children, style, className }) {
   );
 }
 
-// ─── RESPONSIVE CSS ──────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
+// RESPONSIVE CSS
+// ─────────────────────────────────────────────────────────────
 
 const responsiveCSS = `
   .admin-form-grid {
@@ -93,10 +95,20 @@ const responsiveCSS = `
     gap: 16px;
   }
 
-  .author-social-grid {
+  .author-form-card {
+    width: 100%;
+  }
+
+  .author-fields-grid {
     display: grid;
     grid-template-columns: 1fr;
-    gap: 0;
+    gap: 0 10px;
+  }
+
+  .social-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0 10px;
   }
 
   .admin-table-scroll {
@@ -116,38 +128,52 @@ const responsiveCSS = `
     padding: 16px !important;
   }
 
-  .author-modal {
-    width: calc(100% - 24px) !important;
-    max-height: 94vh !important;
+  .compact-form-title {
+    font-size: 15px;
   }
 
   @media (min-width: 600px) {
-    .author-social-grid {
+    .author-fields-grid {
       grid-template-columns: 1fr 1fr;
-      column-gap: 12px;
+    }
+
+    .social-grid {
+      grid-template-columns: 1fr 1fr;
     }
   }
 
   @media (min-width: 768px) {
     .admin-form-grid {
-      grid-template-columns: 360px 1fr;
-      gap: 24px;
+      grid-template-columns: 300px minmax(0, 1fr);
+      gap: 20px;
+      align-items: start;
+    }
+
+    .author-form-card {
+      max-width: 300px;
     }
 
     .admin-card-base {
-      padding: 24px !important;
+      padding: 20px !important;
+    }
+  }
+
+  @media (min-width: 1100px) {
+    .admin-form-grid {
+      grid-template-columns: 330px minmax(0, 1fr);
     }
 
-    .author-modal {
-      width: 700px !important;
-      max-height: 90vh !important;
+    .author-form-card {
+      max-width: 330px;
     }
   }
 `;
 
-// ─── AUTHOR EMPTY FORM ───────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
+// EMPTY AUTHOR FORM
+// ─────────────────────────────────────────────────────────────
 
-const emptyAuthorForm = {
+const EMPTY_AUTHOR = {
   name: '',
   bio: '',
   email: '',
@@ -157,42 +183,41 @@ const emptyAuthorForm = {
   linkedin: '',
   facebook: '',
   instagram: '',
-  youtube: '',
   github: '',
+  youtube: '',
+  location: '',
   phone: '',
-  location: ''
+  skills: ''
 };
 
-// ─── AUTHORS ─────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
+// AUTHORS
+// ─────────────────────────────────────────────────────────────
 
 export function Authors() {
   const [authors, setAuthors] = useState([]);
-  const [form, setForm] = useState(emptyAuthorForm);
-
-  const [editingAuthor, setEditingAuthor] = useState(null);
-  const [editForm, setEditForm] = useState(emptyAuthorForm);
-
+  const [form, setForm] = useState(EMPTY_AUTHOR);
   const [saving, setSaving] = useState(false);
-  const [editing, setEditing] = useState(false);
+  const [editingId, setEditingId] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  const fileRef = useRef();
-  const editFileRef = useRef();
+  const fileRef = useRef(null);
 
   const { can } = useAuth();
 
-  // ─── LOAD AUTHORS ──────────────────────────────────────────────────────────
+  // ─────────────────────────────────────────
+  // LOAD AUTHORS
+  // ─────────────────────────────────────────
 
   const load = async () => {
     try {
       setLoading(true);
 
-      const r = await authorsAPI.getAll();
+      const response = await authorsAPI.getAll();
 
-      setAuthors(r.data || []);
+      setAuthors(response.data || []);
     } catch (error) {
       console.error('Failed to load authors:', error);
-      alert('Failed to load authors.');
     } finally {
       setLoading(false);
     }
@@ -202,9 +227,11 @@ export function Authors() {
     load();
   }, []);
 
-  // ─── FORM CHANGE ───────────────────────────────────────────────────────────
+  // ─────────────────────────────────────────
+  // HANDLE INPUT
+  // ─────────────────────────────────────────
 
-  const handleFormChange = (e) => {
+  const handleChange = (e) => {
     const { name, value } = e.target;
 
     setForm((prev) => ({
@@ -213,24 +240,56 @@ export function Authors() {
     }));
   };
 
-  const handleEditFormChange = (e) => {
-    const { name, value } = e.target;
+  // ─────────────────────────────────────────
+  // EDIT AUTHOR
+  // ─────────────────────────────────────────
 
-    setEditForm((prev) => ({
-      ...prev,
-      [name]: value
-    }));
+  const handleEdit = (author) => {
+    setEditingId(author.id);
+
+    setForm({
+      name: author.name || '',
+      bio: author.bio || '',
+      email: author.email || '',
+      twitter: author.twitter || '',
+      website: author.website || '',
+      portfolio: author.portfolio || '',
+      linkedin: author.linkedin || '',
+      facebook: author.facebook || '',
+      instagram: author.instagram || '',
+      github: author.github || '',
+      youtube: author.youtube || '',
+      location: author.location || '',
+      phone: author.phone || '',
+      skills: author.skills || ''
+    });
+
+    // Scroll to form
+    window.scrollTo({
+      top: 0,
+      behavior: 'smooth'
+    });
   };
 
-  // ─── CREATE AUTHOR ─────────────────────────────────────────────────────────
+  // ─────────────────────────────────────────
+  // CANCEL EDIT
+  // ─────────────────────────────────────────
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setForm(EMPTY_AUTHOR);
+
+    if (fileRef.current) {
+      fileRef.current.value = '';
+    }
+  };
+
+  // ─────────────────────────────────────────
+  // SUBMIT AUTHOR
+  // ─────────────────────────────────────────
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-
-    if (!can('manage_authors')) {
-      alert('You do not have permission to manage authors.');
-      return;
-    }
 
     try {
       setSaving(true);
@@ -245,112 +304,38 @@ export function Authors() {
         fd.append('profile_image', fileRef.current.files[0]);
       }
 
-      await authorsAPI.create(fd);
+      if (editingId) {
+        await authorsAPI.update(editingId, fd);
+      } else {
+        await authorsAPI.create(fd);
+      }
 
-      setForm(emptyAuthorForm);
+      setForm(EMPTY_AUTHOR);
+      setEditingId(null);
 
       if (fileRef.current) {
         fileRef.current.value = '';
       }
 
       await load();
-
-      alert('Author created successfully.');
     } catch (error) {
-      console.error('Create author error:', error);
+      console.error('Author save error:', error);
 
       alert(
         error?.response?.data?.message ||
-          'Failed to create author. Please try again.'
+          'Failed to save author. Please try again.'
       );
     } finally {
       setSaving(false);
     }
   };
 
-  // ─── OPEN EDIT ─────────────────────────────────────────────────────────────
-
-  const openEdit = (author) => {
-    setEditingAuthor(author);
-
-    setEditForm({
-      name: author.name || '',
-      bio: author.bio || '',
-      email: author.email || '',
-      twitter: author.twitter || '',
-      website: author.website || '',
-      portfolio: author.portfolio || '',
-      linkedin: author.linkedin || '',
-      facebook: author.facebook || '',
-      instagram: author.instagram || '',
-      youtube: author.youtube || '',
-      github: author.github || '',
-      phone: author.phone || '',
-      location: author.location || ''
-    });
-
-    if (editFileRef.current) {
-      editFileRef.current.value = '';
-    }
-  };
-
-  // ─── UPDATE AUTHOR ─────────────────────────────────────────────────────────
-
-  const handleUpdate = async (e) => {
-    e.preventDefault();
-
-    if (!editingAuthor) return;
-
-    if (!can('manage_authors')) {
-      alert('You do not have permission to manage authors.');
-      return;
-    }
-
-    try {
-      setEditing(true);
-
-      const fd = new FormData();
-
-      Object.entries(editForm).forEach(([key, value]) => {
-        fd.append(key, value || '');
-      });
-
-      if (editFileRef.current?.files?.[0]) {
-        fd.append('profile_image', editFileRef.current.files[0]);
-      }
-
-      /*
-        This expects:
-        authorsAPI.update(id, fd)
-      */
-
-      await authorsAPI.update(editingAuthor.id, fd);
-
-      setEditingAuthor(null);
-      setEditForm(emptyAuthorForm);
-
-      await load();
-
-      alert('Author updated successfully.');
-    } catch (error) {
-      console.error('Update author error:', error);
-
-      alert(
-        error?.response?.data?.message ||
-          'Failed to update author. Please try again.'
-      );
-    } finally {
-      setEditing(false);
-    }
-  };
-
-  // ─── DELETE AUTHOR ─────────────────────────────────────────────────────────
+  // ─────────────────────────────────────────
+  // DELETE AUTHOR
+  // ─────────────────────────────────────────
 
   const handleDelete = async (id) => {
-    if (!can('manage_authors')) {
-      alert('You do not have permission to manage authors.');
-      return;
-    }
+    if (!can('manage_authors')) return;
 
     if (!window.confirm('Are you sure you want to delete this author?')) {
       return;
@@ -359,260 +344,24 @@ export function Authors() {
     try {
       await authorsAPI.delete(id);
 
-      await load();
+      if (editingId === id) {
+        cancelEdit();
+      }
 
-      alert('Author deleted successfully.');
+      await load();
     } catch (error) {
       console.error('Delete author error:', error);
 
       alert(
         error?.response?.data?.message ||
-          'Failed to delete author. Please try again.'
+          'Failed to delete author.'
       );
     }
   };
 
-  // ─── AUTHOR FORM ───────────────────────────────────────────────────────────
-
-  const AuthorFields = ({
-    data,
-    onChange,
-    imageRef,
-    currentImage,
-    editMode = false
-  }) => (
-    <>
-      <label style={labelStyle}>Full Name *</label>
-
-      <input
-        name="name"
-        value={data.name}
-        onChange={onChange}
-        required
-        placeholder="Author full name"
-        style={inputStyle}
-      />
-
-      <label style={labelStyle}>Email</label>
-
-      <input
-        name="email"
-        type="email"
-        value={data.email}
-        onChange={onChange}
-        placeholder="author@example.com"
-        style={inputStyle}
-      />
-
-      <label style={labelStyle}>Phone</label>
-
-      <input
-        name="phone"
-        type="tel"
-        value={data.phone}
-        onChange={onChange}
-        placeholder="+250 7XX XXX XXX"
-        style={inputStyle}
-      />
-
-      <label style={labelStyle}>Location</label>
-
-      <input
-        name="location"
-        value={data.location}
-        onChange={onChange}
-        placeholder="Kigali, Rwanda"
-        style={inputStyle}
-      />
-
-      <label style={labelStyle}>Bio</label>
-
-      <textarea
-        name="bio"
-        value={data.bio}
-        onChange={onChange}
-        rows={5}
-        placeholder="Write a short biography about this author..."
-        style={{
-          ...inputStyle,
-          resize: 'vertical'
-        }}
-      />
-
-      <div style={sectionTitleStyle}>
-        🌐 Website & Portfolio
-      </div>
-
-      <div className="author-social-grid">
-        <div>
-          <label style={labelStyle}>Personal Website</label>
-
-          <input
-            name="website"
-            value={data.website}
-            onChange={onChange}
-            placeholder="https://example.com"
-            style={inputStyle}
-          />
-        </div>
-
-        <div>
-          <label style={labelStyle}>Portfolio</label>
-
-          <input
-            name="portfolio"
-            value={data.portfolio}
-            onChange={onChange}
-            placeholder="https://portfolio.example.com"
-            style={inputStyle}
-          />
-        </div>
-      </div>
-
-      <div style={sectionTitleStyle}>
-        📱 Social Media
-      </div>
-
-      <div className="author-social-grid">
-        <div>
-          <label style={labelStyle}>Twitter / X</label>
-
-          <input
-            name="twitter"
-            value={data.twitter}
-            onChange={onChange}
-            placeholder="https://x.com/username"
-            style={inputStyle}
-          />
-        </div>
-
-        <div>
-          <label style={labelStyle}>LinkedIn</label>
-
-          <input
-            name="linkedin"
-            value={data.linkedin}
-            onChange={onChange}
-            placeholder="https://linkedin.com/in/username"
-            style={inputStyle}
-          />
-        </div>
-
-        <div>
-          <label style={labelStyle}>Facebook</label>
-
-          <input
-            name="facebook"
-            value={data.facebook}
-            onChange={onChange}
-            placeholder="https://facebook.com/username"
-            style={inputStyle}
-          />
-        </div>
-
-        <div>
-          <label style={labelStyle}>Instagram</label>
-
-          <input
-            name="instagram"
-            value={data.instagram}
-            onChange={onChange}
-            placeholder="https://instagram.com/username"
-            style={inputStyle}
-          />
-        </div>
-
-        <div>
-          <label style={labelStyle}>YouTube</label>
-
-          <input
-            name="youtube"
-            value={data.youtube}
-            onChange={onChange}
-            placeholder="https://youtube.com/@username"
-            style={inputStyle}
-          />
-        </div>
-
-        <div>
-          <label style={labelStyle}>GitHub</label>
-
-          <input
-            name="github"
-            value={data.github}
-            onChange={onChange}
-            placeholder="https://github.com/username"
-            style={inputStyle}
-          />
-        </div>
-      </div>
-
-      <div style={sectionTitleStyle}>
-        🖼️ Profile Image
-      </div>
-
-      {editMode && currentImage && (
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 12,
-            marginBottom: 14
-          }}
-        >
-          <img
-            src={getImgUrl(currentImage)}
-            alt=""
-            style={{
-              width: 70,
-              height: 70,
-              borderRadius: '50%',
-              objectFit: 'cover',
-              border: '2px solid #e2e8f0'
-            }}
-            onError={(e) => {
-              e.currentTarget.onerror = null;
-              e.currentTarget.src = PLACEHOLDER;
-            }}
-          />
-
-          <div>
-            <div
-              style={{
-                fontSize: 13,
-                fontWeight: 700,
-                color: '#334155'
-              }}
-            >
-              Current profile photo
-            </div>
-
-            <div
-              style={{
-                fontSize: 12,
-                color: '#94a3b8',
-                marginTop: 3
-              }}
-            >
-              Upload another image to replace it.
-            </div>
-          </div>
-        </div>
-      )}
-
-      <input
-        ref={imageRef}
-        type="file"
-        accept="image/*"
-        style={{
-          ...inputStyle,
-          padding: '8px 12px'
-        }}
-      />
-    </>
-  );
-
-  // ─── AUTHORS UI ────────────────────────────────────────────────────────────
+  // ─────────────────────────────────────────
+  // RENDER
+  // ─────────────────────────────────────────
 
   return (
     <AdminLayout>
@@ -624,15 +373,15 @@ export function Authors() {
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          marginBottom: 24,
-          gap: 12
+          marginBottom: 20,
+          gap: 10
         }}
       >
         <div>
           <h1
             style={{
               fontWeight: 800,
-              fontSize: '1.6rem',
+              fontSize: '1.5rem',
               margin: 0,
               letterSpacing: '-0.03em'
             }}
@@ -642,23 +391,23 @@ export function Authors() {
 
           <p
             style={{
-              margin: '6px 0 0',
-              color: '#64748b',
-              fontSize: 13
+              margin: '5px 0 0',
+              color: '#94a3b8',
+              fontSize: 12
             }}
           >
-            Manage author profiles, portfolios and social media.
+            Manage author profiles, portfolio and social media.
           </p>
         </div>
 
         <span
           style={{
-            background: '#ecfdf5',
-            color: '#047857',
-            padding: '7px 14px',
+            background: '#f0fdf4',
+            color: '#166534',
+            padding: '6px 12px',
             borderRadius: 8,
-            fontWeight: 800,
-            fontSize: 13
+            fontWeight: 700,
+            fontSize: 12
           }}
         >
           {authors.length} Authors
@@ -666,49 +415,366 @@ export function Authors() {
       </div>
 
       <div className="admin-form-grid">
-        {/* ───────────────── CREATE AUTHOR ───────────────── */}
 
-        <Card>
-          <h3
+        {/* ─────────────────────────────────────
+            AUTHOR FORM
+        ───────────────────────────────────── */}
+
+        <Card
+          className="author-form-card"
+          style={{
+            padding: 16
+          }}
+        >
+          <div
             style={{
-              fontWeight: 800,
-              margin: '0 0 20px',
-              fontSize: '1rem'
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: 14,
+              gap: 8
             }}
           >
-            Add New Author
-          </h3>
+            <div>
+              <h3
+                className="compact-form-title"
+                style={{
+                  fontWeight: 800,
+                  margin: 0
+                }}
+              >
+                {editingId ? 'Edit Author' : 'Add Author'}
+              </h3>
+
+              <p
+                style={{
+                  margin: '3px 0 0',
+                  color: '#94a3b8',
+                  fontSize: 11
+                }}
+              >
+                {editingId
+                  ? 'Update author information'
+                  : 'Create a new author profile'}
+              </p>
+            </div>
+
+            {editingId && (
+              <button
+                type="button"
+                onClick={cancelEdit}
+                style={{
+                  border: 'none',
+                  background: '#f1f5f9',
+                  color: '#475569',
+                  borderRadius: 7,
+                  padding: '6px 9px',
+                  cursor: 'pointer',
+                  fontSize: 11,
+                  fontWeight: 700
+                }}
+              >
+                Cancel
+              </button>
+            )}
+          </div>
 
           <form onSubmit={handleSubmit}>
-            <AuthorFields
-              data={form}
-              onChange={handleFormChange}
-              imageRef={fileRef}
+
+            {/* BASIC INFORMATION */}
+
+            <label style={labelStyle}>
+              Full Name *
+            </label>
+
+            <input
+              name="name"
+              value={form.name}
+              onChange={handleChange}
+              required
+              placeholder="Author name"
+              style={inputStyle}
             />
+
+            <label style={labelStyle}>
+              Email
+            </label>
+
+            <input
+              name="email"
+              type="email"
+              value={form.email}
+              onChange={handleChange}
+              placeholder="author@example.com"
+              style={inputStyle}
+            />
+
+            <div className="author-fields-grid">
+
+              <div>
+                <label style={labelStyle}>
+                  Phone
+                </label>
+
+                <input
+                  name="phone"
+                  value={form.phone}
+                  onChange={handleChange}
+                  placeholder="+250..."
+                  style={inputStyle}
+                />
+              </div>
+
+              <div>
+                <label style={labelStyle}>
+                  Location
+                </label>
+
+                <input
+                  name="location"
+                  value={form.location}
+                  onChange={handleChange}
+                  placeholder="Kigali, Rwanda"
+                  style={inputStyle}
+                />
+              </div>
+
+            </div>
+
+            <label style={labelStyle}>
+              Bio
+            </label>
+
+            <textarea
+              name="bio"
+              value={form.bio}
+              onChange={handleChange}
+              rows={3}
+              placeholder="Short biography..."
+              style={{
+                ...inputStyle,
+                resize: 'vertical'
+              }}
+            />
+
+            <label style={labelStyle}>
+              Skills
+            </label>
+
+            <input
+              name="skills"
+              value={form.skills}
+              onChange={handleChange}
+              placeholder="Journalism, Sports, Politics..."
+              style={inputStyle}
+            />
+
+            {/* WEBSITE / PORTFOLIO */}
+
+            <div
+              style={{
+                borderTop: '1px solid #f1f5f9',
+                margin: '5px 0 12px',
+                paddingTop: 12
+              }}
+            >
+              <div
+                style={{
+                  fontSize: 11,
+                  fontWeight: 800,
+                  color: '#64748b',
+                  textTransform: 'uppercase',
+                  marginBottom: 8
+                }}
+              >
+                Website & Portfolio
+              </div>
+
+              <label style={labelStyle}>
+                Portfolio Website
+              </label>
+
+              <input
+                name="portfolio"
+                value={form.portfolio}
+                onChange={handleChange}
+                placeholder="https://myportfolio.com"
+                style={socialInputStyle}
+              />
+
+              <label style={labelStyle}>
+                Personal Website
+              </label>
+
+              <input
+                name="website"
+                value={form.website}
+                onChange={handleChange}
+                placeholder="https://example.com"
+                style={socialInputStyle}
+              />
+            </div>
+
+            {/* SOCIAL MEDIA */}
+
+            <div
+              style={{
+                borderTop: '1px solid #f1f5f9',
+                margin: '5px 0 12px',
+                paddingTop: 12
+              }}
+            >
+              <div
+                style={{
+                  fontSize: 11,
+                  fontWeight: 800,
+                  color: '#64748b',
+                  textTransform: 'uppercase',
+                  marginBottom: 8
+                }}
+              >
+                Social Media
+              </div>
+
+              <div className="social-grid">
+
+                <div>
+                  <label style={labelStyle}>
+                    Twitter / X
+                  </label>
+
+                  <input
+                    name="twitter"
+                    value={form.twitter}
+                    onChange={handleChange}
+                    placeholder="https://x.com/username"
+                    style={socialInputStyle}
+                  />
+                </div>
+
+                <div>
+                  <label style={labelStyle}>
+                    LinkedIn
+                  </label>
+
+                  <input
+                    name="linkedin"
+                    value={form.linkedin}
+                    onChange={handleChange}
+                    placeholder="https://linkedin.com/in/..."
+                    style={socialInputStyle}
+                  />
+                </div>
+
+                <div>
+                  <label style={labelStyle}>
+                    Facebook
+                  </label>
+
+                  <input
+                    name="facebook"
+                    value={form.facebook}
+                    onChange={handleChange}
+                    placeholder="https://facebook.com/..."
+                    style={socialInputStyle}
+                  />
+                </div>
+
+                <div>
+                  <label style={labelStyle}>
+                    Instagram
+                  </label>
+
+                  <input
+                    name="instagram"
+                    value={form.instagram}
+                    onChange={handleChange}
+                    placeholder="https://instagram.com/..."
+                    style={socialInputStyle}
+                  />
+                </div>
+
+                <div>
+                  <label style={labelStyle}>
+                    GitHub
+                  </label>
+
+                  <input
+                    name="github"
+                    value={form.github}
+                    onChange={handleChange}
+                    placeholder="https://github.com/..."
+                    style={socialInputStyle}
+                  />
+                </div>
+
+                <div>
+                  <label style={labelStyle}>
+                    YouTube
+                  </label>
+
+                  <input
+                    name="youtube"
+                    value={form.youtube}
+                    onChange={handleChange}
+                    placeholder="https://youtube.com/..."
+                    style={socialInputStyle}
+                  />
+                </div>
+
+              </div>
+            </div>
+
+            {/* IMAGE */}
+
+            <label style={labelStyle}>
+              Profile Image
+            </label>
+
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/*"
+              style={{
+                ...inputStyle,
+                padding: '7px 9px'
+              }}
+            />
+
+            {/* SUBMIT */}
 
             <button
               type="submit"
               disabled={saving}
               style={{
                 width: '100%',
-                background: saving ? '#94a3b8' : '#1a472a',
+                background: saving
+                  ? '#94a3b8'
+                  : '#1a472a',
                 color: '#fff',
                 border: 'none',
-                padding: '13px',
-                borderRadius: 10,
+                padding: '10px',
+                borderRadius: 8,
                 fontWeight: 800,
-                fontSize: 14,
-                cursor: saving ? 'not-allowed' : 'pointer',
-                fontFamily: 'inherit',
-                marginTop: 6
+                fontSize: 13,
+                cursor: saving
+                  ? 'not-allowed'
+                  : 'pointer',
+                fontFamily: 'inherit'
               }}
             >
-              {saving ? 'Creating Author…' : 'Create Author'}
+              {saving
+                ? 'Saving...'
+                : editingId
+                ? 'Update Author'
+                : 'Create Author'}
             </button>
           </form>
         </Card>
 
-        {/* ───────────────── AUTHORS TABLE ───────────────── */}
+        {/* ─────────────────────────────────────
+            AUTHORS TABLE
+        ───────────────────────────────────── */}
 
         <Card
           className="admin-table-scroll"
@@ -720,12 +786,12 @@ export function Authors() {
           {loading ? (
             <div
               style={{
-                padding: 50,
+                padding: 40,
                 textAlign: 'center',
                 color: '#94a3b8'
               }}
             >
-              Loading authors…
+              Loading authors...
             </div>
           ) : (
             <table
@@ -741,21 +807,24 @@ export function Authors() {
                     'Photo',
                     'Author',
                     'Contact',
-                    'Online',
+                    'Portfolio',
+                    'Social',
                     'Stories',
                     'Actions'
                   ].map((h) => (
                     <th
                       key={h}
                       style={{
-                        padding: '14px 16px',
+                        padding: '13px 14px',
                         background: '#f8fafc',
                         color: '#64748b',
-                        fontSize: 11,
+                        fontSize: 10,
                         textTransform: 'uppercase',
                         fontWeight: 800,
-                        borderBottom: '1px solid #e2e8f0',
-                        textAlign: 'left'
+                        borderBottom:
+                          '1px solid #e2e8f0',
+                        textAlign: 'left',
+                        whiteSpace: 'nowrap'
                       }}
                     >
                       {h}
@@ -769,32 +838,46 @@ export function Authors() {
                   <tr
                     key={a.id}
                     style={{
-                      borderBottom: '1px solid #f1f5f9'
+                      borderBottom:
+                        '1px solid #f1f5f9'
                     }}
                   >
+
                     {/* PHOTO */}
 
-                    <td style={{ padding: '14px 16px' }}>
+                    <td
+                      style={{
+                        padding: '12px 14px'
+                      }}
+                    >
                       <img
-                        src={getImgUrl(a.profile_image)}
+                        src={getImgUrl(
+                          a.profile_image
+                        )}
                         alt={a.name || ''}
                         style={{
                           width: 48,
                           height: 48,
                           borderRadius: '50%',
                           objectFit: 'cover',
-                          border: '2px solid #e2e8f0'
+                          display: 'block'
                         }}
                         onError={(e) => {
-                          e.currentTarget.onerror = null;
-                          e.currentTarget.src = PLACEHOLDER;
+                          e.target.onerror = null;
+                          e.target.src =
+                            PLACEHOLDER;
                         }}
                       />
                     </td>
 
                     {/* AUTHOR */}
 
-                    <td style={{ padding: '14px 16px' }}>
+                    <td
+                      style={{
+                        padding: '12px 14px',
+                        minWidth: 180
+                      }}
+                    >
                       <div
                         style={{
                           fontWeight: 800,
@@ -804,52 +887,55 @@ export function Authors() {
                         {a.name}
                       </div>
 
-                      <div
-                        style={{
-                          fontSize: 12,
-                          color: '#94a3b8',
-                          marginTop: 4,
-                          maxWidth: 230
-                        }}
-                      >
-                        {a.bio
-                          ? `${a.bio.substring(0, 70)}${
-                              a.bio.length > 70 ? '…' : ''
-                            }`
-                          : 'No biography'}
-                      </div>
-
                       {a.location && (
                         <div
                           style={{
                             fontSize: 11,
                             color: '#64748b',
-                            marginTop: 5
+                            marginTop: 3
                           }}
                         >
                           📍 {a.location}
+                        </div>
+                      )}
+
+                      {a.skills && (
+                        <div
+                          style={{
+                            fontSize: 11,
+                            color: '#94a3b8',
+                            marginTop: 3,
+                            maxWidth: 180,
+                            overflow: 'hidden',
+                            textOverflow:
+                              'ellipsis',
+                            whiteSpace:
+                              'nowrap'
+                          }}
+                        >
+                          {a.skills}
                         </div>
                       )}
                     </td>
 
                     {/* CONTACT */}
 
-                    <td style={{ padding: '14px 16px' }}>
-                      <div
-                        style={{
-                          fontSize: 13,
-                          color: '#475569'
-                        }}
-                      >
+                    <td
+                      style={{
+                        padding: '12px 14px',
+                        fontSize: 12,
+                        color: '#475569'
+                      }}
+                    >
+                      <div>
                         {a.email || '—'}
                       </div>
 
                       {a.phone && (
                         <div
                           style={{
-                            fontSize: 12,
-                            color: '#94a3b8',
-                            marginTop: 4
+                            marginTop: 3,
+                            color: '#94a3b8'
                           }}
                         >
                           {a.phone}
@@ -857,54 +943,76 @@ export function Authors() {
                       )}
                     </td>
 
-                    {/* ONLINE LINKS */}
+                    {/* PORTFOLIO */}
 
-                    <td style={{ padding: '14px 16px' }}>
+                    <td
+                      style={{
+                        padding: '12px 14px',
+                        fontSize: 12
+                      }}
+                    >
+                      {a.portfolio ||
+                      a.website ? (
+                        <a
+                          href={
+                            a.portfolio ||
+                            a.website
+                          }
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{
+                            color: '#0369a1',
+                            fontWeight: 700,
+                            textDecoration:
+                              'none'
+                          }}
+                        >
+                          🌐 Portfolio
+                        </a>
+                      ) : (
+                        <span
+                          style={{
+                            color: '#94a3b8'
+                          }}
+                        >
+                          —
+                        </span>
+                      )}
+                    </td>
+
+                    {/* SOCIAL */}
+
+                    <td
+                      style={{
+                        padding: '12px 14px'
+                      }}
+                    >
                       <div
                         style={{
                           display: 'flex',
                           flexWrap: 'wrap',
-                          gap: 5,
-                          maxWidth: 190
+                          gap: 4,
+                          maxWidth: 170
                         }}
                       >
-                        {a.website && (
+                        {a.twitter && (
                           <a
-                            href={a.website}
+                            href={a.twitter}
                             target="_blank"
                             rel="noopener noreferrer"
-                            title="Website"
                             style={{
-                              textDecoration: 'none',
-                              background: '#eff6ff',
-                              color: '#2563eb',
-                              padding: '4px 7px',
-                              borderRadius: 5,
                               fontSize: 11,
-                              fontWeight: 700
+                              background:
+                                '#f1f5f9',
+                              color: '#334155',
+                              padding:
+                                '3px 6px',
+                              borderRadius: 5,
+                              textDecoration:
+                                'none'
                             }}
                           >
-                            🌐 Web
-                          </a>
-                        )}
-
-                        {a.portfolio && (
-                          <a
-                            href={a.portfolio}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            title="Portfolio"
-                            style={{
-                              textDecoration: 'none',
-                              background: '#f5f3ff',
-                              color: '#7c3aed',
-                              padding: '4px 7px',
-                              borderRadius: 5,
-                              fontSize: 11,
-                              fontWeight: 700
-                            }}
-                          >
-                            💼 Portfolio
+                            X
                           </a>
                         )}
 
@@ -913,38 +1021,19 @@ export function Authors() {
                             href={a.linkedin}
                             target="_blank"
                             rel="noopener noreferrer"
-                            title="LinkedIn"
                             style={{
-                              textDecoration: 'none',
-                              background: '#eff6ff',
-                              color: '#1d4ed8',
-                              padding: '4px 7px',
-                              borderRadius: 5,
                               fontSize: 11,
-                              fontWeight: 700
+                              background:
+                                '#eff6ff',
+                              color: '#2563eb',
+                              padding:
+                                '3px 6px',
+                              borderRadius: 5,
+                              textDecoration:
+                                'none'
                             }}
                           >
                             LinkedIn
-                          </a>
-                        )}
-
-                        {a.twitter && (
-                          <a
-                            href={a.twitter}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            title="Twitter / X"
-                            style={{
-                              textDecoration: 'none',
-                              background: '#f8fafc',
-                              color: '#0f172a',
-                              padding: '4px 7px',
-                              borderRadius: 5,
-                              fontSize: 11,
-                              fontWeight: 700
-                            }}
-                          >
-                            X
                           </a>
                         )}
 
@@ -953,15 +1042,16 @@ export function Authors() {
                             href={a.facebook}
                             target="_blank"
                             rel="noopener noreferrer"
-                            title="Facebook"
                             style={{
-                              textDecoration: 'none',
-                              background: '#eff6ff',
-                              color: '#2563eb',
-                              padding: '4px 7px',
-                              borderRadius: 5,
                               fontSize: 11,
-                              fontWeight: 700
+                              background:
+                                '#eff6ff',
+                              color: '#2563eb',
+                              padding:
+                                '3px 6px',
+                              borderRadius: 5,
+                              textDecoration:
+                                'none'
                             }}
                           >
                             FB
@@ -973,38 +1063,19 @@ export function Authors() {
                             href={a.instagram}
                             target="_blank"
                             rel="noopener noreferrer"
-                            title="Instagram"
                             style={{
-                              textDecoration: 'none',
-                              background: '#fdf2f8',
-                              color: '#db2777',
-                              padding: '4px 7px',
-                              borderRadius: 5,
                               fontSize: 11,
-                              fontWeight: 700
+                              background:
+                                '#fdf2f8',
+                              color: '#be185d',
+                              padding:
+                                '3px 6px',
+                              borderRadius: 5,
+                              textDecoration:
+                                'none'
                             }}
                           >
                             IG
-                          </a>
-                        )}
-
-                        {a.youtube && (
-                          <a
-                            href={a.youtube}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            title="YouTube"
-                            style={{
-                              textDecoration: 'none',
-                              background: '#fef2f2',
-                              color: '#dc2626',
-                              padding: '4px 7px',
-                              borderRadius: 5,
-                              fontSize: 11,
-                              fontWeight: 700
-                            }}
-                          >
-                            YT
                           </a>
                         )}
 
@@ -1013,36 +1084,57 @@ export function Authors() {
                             href={a.github}
                             target="_blank"
                             rel="noopener noreferrer"
-                            title="GitHub"
                             style={{
-                              textDecoration: 'none',
-                              background: '#f8fafc',
-                              color: '#334155',
-                              padding: '4px 7px',
-                              borderRadius: 5,
                               fontSize: 11,
-                              fontWeight: 700
+                              background:
+                                '#f1f5f9',
+                              color: '#111827',
+                              padding:
+                                '3px 6px',
+                              borderRadius: 5,
+                              textDecoration:
+                                'none'
                             }}
                           >
                             GitHub
                           </a>
                         )}
 
-                        {!a.website &&
-                          !a.portfolio &&
+                        {a.youtube && (
+                          <a
+                            href={a.youtube}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{
+                              fontSize: 11,
+                              background:
+                                '#fef2f2',
+                              color: '#dc2626',
+                              padding:
+                                '3px 6px',
+                              borderRadius: 5,
+                              textDecoration:
+                                'none'
+                            }}
+                          >
+                            YouTube
+                          </a>
+                        )}
+
+                        {!a.twitter &&
                           !a.linkedin &&
-                          !a.twitter &&
                           !a.facebook &&
                           !a.instagram &&
-                          !a.youtube &&
-                          !a.github && (
+                          !a.github &&
+                          !a.youtube && (
                             <span
                               style={{
-                                color: '#94a3b8',
+                                color:
+                                  '#94a3b8',
                                 fontSize: 12
                               }}
                             >
-                              No links
+                              —
                             </span>
                           )}
                       </div>
@@ -1052,61 +1144,93 @@ export function Authors() {
 
                     <td
                       style={{
-                        padding: '14px 16px',
+                        padding: '12px 14px',
                         fontWeight: 700,
                         color: '#0369a1',
-                        whiteSpace: 'nowrap'
+                        whiteSpace:
+                          'nowrap'
                       }}
                     >
-                      {a.story_count || 0} stories
+                      {a.story_count || 0}{' '}
+                      stories
                     </td>
 
                     {/* ACTIONS */}
 
-                    <td style={{ padding: '14px 16px' }}>
-                      {can('manage_authors') && (
-                        <div
-                          style={{
-                            display: 'flex',
-                            gap: 6,
-                            flexWrap: 'wrap'
-                          }}
-                        >
-                          <button
-                            onClick={() => openEdit(a)}
-                            style={{
-                              padding: '6px 12px',
-                              background: '#eff6ff',
-                              color: '#2563eb',
-                              border: '1px solid #bfdbfe',
-                              borderRadius: 6,
-                              cursor: 'pointer',
-                              fontSize: 12,
-                              fontWeight: 700,
-                              fontFamily: 'inherit'
-                            }}
-                          >
-                            ✏️ Edit
-                          </button>
+                    <td
+                      style={{
+                        padding: '12px 14px'
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: 'flex',
+                          gap: 6,
+                          flexWrap: 'wrap'
+                        }}
+                      >
 
+                        {can(
+                          'manage_authors'
+                        ) && (
                           <button
-                            onClick={() => handleDelete(a.id)}
+                            onClick={() =>
+                              handleEdit(a)
+                            }
                             style={{
-                              padding: '6px 12px',
-                              background: '#fef2f2',
-                              color: '#ef4444',
-                              border: '1px solid #fca5a5',
+                              padding:
+                                '5px 10px',
+                              background:
+                                '#eff6ff',
+                              color:
+                                '#2563eb',
+                              border:
+                                '1px solid #93c5fd',
                               borderRadius: 6,
-                              cursor: 'pointer',
+                              cursor:
+                                'pointer',
                               fontSize: 12,
-                              fontWeight: 700,
-                              fontFamily: 'inherit'
+                              fontFamily:
+                                'inherit',
+                              fontWeight: 700
                             }}
                           >
-                            🗑️ Delete
+                            ✏ Edit
                           </button>
-                        </div>
-                      )}
+                        )}
+
+                        {can(
+                          'manage_authors'
+                        ) && (
+                          <button
+                            onClick={() =>
+                              handleDelete(
+                                a.id
+                              )
+                            }
+                            style={{
+                              padding:
+                                '5px 10px',
+                              background:
+                                '#fef2f2',
+                              color:
+                                '#ef4444',
+                              border:
+                                '1px solid #fca5a5',
+                              borderRadius: 6,
+                              cursor:
+                                'pointer',
+                              fontSize: 12,
+                              fontFamily:
+                                'inherit',
+                              fontWeight: 700
+                            }}
+                          >
+                            Delete
+                          </button>
+                        )}
+
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -1114,10 +1238,11 @@ export function Authors() {
                 {authors.length === 0 && (
                   <tr>
                     <td
-                      colSpan={6}
+                      colSpan={7}
                       style={{
                         padding: 50,
-                        textAlign: 'center',
+                        textAlign:
+                          'center',
                         color: '#94a3b8'
                       }}
                     >
@@ -1130,173 +1255,20 @@ export function Authors() {
           )}
         </Card>
       </div>
-
-      {/* ───────────────── EDIT AUTHOR MODAL ───────────────── */}
-
-      {editingAuthor && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(15, 23, 42, 0.65)',
-            zIndex: 9999,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: 12
-          }}
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget) {
-              setEditingAuthor(null);
-            }
-          }}
-        >
-          <div
-            className="author-modal"
-            style={{
-              background: '#fff',
-              borderRadius: 18,
-              overflow: 'hidden',
-              boxShadow: '0 25px 60px rgba(0,0,0,.25)',
-              display: 'flex',
-              flexDirection: 'column'
-            }}
-          >
-            {/* MODAL HEADER */}
-
-            <div
-              style={{
-                padding: '18px 20px',
-                borderBottom: '1px solid #e2e8f0',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                gap: 12,
-                flexShrink: 0
-              }}
-            >
-              <div>
-                <h2
-                  style={{
-                    margin: 0,
-                    fontSize: 18,
-                    fontWeight: 800,
-                    color: '#0f172a'
-                  }}
-                >
-                  Edit Author
-                </h2>
-
-                <div
-                  style={{
-                    marginTop: 4,
-                    color: '#64748b',
-                    fontSize: 12
-                  }}
-                >
-                  Update author profile and online presence.
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setEditingAuthor(null)}
-                style={{
-                  width: 34,
-                  height: 34,
-                  borderRadius: 8,
-                  border: '1px solid #e2e8f0',
-                  background: '#f8fafc',
-                  cursor: 'pointer',
-                  fontSize: 18,
-                  color: '#475569'
-                }}
-              >
-                ×
-              </button>
-            </div>
-
-            {/* MODAL BODY */}
-
-            <div
-              style={{
-                padding: 20,
-                overflowY: 'auto'
-              }}
-            >
-              <form onSubmit={handleUpdate}>
-                <AuthorFields
-                  data={editForm}
-                  onChange={handleEditFormChange}
-                  imageRef={editFileRef}
-                  currentImage={editingAuthor.profile_image}
-                  editMode
-                />
-
-                {/* MODAL ACTIONS */}
-
-                <div
-                  style={{
-                    display: 'flex',
-                    gap: 10,
-                    marginTop: 10,
-                    paddingTop: 15,
-                    borderTop: '1px solid #e2e8f0'
-                  }}
-                >
-                  <button
-                    type="button"
-                    onClick={() => setEditingAuthor(null)}
-                    disabled={editing}
-                    style={{
-                      flex: 1,
-                      padding: 12,
-                      borderRadius: 10,
-                      border: '1px solid #e2e8f0',
-                      background: '#fff',
-                      color: '#475569',
-                      fontWeight: 800,
-                      cursor: 'pointer',
-                      fontFamily: 'inherit'
-                    }}
-                  >
-                    Cancel
-                  </button>
-
-                  <button
-                    type="submit"
-                    disabled={editing}
-                    style={{
-                      flex: 1,
-                      padding: 12,
-                      borderRadius: 10,
-                      border: 'none',
-                      background: editing ? '#94a3b8' : '#1a472a',
-                      color: '#fff',
-                      fontWeight: 800,
-                      cursor: editing ? 'not-allowed' : 'pointer',
-                      fontFamily: 'inherit'
-                    }}
-                  >
-                    {editing ? 'Saving…' : 'Save Changes'}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        </div>
-      )}
     </AdminLayout>
   );
 }
 
-// ─── COMMENTS ────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
+// COMMENTS
+// ─────────────────────────────────────────────────────────────
 
 export function Comments() {
   const [comments, setComments] = useState([]);
   const [total, setTotal] = useState(0);
   const [status, setStatus] = useState('pending');
   const [loading, setLoading] = useState(true);
+
   const { can } = useAuth();
 
   const load = async () => {
@@ -1352,8 +1324,7 @@ export function Comments() {
             padding: '6px 14px',
             borderRadius: 8,
             fontWeight: 700,
-            fontSize: 13,
-            whiteSpace: 'nowrap'
+            fontSize: 13
           }}
         >
           {total} {status}
@@ -1368,26 +1339,36 @@ export function Comments() {
           marginBottom: 20
         }}
       >
-        {['pending', 'approved', 'spam'].map((s) => (
-          <button
-            key={s}
-            onClick={() => setStatus(s)}
-            style={{
-              padding: '8px 18px',
-              background: status === s ? '#1a472a' : '#fff',
-              color: status === s ? '#fff' : '#64748b',
-              border: '1px solid #e2e8f0',
-              borderRadius: 8,
-              cursor: 'pointer',
-              fontWeight: 700,
-              fontSize: 13,
-              textTransform: 'capitalize',
-              fontFamily: 'inherit'
-            }}
-          >
-            {s}
-          </button>
-        ))}
+        {['pending', 'approved', 'spam'].map(
+          (s) => (
+            <button
+              key={s}
+              onClick={() => setStatus(s)}
+              style={{
+                padding: '8px 18px',
+                background:
+                  status === s
+                    ? '#1a472a'
+                    : '#fff',
+                color:
+                  status === s
+                    ? '#fff'
+                    : '#64748b',
+                border:
+                  '1px solid #e2e8f0',
+                borderRadius: 8,
+                cursor: 'pointer',
+                fontWeight: 700,
+                fontSize: 13,
+                textTransform:
+                  'capitalize',
+                fontFamily: 'inherit'
+              }}
+            >
+              {s}
+            </button>
+          )
+        )}
       </div>
 
       <Card
@@ -1405,37 +1386,48 @@ export function Comments() {
               color: '#94a3b8'
             }}
           >
-            Loading…
+            Loading...
           </div>
         ) : (
           <table
             style={{
               width: '100%',
-              borderCollapse: 'separate',
+              borderCollapse:
+                'separate',
               borderSpacing: 0
             }}
           >
             <thead>
               <tr>
-                {['Author', 'Story', 'Comment', 'Date', 'Actions'].map(
-                  (h) => (
-                    <th
-                      key={h}
-                      style={{
-                        padding: '14px 16px',
-                        background: '#f8fafc',
-                        color: '#64748b',
-                        fontSize: 11,
-                        textTransform: 'uppercase',
-                        fontWeight: 800,
-                        borderBottom: '1px solid #e2e8f0',
-                        textAlign: 'left'
-                      }}
-                    >
-                      {h}
-                    </th>
-                  )
-                )}
+                {[
+                  'Author',
+                  'Story',
+                  'Comment',
+                  'Date',
+                  'Actions'
+                ].map((h) => (
+                  <th
+                    key={h}
+                    style={{
+                      padding:
+                        '14px 16px',
+                      background:
+                        '#f8fafc',
+                      color:
+                        '#64748b',
+                      fontSize: 11,
+                      textTransform:
+                        'uppercase',
+                      fontWeight: 800,
+                      borderBottom:
+                        '1px solid #e2e8f0',
+                      textAlign:
+                        'left'
+                    }}
+                  >
+                    {h}
+                  </th>
+                ))}
               </tr>
             </thead>
 
@@ -1444,10 +1436,16 @@ export function Comments() {
                 <tr
                   key={c.id}
                   style={{
-                    borderBottom: '1px solid #f1f5f9'
+                    borderBottom:
+                      '1px solid #f1f5f9'
                   }}
                 >
-                  <td style={{ padding: '14px 16px' }}>
+                  <td
+                    style={{
+                      padding:
+                        '14px 16px'
+                    }}
+                  >
                     <div
                       style={{
                         fontWeight: 700,
@@ -1469,7 +1467,8 @@ export function Comments() {
 
                   <td
                     style={{
-                      padding: '14px 16px',
+                      padding:
+                        '14px 16px',
                       fontSize: 13,
                       color: '#475569',
                       maxWidth: 160
@@ -1477,9 +1476,12 @@ export function Comments() {
                   >
                     <div
                       style={{
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap'
+                        overflow:
+                          'hidden',
+                        textOverflow:
+                          'ellipsis',
+                        whiteSpace:
+                          'nowrap'
                       }}
                     >
                       {c.story_title}
@@ -1488,16 +1490,20 @@ export function Comments() {
 
                   <td
                     style={{
-                      padding: '14px 16px',
+                      padding:
+                        '14px 16px',
                       fontSize: 14,
                       maxWidth: 300
                     }}
                   >
                     <div
                       style={{
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap'
+                        overflow:
+                          'hidden',
+                        textOverflow:
+                          'ellipsis',
+                        whiteSpace:
+                          'nowrap'
                       }}
                     >
                       {c.comment}
@@ -1506,63 +1512,96 @@ export function Comments() {
 
                   <td
                     style={{
-                      padding: '14px 16px',
+                      padding:
+                        '14px 16px',
                       fontSize: 12,
                       color: '#94a3b8',
-                      whiteSpace: 'nowrap'
+                      whiteSpace:
+                        'nowrap'
                     }}
                   >
-                    {new Date(c.created_at).toLocaleDateString()}
+                    {new Date(
+                      c.created_at
+                    ).toLocaleDateString()}
                   </td>
 
-                  <td style={{ padding: '14px 16px' }}>
+                  <td
+                    style={{
+                      padding:
+                        '14px 16px'
+                    }}
+                  >
                     <div
                       style={{
-                        display: 'flex',
+                        display:
+                          'flex',
                         gap: 6
                       }}
                     >
-                      {status === 'pending' &&
-                        can('approve_comments') && (
+                      {status ===
+                        'pending' &&
+                        can(
+                          'approve_comments'
+                        ) && (
                           <button
                             onClick={async () => {
-                              await commentsAPI.approve(c.id);
+                              await commentsAPI.approve(
+                                c.id
+                              );
                               load();
                             }}
                             style={{
-                              padding: '5px 10px',
-                              background: '#dcfce7',
-                              color: '#166534',
-                              border: '1px solid #86efac',
+                              padding:
+                                '5px 10px',
+                              background:
+                                '#dcfce7',
+                              color:
+                                '#166534',
+                              border:
+                                '1px solid #86efac',
                               borderRadius: 6,
-                              cursor: 'pointer',
+                              cursor:
+                                'pointer',
                               fontSize: 12,
-                              fontFamily: 'inherit',
-                              whiteSpace: 'nowrap'
+                              fontFamily:
+                                'inherit'
                             }}
                           >
                             ✓ Approve
                           </button>
                         )}
 
-                      {can('delete_content') && (
+                      {can(
+                        'delete_content'
+                      ) && (
                         <button
                           onClick={async () => {
-                            if (window.confirm('Delete?')) {
-                              await commentsAPI.delete(c.id);
+                            if (
+                              window.confirm(
+                                'Delete?'
+                              )
+                            ) {
+                              await commentsAPI.delete(
+                                c.id
+                              );
                               load();
                             }
                           }}
                           style={{
-                            padding: '5px 10px',
-                            background: '#fef2f2',
-                            color: '#ef4444',
-                            border: '1px solid #fca5a5',
+                            padding:
+                              '5px 10px',
+                            background:
+                              '#fef2f2',
+                            color:
+                              '#ef4444',
+                            border:
+                              '1px solid #fca5a5',
                             borderRadius: 6,
-                            cursor: 'pointer',
+                            cursor:
+                              'pointer',
                             fontSize: 12,
-                            fontFamily: 'inherit',
-                            whiteSpace: 'nowrap'
+                            fontFamily:
+                              'inherit'
                           }}
                         >
                           Delete
@@ -1573,17 +1612,21 @@ export function Comments() {
                 </tr>
               ))}
 
-              {comments.length === 0 && (
+              {comments.length ===
+                0 && (
                 <tr>
                   <td
                     colSpan={5}
                     style={{
                       padding: 40,
-                      textAlign: 'center',
-                      color: '#94a3b8'
+                      textAlign:
+                        'center',
+                      color:
+                        '#94a3b8'
                     }}
                   >
-                    No {status} comments
+                    No {status}{' '}
+                    comments
                   </td>
                 </tr>
               )}
@@ -1595,7 +1638,9 @@ export function Comments() {
   );
 }
 
-// ─── VIDEOS ──────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
+// VIDEOS
+// ─────────────────────────────────────────────────────────────
 
 export function Videos() {
   const [videos, setVideos] = useState([]);
@@ -1604,13 +1649,16 @@ export function Videos() {
     youtube_url: '',
     category: 'Sport'
   });
+
   const fileRef = useRef();
   const [saving, setSaving] = useState(false);
 
   const load = () =>
     videosAPI
       .getAll({ limit: 50 })
-      .then((r) => setVideos(r.data || []));
+      .then((r) =>
+        setVideos(r.data || [])
+      );
 
   useEffect(() => {
     load();
@@ -1624,12 +1672,16 @@ export function Videos() {
 
       const fd = new FormData();
 
-      Object.entries(form).forEach(([k, v]) => {
-        fd.append(k, v);
-      });
+      Object.entries(form).forEach(
+        ([k, v]) =>
+          fd.append(k, v)
+      );
 
       if (fileRef.current?.files[0]) {
-        fd.append('thumbnail', fileRef.current.files[0]);
+        fd.append(
+          'thumbnail',
+          fileRef.current.files[0]
+        );
       }
 
       await videosAPI.create(fd);
@@ -1647,10 +1699,7 @@ export function Videos() {
       load();
     } catch (error) {
       console.error(error);
-      alert(
-        error?.response?.data?.message ||
-          'Failed to add video.'
-      );
+      alert('Failed to add video.');
     } finally {
       setSaving(false);
     }
@@ -1671,6 +1720,7 @@ export function Videos() {
       </h1>
 
       <div className="admin-form-grid">
+
         <Card>
           <h3
             style={{
@@ -1683,7 +1733,9 @@ export function Videos() {
           </h3>
 
           <form onSubmit={handleSubmit}>
-            <label style={labelStyle}>Title *</label>
+            <label style={labelStyle}>
+              Title *
+            </label>
 
             <input
               value={form.title}
@@ -1694,33 +1746,39 @@ export function Videos() {
                 }))
               }
               required
-              placeholder="Video title…"
+              placeholder="Video title..."
               style={inputStyle}
             />
 
-            <label style={labelStyle}>YouTube URL *</label>
+            <label style={labelStyle}>
+              YouTube URL *
+            </label>
 
             <input
               value={form.youtube_url}
               onChange={(e) =>
                 setForm((f) => ({
                   ...f,
-                  youtube_url: e.target.value
+                  youtube_url:
+                    e.target.value
                 }))
               }
               required
-              placeholder="https://youtube.com/watch?v=…"
+              placeholder="https://youtube.com/watch?v=..."
               style={inputStyle}
             />
 
-            <label style={labelStyle}>Category</label>
+            <label style={labelStyle}>
+              Category
+            </label>
 
             <select
               value={form.category}
               onChange={(e) =>
                 setForm((f) => ({
                   ...f,
-                  category: e.target.value
+                  category:
+                    e.target.value
                 }))
               }
               style={inputStyle}
@@ -1733,11 +1791,15 @@ export function Videos() {
                 'Culture',
                 'Entertainment'
               ].map((c) => (
-                <option key={c}>{c}</option>
+                <option key={c}>
+                  {c}
+                </option>
               ))}
             </select>
 
-            <label style={labelStyle}>Thumbnail</label>
+            <label style={labelStyle}>
+              Thumbnail
+            </label>
 
             <input
               ref={fileRef}
@@ -1745,7 +1807,8 @@ export function Videos() {
               accept="image/*"
               style={{
                 ...inputStyle,
-                padding: '8px 12px'
+                padding:
+                  '8px 12px'
               }}
             />
 
@@ -1754,7 +1817,8 @@ export function Videos() {
               disabled={saving}
               style={{
                 width: '100%',
-                background: '#1a472a',
+                background:
+                  '#1a472a',
                 color: '#fff',
                 border: 'none',
                 padding: '12px',
@@ -1762,10 +1826,13 @@ export function Videos() {
                 fontWeight: 800,
                 fontSize: 14,
                 cursor: 'pointer',
-                fontFamily: 'inherit'
+                fontFamily:
+                  'inherit'
               }}
             >
-              {saving ? 'Saving…' : 'Add Video'}
+              {saving
+                ? 'Saving...'
+                : 'Add Video'}
             </button>
           </form>
         </Card>
@@ -1780,7 +1847,8 @@ export function Videos() {
           <table
             style={{
               width: '100%',
-              borderCollapse: 'separate',
+              borderCollapse:
+                'separate',
               borderSpacing: 0
             }}
           >
@@ -1796,14 +1864,20 @@ export function Videos() {
                   <th
                     key={h}
                     style={{
-                      padding: '14px 16px',
-                      background: '#f8fafc',
-                      color: '#64748b',
+                      padding:
+                        '14px 16px',
+                      background:
+                        '#f8fafc',
+                      color:
+                        '#64748b',
                       fontSize: 11,
-                      textTransform: 'uppercase',
+                      textTransform:
+                        'uppercase',
                       fontWeight: 800,
-                      borderBottom: '1px solid #e2e8f0',
-                      textAlign: 'left'
+                      borderBottom:
+                        '1px solid #e2e8f0',
+                      textAlign:
+                        'left'
                     }}
                   >
                     {h}
@@ -1817,34 +1891,48 @@ export function Videos() {
                 <tr
                   key={v.id}
                   style={{
-                    borderBottom: '1px solid #f1f5f9'
+                    borderBottom:
+                      '1px solid #f1f5f9'
                   }}
                 >
-                  <td style={{ padding: '12px 16px' }}>
+                  <td
+                    style={{
+                      padding:
+                        '12px 16px'
+                    }}
+                  >
                     {v.thumbnail ? (
                       <img
-                        src={getImgUrl(v.thumbnail)}
+                        src={getImgUrl(
+                          v.thumbnail
+                        )}
                         alt=""
                         style={{
                           width: 80,
                           height: 50,
-                          objectFit: 'cover',
+                          objectFit:
+                            'cover',
                           borderRadius: 6
                         }}
-                        onError={(e) => {
-                          e.currentTarget.style.display = 'none';
-                        }}
+                        onError={(e) =>
+                          (e.target.style.display =
+                            'none')
+                        }
                       />
                     ) : (
                       <div
                         style={{
                           width: 80,
                           height: 50,
-                          background: '#f1f5f9',
+                          background:
+                            '#f1f5f9',
                           borderRadius: 6,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
+                          display:
+                            'flex',
+                          alignItems:
+                            'center',
+                          justifyContent:
+                            'center',
                           fontSize: 20
                         }}
                       >
@@ -1855,7 +1943,8 @@ export function Videos() {
 
                   <td
                     style={{
-                      padding: '12px 16px',
+                      padding:
+                        '12px 16px',
                       fontWeight: 600,
                       fontSize: 14
                     }}
@@ -1863,11 +1952,18 @@ export function Videos() {
                     {v.title}
                   </td>
 
-                  <td style={{ padding: '12px 16px' }}>
+                  <td
+                    style={{
+                      padding:
+                        '12px 16px'
+                    }}
+                  >
                     <span
                       style={{
-                        background: '#f1f5f9',
-                        padding: '3px 10px',
+                        background:
+                          '#f1f5f9',
+                        padding:
+                          '3px 10px',
                         borderRadius: 6,
                         fontSize: 12,
                         fontWeight: 700
@@ -1879,7 +1975,8 @@ export function Videos() {
 
                   <td
                     style={{
-                      padding: '12px 16px',
+                      padding:
+                        '12px 16px',
                       fontSize: 12,
                       color: '#94a3b8'
                     }}
@@ -1889,23 +1986,40 @@ export function Videos() {
                     ).toLocaleDateString()}
                   </td>
 
-                  <td style={{ padding: '12px 16px' }}>
+                  <td
+                    style={{
+                      padding:
+                        '12px 16px'
+                    }}
+                  >
                     <button
                       onClick={async () => {
-                        if (window.confirm('Delete?')) {
-                          await videosAPI.delete(v.id);
+                        if (
+                          window.confirm(
+                            'Delete?'
+                          )
+                        ) {
+                          await videosAPI.delete(
+                            v.id
+                          );
                           load();
                         }
                       }}
                       style={{
-                        padding: '5px 10px',
-                        background: '#fef2f2',
-                        color: '#ef4444',
-                        border: '1px solid #fca5a5',
+                        padding:
+                          '5px 10px',
+                        background:
+                          '#fef2f2',
+                        color:
+                          '#ef4444',
+                        border:
+                          '1px solid #fca5a5',
                         borderRadius: 6,
-                        cursor: 'pointer',
+                        cursor:
+                          'pointer',
                         fontSize: 12,
-                        fontFamily: 'inherit'
+                        fontFamily:
+                          'inherit'
                       }}
                     >
                       Delete
@@ -1921,7 +2035,9 @@ export function Videos() {
   );
 }
 
-// ─── ADS ─────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
+// ADS
+// ─────────────────────────────────────────────────────────────
 
 export function Ads() {
   const [ads, setAds] = useState([]);
@@ -1934,11 +2050,14 @@ export function Ads() {
   });
 
   const fileRef = useRef();
-
   const [saving, setSaving] = useState(false);
 
   const load = () =>
-    adsAPI.getAll().then((r) => setAds(r.data || []));
+    adsAPI
+      .getAll()
+      .then((r) =>
+        setAds(r.data || [])
+      );
 
   useEffect(() => {
     load();
@@ -1952,12 +2071,16 @@ export function Ads() {
 
       const fd = new FormData();
 
-      Object.entries(form).forEach(([k, v]) => {
-        fd.append(k, v);
-      });
+      Object.entries(form).forEach(
+        ([k, v]) =>
+          fd.append(k, v)
+      );
 
       if (fileRef.current?.files[0]) {
-        fd.append('file', fileRef.current.files[0]);
+        fd.append(
+          'file',
+          fileRef.current.files[0]
+        );
       }
 
       await adsAPI.create(fd);
@@ -1976,10 +2099,7 @@ export function Ads() {
       load();
     } catch (error) {
       console.error(error);
-      alert(
-        error?.response?.data?.message ||
-          'Failed to upload advertisement.'
-      );
+      alert('Failed to upload ad.');
     } finally {
       setSaving(false);
     }
@@ -2000,6 +2120,7 @@ export function Ads() {
       </h1>
 
       <div className="admin-form-grid">
+
         <Card>
           <h3
             style={{
@@ -2012,7 +2133,10 @@ export function Ads() {
           </h3>
 
           <form onSubmit={handleSubmit}>
-            <label style={labelStyle}>Type</label>
+
+            <label style={labelStyle}>
+              Type
+            </label>
 
             <select
               value={form.type}
@@ -2024,31 +2148,50 @@ export function Ads() {
               }
               style={inputStyle}
             >
-              <option value="image">Image</option>
-              <option value="video">Video</option>
+              <option value="image">
+                Image
+              </option>
+
+              <option value="video">
+                Video
+              </option>
             </select>
 
-            <label style={labelStyle}>Position</label>
+            <label style={labelStyle}>
+              Position
+            </label>
 
             <select
               value={form.position}
               onChange={(e) =>
                 setForm((f) => ({
                   ...f,
-                  position: e.target.value
+                  position:
+                    e.target.value
                 }))
               }
               style={inputStyle}
             >
-              <option value="sidebar">Sidebar</option>
+              <option value="sidebar">
+                Sidebar
+              </option>
+
               <option value="inline">
                 Inline / Center
               </option>
-              <option value="top">Top Banner</option>
-              <option value="popup">Popup</option>
+
+              <option value="top">
+                Top Banner
+              </option>
+
+              <option value="popup">
+                Popup
+              </option>
             </select>
 
-            <label style={labelStyle}>Link URL</label>
+            <label style={labelStyle}>
+              Link URL
+            </label>
 
             <input
               value={form.link}
@@ -2058,12 +2201,12 @@ export function Ads() {
                   link: e.target.value
                 }))
               }
-              placeholder="https://…"
+              placeholder="https://..."
               style={inputStyle}
             />
 
             <label style={labelStyle}>
-              Caption (optional)
+              Caption
             </label>
 
             <input
@@ -2074,7 +2217,7 @@ export function Ads() {
                   text: e.target.value
                 }))
               }
-              placeholder="Ad caption…"
+              placeholder="Ad caption..."
               style={inputStyle}
             />
 
@@ -2089,7 +2232,8 @@ export function Ads() {
               required
               style={{
                 ...inputStyle,
-                padding: '8px 12px'
+                padding:
+                  '8px 12px'
               }}
             />
 
@@ -2098,7 +2242,8 @@ export function Ads() {
               disabled={saving}
               style={{
                 width: '100%',
-                background: '#1a472a',
+                background:
+                  '#1a472a',
                 color: '#fff',
                 border: 'none',
                 padding: '12px',
@@ -2106,10 +2251,13 @@ export function Ads() {
                 fontWeight: 800,
                 fontSize: 14,
                 cursor: 'pointer',
-                fontFamily: 'inherit'
+                fontFamily:
+                  'inherit'
               }}
             >
-              {saving ? 'Uploading…' : 'Add Ad'}
+              {saving
+                ? 'Uploading...'
+                : 'Add Ad'}
             </button>
           </form>
         </Card>
@@ -2124,7 +2272,8 @@ export function Ads() {
           <table
             style={{
               width: '100%',
-              borderCollapse: 'separate',
+              borderCollapse:
+                'separate',
               borderSpacing: 0
             }}
           >
@@ -2140,15 +2289,20 @@ export function Ads() {
                   <th
                     key={h}
                     style={{
-                      padding: '14px 16px',
-                      background: '#f8fafc',
-                      color: '#64748b',
+                      padding:
+                        '14px 16px',
+                      background:
+                        '#f8fafc',
+                      color:
+                        '#64748b',
                       fontSize: 11,
-                      textTransform: 'uppercase',
+                      textTransform:
+                        'uppercase',
                       fontWeight: 800,
                       borderBottom:
                         '1px solid #e2e8f0',
-                      textAlign: 'left'
+                      textAlign:
+                        'left'
                     }}
                   >
                     {h}
@@ -2166,42 +2320,62 @@ export function Ads() {
                       '1px solid #f1f5f9'
                   }}
                 >
-                  <td style={{ padding: '12px 16px' }}>
-                    {ad.type === 'video' ? (
+                  <td
+                    style={{
+                      padding:
+                        '12px 16px'
+                    }}
+                  >
+                    {ad.type ===
+                    'video' ? (
                       <video
-                        src={getImgUrl(ad.file)}
+                        src={getImgUrl(
+                          ad.file
+                        )}
                         style={{
                           width: 100,
                           height: 60,
-                          objectFit: 'cover',
+                          objectFit:
+                            'cover',
                           borderRadius: 6
                         }}
                         muted
                       />
                     ) : (
                       <img
-                        src={getImgUrl(ad.file)}
+                        src={getImgUrl(
+                          ad.file
+                        )}
                         alt=""
                         style={{
                           width: 100,
                           height: 60,
-                          objectFit: 'cover',
+                          objectFit:
+                            'cover',
                           borderRadius: 6
                         }}
-                        onError={(e) => {
-                          e.currentTarget.style.display =
-                            'none';
-                        }}
+                        onError={(e) =>
+                          (e.target.style.display =
+                            'none')
+                        }
                       />
                     )}
                   </td>
 
-                  <td style={{ padding: '12px 16px' }}>
+                  <td
+                    style={{
+                      padding:
+                        '12px 16px'
+                    }}
+                  >
                     <span
                       style={{
-                        background: '#e0f2fe',
-                        color: '#0369a1',
-                        padding: '3px 10px',
+                        background:
+                          '#e0f2fe',
+                        color:
+                          '#0369a1',
+                        padding:
+                          '3px 10px',
                         borderRadius: 6,
                         fontSize: 12,
                         fontWeight: 700
@@ -2213,7 +2387,8 @@ export function Ads() {
 
                   <td
                     style={{
-                      padding: '12px 16px',
+                      padding:
+                        '12px 16px',
                       fontSize: 13
                     }}
                   >
@@ -2222,7 +2397,8 @@ export function Ads() {
 
                   <td
                     style={{
-                      padding: '12px 16px',
+                      padding:
+                        '12px 16px',
                       fontSize: 12,
                       color: '#0369a1'
                     }}
@@ -2233,17 +2409,27 @@ export function Ads() {
                         target="_blank"
                         rel="noopener noreferrer"
                         style={{
-                          color: '#0369a1'
+                          color:
+                            '#0369a1'
                         }}
                       >
-                        {ad.link.substring(0, 30)}…
+                        {ad.link.substring(
+                          0,
+                          30
+                        )}
+                        …
                       </a>
                     ) : (
                       '—'
                     )}
                   </td>
 
-                  <td style={{ padding: '12px 16px' }}>
+                  <td
+                    style={{
+                      padding:
+                        '12px 16px'
+                    }}
+                  >
                     <button
                       onClick={async () => {
                         if (
@@ -2251,19 +2437,27 @@ export function Ads() {
                             'Delete ad?'
                           )
                         ) {
-                          await adsAPI.delete(ad.id);
+                          await adsAPI.delete(
+                            ad.id
+                          );
                           load();
                         }
                       }}
                       style={{
-                        padding: '5px 10px',
-                        background: '#fef2f2',
-                        color: '#ef4444',
-                        border: '1px solid #fca5a5',
+                        padding:
+                          '5px 10px',
+                        background:
+                          '#fef2f2',
+                        color:
+                          '#ef4444',
+                        border:
+                          '1px solid #fca5a5',
                         borderRadius: 6,
-                        cursor: 'pointer',
+                        cursor:
+                          'pointer',
                         fontSize: 12,
-                        fontFamily: 'inherit'
+                        fontFamily:
+                          'inherit'
                       }}
                     >
                       Delete
@@ -2279,7 +2473,9 @@ export function Ads() {
   );
 }
 
-// ─── SUBSCRIBERS ─────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
+// SUBSCRIBERS
+// ─────────────────────────────────────────────────────────────
 
 export function Subscribers() {
   const [subs, setSubs] = useState([]);
@@ -2287,9 +2483,8 @@ export function Subscribers() {
   useEffect(() => {
     subscribeAPI
       .getAll()
-      .then((r) => setSubs(r.data || []))
-      .catch((error) =>
-        console.error('Subscribers error:', error)
+      .then((r) =>
+        setSubs(r.data || [])
       );
   }, []);
 
@@ -2301,7 +2496,8 @@ export function Subscribers() {
         className="admin-flex-wrap"
         style={{
           display: 'flex',
-          justifyContent: 'space-between',
+          justifyContent:
+            'space-between',
           alignItems: 'center',
           marginBottom: 24,
           gap: 12
@@ -2324,13 +2520,14 @@ export function Subscribers() {
             padding: '6px 16px',
             borderRadius: 8,
             fontWeight: 700,
-            fontSize: 14,
-            whiteSpace: 'nowrap'
+            fontSize: 14
           }}
         >
           {
             subs.filter(
-              (s) => s.status === 'active'
+              (s) =>
+                s.status ===
+                'active'
             ).length
           }{' '}
           active
@@ -2347,32 +2544,41 @@ export function Subscribers() {
         <table
           style={{
             width: '100%',
-            borderCollapse: 'separate',
+            borderCollapse:
+              'separate',
             borderSpacing: 0
           }}
         >
           <thead>
             <tr>
-              {['Email', 'Name', 'Joined', 'Status'].map(
-                (h) => (
-                  <th
-                    key={h}
-                    style={{
-                      padding: '14px 16px',
-                      background: '#f8fafc',
-                      color: '#64748b',
-                      fontSize: 11,
-                      textTransform: 'uppercase',
-                      fontWeight: 800,
-                      borderBottom:
-                        '1px solid #e2e8f0',
-                      textAlign: 'left'
-                    }}
-                  >
-                    {h}
-                  </th>
-                )
-              )}
+              {[
+                'Email',
+                'Name',
+                'Joined',
+                'Status'
+              ].map((h) => (
+                <th
+                  key={h}
+                  style={{
+                    padding:
+                      '14px 16px',
+                    background:
+                      '#f8fafc',
+                    color:
+                      '#64748b',
+                    fontSize: 11,
+                    textTransform:
+                      'uppercase',
+                    fontWeight: 800,
+                    borderBottom:
+                      '1px solid #e2e8f0',
+                    textAlign:
+                      'left'
+                  }}
+                >
+                  {h}
+                </th>
+              ))}
             </tr>
           </thead>
 
@@ -2387,7 +2593,8 @@ export function Subscribers() {
               >
                 <td
                   style={{
-                    padding: '14px 16px',
+                    padding:
+                      '14px 16px',
                     fontWeight: 600,
                     fontSize: 14
                   }}
@@ -2397,7 +2604,8 @@ export function Subscribers() {
 
                 <td
                   style={{
-                    padding: '14px 16px',
+                    padding:
+                      '14px 16px',
                     fontSize: 13,
                     color: '#475569'
                   }}
@@ -2407,7 +2615,8 @@ export function Subscribers() {
 
                 <td
                   style={{
-                    padding: '14px 16px',
+                    padding:
+                      '14px 16px',
                     fontSize: 12,
                     color: '#94a3b8'
                   }}
@@ -2417,19 +2626,27 @@ export function Subscribers() {
                   ).toLocaleDateString()}
                 </td>
 
-                <td style={{ padding: '14px 16px' }}>
+                <td
+                  style={{
+                    padding:
+                      '14px 16px'
+                  }}
+                >
                   <span
                     style={{
-                      padding: '4px 10px',
+                      padding:
+                        '4px 10px',
                       borderRadius: 6,
                       fontSize: 11,
                       fontWeight: 700,
                       background:
-                        s.status === 'active'
+                        s.status ===
+                        'active'
                           ? '#dcfce7'
                           : '#f1f5f9',
                       color:
-                        s.status === 'active'
+                        s.status ===
+                        'active'
                           ? '#166534'
                           : '#475569'
                     }}
@@ -2446,7 +2663,9 @@ export function Subscribers() {
   );
 }
 
-// ─── AUDIT LOGS ──────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
+// AUDIT LOGS
+// ─────────────────────────────────────────────────────────────
 
 export function AuditLogs() {
   const [logs, setLogs] = useState([]);
@@ -2454,9 +2673,8 @@ export function AuditLogs() {
   useEffect(() => {
     analyticsAPI
       .getAuditLogs()
-      .then((r) => setLogs(r.data || []))
-      .catch((error) =>
-        console.error('Audit logs error:', error)
+      .then((r) =>
+        setLogs(r.data || [])
       );
   }, []);
 
@@ -2484,32 +2702,41 @@ export function AuditLogs() {
         <table
           style={{
             width: '100%',
-            borderCollapse: 'separate',
+            borderCollapse:
+              'separate',
             borderSpacing: 0
           }}
         >
           <thead>
             <tr>
-              {['User', 'Action', 'IP', 'Timestamp'].map(
-                (h) => (
-                  <th
-                    key={h}
-                    style={{
-                      padding: '14px 16px',
-                      background: '#f8fafc',
-                      color: '#64748b',
-                      fontSize: 11,
-                      textTransform: 'uppercase',
-                      fontWeight: 800,
-                      borderBottom:
-                        '1px solid #e2e8f0',
-                      textAlign: 'left'
-                    }}
-                  >
-                    {h}
-                  </th>
-                )
-              )}
+              {[
+                'User',
+                'Action',
+                'IP',
+                'Timestamp'
+              ].map((h) => (
+                <th
+                  key={h}
+                  style={{
+                    padding:
+                      '14px 16px',
+                    background:
+                      '#f8fafc',
+                    color:
+                      '#64748b',
+                    fontSize: 11,
+                    textTransform:
+                      'uppercase',
+                    fontWeight: 800,
+                    borderBottom:
+                      '1px solid #e2e8f0',
+                    textAlign:
+                      'left'
+                  }}
+                >
+                  {h}
+                </th>
+              ))}
             </tr>
           </thead>
 
@@ -2524,7 +2751,8 @@ export function AuditLogs() {
               >
                 <td
                   style={{
-                    padding: '14px 16px',
+                    padding:
+                      '14px 16px',
                     fontWeight: 700,
                     fontSize: 14
                   }}
@@ -2534,7 +2762,8 @@ export function AuditLogs() {
 
                 <td
                   style={{
-                    padding: '14px 16px',
+                    padding:
+                      '14px 16px',
                     fontSize: 14
                   }}
                 >
@@ -2543,20 +2772,24 @@ export function AuditLogs() {
 
                 <td
                   style={{
-                    padding: '14px 16px',
+                    padding:
+                      '14px 16px',
                     fontSize: 12,
                     color: '#94a3b8'
                   }}
                 >
-                  {l.ip_address || '—'}
+                  {l.ip_address ||
+                    '—'}
                 </td>
 
                 <td
                   style={{
-                    padding: '14px 16px',
+                    padding:
+                      '14px 16px',
                     fontSize: 12,
                     color: '#94a3b8',
-                    whiteSpace: 'nowrap'
+                    whiteSpace:
+                      'nowrap'
                   }}
                 >
                   {new Date(
