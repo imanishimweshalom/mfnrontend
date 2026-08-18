@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import AdminLayout from '../../components/layout/AdminLayout';
 import {
   authorsAPI,
@@ -6,28 +6,51 @@ import {
   videosAPI,
   adsAPI,
   subscribeAPI,
-  analyticsAPI
+  analyticsAPI,
 } from '../../utils/api';
 import { useAuth } from '../../context/AuthContext';
 
-// Fix: Centralized API base and secure image URL getter
-const API_BASE =
-  process.env.REACT_APP_API_URL?.replace('/api', '') ||
-  'https://mahokofridaynewsbackend.onrender.com';
+/* ============================================================
+   API / IMAGE HELPERS
+============================================================ */
+
+const API_BASE = 'https://mahokofridaynewsbackend.onrender.com';
 
 const PLACEHOLDER = `${API_BASE}/uploads/placeholder.jpg`;
 
 const getImgUrl = (path) => {
-  if (!path || typeof path !== 'string') return PLACEHOLDER;
-  if (path.startsWith('http://') || path.startsWith('https://')) return path;
-  if (path.includes('..')) return PLACEHOLDER;
+  if (!path || typeof path !== 'string') {
+    return PLACEHOLDER;
+  }
 
-  const cleanPath = path
-    .replace(/^uploads?\//, '')
+  const value = path.trim();
+
+  if (!value) {
+    return PLACEHOLDER;
+  }
+
+  if (
+    value.startsWith('http://') ||
+    value.startsWith('https://') ||
+    value.startsWith('data:')
+  ) {
+    return value;
+  }
+
+  if (value.includes('..')) {
+    return PLACEHOLDER;
+  }
+
+  let cleanPath = value
+    .replace(/^uploads[\\/]/i, '')
     .replace(/^\/+/, '');
 
   return `${API_BASE}/uploads/${cleanPath}`;
 };
+
+/* ============================================================
+   COMMON STYLES
+============================================================ */
 
 const inputStyle = {
   width: '100%',
@@ -38,7 +61,9 @@ const inputStyle = {
   outline: 'none',
   fontFamily: 'inherit',
   boxSizing: 'border-box',
-  marginBottom: 14
+  marginBottom: 14,
+  background: '#fff',
+  color: '#0f172a',
 };
 
 const labelStyle = {
@@ -46,20 +71,57 @@ const labelStyle = {
   marginBottom: 6,
   fontWeight: 700,
   fontSize: 13,
-  color: '#334155'
+  color: '#334155',
 };
 
-function Card({ children, style, className }) {
+const primaryButtonStyle = {
+  width: '100%',
+  background: '#1a472a',
+  color: '#fff',
+  border: 'none',
+  padding: 12,
+  borderRadius: 10,
+  fontWeight: 800,
+  fontSize: 14,
+  cursor: 'pointer',
+  fontFamily: 'inherit',
+};
+
+const dangerButtonStyle = {
+  padding: '6px 11px',
+  background: '#fef2f2',
+  color: '#dc2626',
+  border: '1px solid #fca5a5',
+  borderRadius: 7,
+  cursor: 'pointer',
+  fontSize: 12,
+  fontFamily: 'inherit',
+  fontWeight: 700,
+};
+
+const editButtonStyle = {
+  padding: '6px 11px',
+  background: '#eff6ff',
+  color: '#2563eb',
+  border: '1px solid #93c5fd',
+  borderRadius: 7,
+  cursor: 'pointer',
+  fontSize: 12,
+  fontFamily: 'inherit',
+  fontWeight: 700,
+};
+
+function Card({ children, style, className = '' }) {
   return (
     <div
-      className={`admin-card-base ${className || ''}`}
+      className={`admin-card-base ${className}`}
       style={{
         background: '#fff',
         padding: 24,
         borderRadius: 20,
         border: '1px solid #e2e8f0',
         boxShadow: '0 4px 15px rgba(0,0,0,.03)',
-        ...style
+        ...style,
       }}
     >
       {children}
@@ -67,8 +129,15 @@ function Card({ children, style, className }) {
   );
 }
 
-// Inject responsive CSS (Mobile-First)
+/* ============================================================
+   RESPONSIVE CSS
+============================================================ */
+
 const responsiveCSS = `
+  * {
+    box-sizing: border-box;
+  }
+
   .admin-form-grid {
     display: grid;
     grid-template-columns: 1fr;
@@ -76,12 +145,12 @@ const responsiveCSS = `
   }
 
   .admin-table-scroll {
-    overflow-x: auto;
+    overflow-x: auto !important;
     -webkit-overflow-scrolling: touch;
   }
 
   .admin-table-scroll table {
-    min-width: 640px;
+    min-width: 680px;
   }
 
   .admin-flex-wrap {
@@ -95,7 +164,7 @@ const responsiveCSS = `
   .author-modal-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(15, 23, 42, .65);
+    background: rgba(15, 23, 42, .68);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -106,7 +175,7 @@ const responsiveCSS = `
 
   .author-modal {
     width: 100%;
-    max-width: 680px;
+    max-width: 700px;
     max-height: 92vh;
     overflow-y: auto;
     background: #fff;
@@ -167,6 +236,40 @@ const responsiveCSS = `
     flex-wrap: wrap;
   }
 
+  .admin-message {
+    padding: 14px 16px;
+    border-radius: 10px;
+    margin-bottom: 16px;
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  .admin-error {
+    background: #fef2f2;
+    color: #b91c1c;
+    border: 1px solid #fecaca;
+  }
+
+  .admin-success {
+    background: #f0fdf4;
+    color: #166534;
+    border: 1px solid #bbf7d0;
+  }
+
+  .admin-empty {
+    padding: 40px 20px;
+    text-align: center;
+    color: #94a3b8;
+    font-size: 14px;
+  }
+
+  .admin-stat {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 12px 16px;
+  }
+
   @media (min-width: 768px) {
     .admin-form-grid {
       grid-template-columns: 360px 1fr;
@@ -183,9 +286,46 @@ const responsiveCSS = `
   }
 `;
 
-// ─────────────────────────────────────────────────────────────────────────────
-// AUTHORS
-// ─────────────────────────────────────────────────────────────────────────────
+/* ============================================================
+   SMALL HELPERS
+============================================================ */
+
+const getErrorMessage = (error, fallback = 'Something went wrong.') => {
+  return (
+    error?.response?.data?.message ||
+    error?.response?.data?.error ||
+    error?.message ||
+    fallback
+  );
+};
+
+const formatDate = (date) => {
+  if (!date) return '—';
+
+  const parsed = new Date(date);
+
+  if (Number.isNaN(parsed.getTime())) {
+    return '—';
+  }
+
+  return parsed.toLocaleDateString();
+};
+
+const formatDateTime = (date) => {
+  if (!date) return '—';
+
+  const parsed = new Date(date);
+
+  if (Number.isNaN(parsed.getTime())) {
+    return '—';
+  }
+
+  return parsed.toLocaleString();
+};
+
+/* ============================================================
+   AUTHORS
+============================================================ */
 
 const emptyAuthor = {
   name: '',
@@ -200,8 +340,239 @@ const emptyAuthor = {
   phone: '',
   location: '',
   expertise: '',
-  achievements: ''
+  achievements: '',
 };
+
+function AuthorForm({
+  data,
+  setData,
+  imageRef,
+  openSection,
+  setOpenSection,
+}) {
+  const toggleSection = (section) => {
+    setOpenSection(openSection === section ? '' : section);
+  };
+
+  const FormSection = ({ title, id, children }) => (
+    <div className="author-section">
+      <button
+        type="button"
+        className="author-section-title"
+        onClick={() => toggleSection(id)}
+      >
+        <span>{title}</span>
+        <span>{openSection === id ? '−' : '+'}</span>
+      </button>
+
+      {openSection === id && (
+        <div className="author-section-content">
+          {children}
+        </div>
+      )}
+    </div>
+  );
+
+  const update = (field, value) => {
+    setData((current) => ({
+      ...current,
+      [field]: value,
+    }));
+  };
+
+  return (
+    <>
+      <FormSection title="👤 Basic Information" id="basic">
+        <label style={labelStyle}>Full Name *</label>
+
+        <input
+          value={data.name}
+          onChange={(e) => update('name', e.target.value)}
+          required
+          placeholder="Author name..."
+          style={inputStyle}
+        />
+
+        <label style={labelStyle}>Email</label>
+
+        <input
+          type="email"
+          value={data.email}
+          onChange={(e) => update('email', e.target.value)}
+          placeholder="author@mfn.com"
+          style={inputStyle}
+        />
+
+        <label style={labelStyle}>Phone</label>
+
+        <input
+          value={data.phone}
+          onChange={(e) => update('phone', e.target.value)}
+          placeholder="+250..."
+          style={inputStyle}
+        />
+
+        <label style={labelStyle}>Location</label>
+
+        <input
+          value={data.location}
+          onChange={(e) => update('location', e.target.value)}
+          placeholder="Kigali, Rwanda"
+          style={inputStyle}
+        />
+
+        <label style={labelStyle}>Bio</label>
+
+        <textarea
+          value={data.bio}
+          onChange={(e) => update('bio', e.target.value)}
+          rows={4}
+          placeholder="Short biography..."
+          style={{
+            ...inputStyle,
+            resize: 'vertical',
+          }}
+        />
+
+        <label style={labelStyle}>Profile Image</label>
+
+        <input
+          ref={imageRef}
+          type="file"
+          accept="image/*"
+          style={{
+            ...inputStyle,
+            padding: '8px 12px',
+          }}
+        />
+      </FormSection>
+
+      <FormSection
+        title="🌐 Social Media & Website"
+        id="social"
+      >
+        <div className="author-social-grid">
+          <div>
+            <label style={labelStyle}>Portfolio Website</label>
+
+            <input
+              value={data.portfolio}
+              onChange={(e) =>
+                update('portfolio', e.target.value)
+              }
+              placeholder="https://yourportfolio.com"
+              style={inputStyle}
+            />
+          </div>
+
+          <div>
+            <label style={labelStyle}>LinkedIn</label>
+
+            <input
+              value={data.linkedin}
+              onChange={(e) =>
+                update('linkedin', e.target.value)
+              }
+              placeholder="LinkedIn URL"
+              style={inputStyle}
+            />
+          </div>
+
+          <div>
+            <label style={labelStyle}>Facebook</label>
+
+            <input
+              value={data.facebook}
+              onChange={(e) =>
+                update('facebook', e.target.value)
+              }
+              placeholder="Facebook URL"
+              style={inputStyle}
+            />
+          </div>
+
+          <div>
+            <label style={labelStyle}>Instagram</label>
+
+            <input
+              value={data.instagram}
+              onChange={(e) =>
+                update('instagram', e.target.value)
+              }
+              placeholder="@username / URL"
+              style={inputStyle}
+            />
+          </div>
+
+          <div>
+            <label style={labelStyle}>X / Twitter</label>
+
+            <input
+              value={data.twitter}
+              onChange={(e) =>
+                update('twitter', e.target.value)
+              }
+              placeholder="@username / URL"
+              style={inputStyle}
+            />
+          </div>
+
+          <div>
+            <label style={labelStyle}>YouTube</label>
+
+            <input
+              value={data.youtube}
+              onChange={(e) =>
+                update('youtube', e.target.value)
+              }
+              placeholder="YouTube channel URL"
+              style={inputStyle}
+            />
+          </div>
+        </div>
+      </FormSection>
+
+      <FormSection
+        title="⭐ Professional Information"
+        id="professional"
+      >
+        <label style={labelStyle}>
+          Expertise / Skills
+        </label>
+
+        <textarea
+          value={data.expertise}
+          onChange={(e) =>
+            update('expertise', e.target.value)
+          }
+          rows={3}
+          placeholder="Sports journalism, politics, technology..."
+          style={{
+            ...inputStyle,
+            resize: 'vertical',
+          }}
+        />
+
+        <label style={labelStyle}>
+          Awards / Achievements
+        </label>
+
+        <textarea
+          value={data.achievements}
+          onChange={(e) =>
+            update('achievements', e.target.value)
+          }
+          rows={3}
+          placeholder="Awards, certificates, major achievements..."
+          style={{
+            ...inputStyle,
+            resize: 'vertical',
+          }}
+        />
+      </FormSection>
+    </>
+  );
+}
 
 export function Authors() {
   const [authors, setAuthors] = useState([]);
@@ -209,22 +580,38 @@ export function Authors() {
   const [editForm, setEditForm] = useState(emptyAuthor);
 
   const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
+
   const [editing, setEditing] = useState(false);
   const [editAuthor, setEditAuthor] = useState(null);
 
   const [openSection, setOpenSection] = useState('basic');
 
-  const fileRef = useRef();
-  const editFileRef = useRef();
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+
+  const fileRef = useRef(null);
+  const editFileRef = useRef(null);
 
   const { can } = useAuth();
 
   const load = async () => {
     try {
-      const r = await authorsAPI.getAll();
-      setAuthors(r.data || []);
-    } catch (error) {
-      console.error('Failed to load authors:', error);
+      setLoading(true);
+      setError('');
+
+      const response = await authorsAPI.getAll();
+
+      setAuthors(
+        Array.isArray(response.data)
+          ? response.data
+          : response.data?.authors || []
+      );
+    } catch (err) {
+      console.error('Failed to load authors:', err);
+      setError(getErrorMessage(err, 'Failed to load authors.'));
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -232,15 +619,18 @@ export function Authors() {
     load();
   }, []);
 
-  // ─────────────────────────────────────────────
-  // CREATE AUTHOR
-  // ─────────────────────────────────────────────
-
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    if (!form.name.trim()) {
+      setError('Author name is required.');
+      return;
+    }
+
     try {
       setSaving(true);
+      setError('');
+      setSuccess('');
 
       const fd = new FormData();
 
@@ -248,8 +638,11 @@ export function Authors() {
         fd.append(key, value || '');
       });
 
-      if (fileRef.current?.files[0]) {
-        fd.append('profile_image', fileRef.current.files[0]);
+      if (fileRef.current?.files?.[0]) {
+        fd.append(
+          'profile_image',
+          fileRef.current.files[0]
+        );
       }
 
       await authorsAPI.create(fd);
@@ -260,21 +653,21 @@ export function Authors() {
         fileRef.current.value = '';
       }
 
+      setSuccess('Author created successfully.');
+
       await load();
-    } catch (error) {
-      console.error('Create author error:', error);
-      alert(
-        error?.response?.data?.message ||
-        'Failed to create author.'
+    } catch (err) {
+      console.error('Create author error:', err);
+      setError(
+        getErrorMessage(
+          err,
+          'Failed to create author.'
+        )
       );
     } finally {
       setSaving(false);
     }
   };
-
-  // ─────────────────────────────────────────────
-  // OPEN EDIT MODAL
-  // ─────────────────────────────────────────────
 
   const openEdit = (author) => {
     setEditAuthor(author);
@@ -292,24 +685,28 @@ export function Authors() {
       phone: author.phone || '',
       location: author.location || '',
       expertise: author.expertise || '',
-      achievements: author.achievements || ''
+      achievements: author.achievements || '',
     });
 
     setOpenSection('basic');
     setEditing(true);
+    setError('');
   };
-
-  // ─────────────────────────────────────────────
-  // UPDATE AUTHOR
-  // ─────────────────────────────────────────────
 
   const handleUpdate = async (e) => {
     e.preventDefault();
 
     if (!editAuthor) return;
 
+    if (!editForm.name.trim()) {
+      setError('Author name is required.');
+      return;
+    }
+
     try {
       setSaving(true);
+      setError('');
+      setSuccess('');
 
       const fd = new FormData();
 
@@ -317,8 +714,11 @@ export function Authors() {
         fd.append(key, value || '');
       });
 
-      if (editFileRef.current?.files[0]) {
-        fd.append('profile_image', editFileRef.current.files[0]);
+      if (editFileRef.current?.files?.[0]) {
+        fd.append(
+          'profile_image',
+          editFileRef.current.files[0]
+        );
       }
 
       await authorsAPI.update(editAuthor.id, fd);
@@ -330,42 +730,48 @@ export function Authors() {
         editFileRef.current.value = '';
       }
 
-      await load();
-    } catch (error) {
-      console.error('Update author error:', error);
+      setSuccess('Author updated successfully.');
 
-      alert(
-        error?.response?.data?.message ||
-        'Failed to update author.'
+      await load();
+    } catch (err) {
+      console.error('Update author error:', err);
+
+      setError(
+        getErrorMessage(
+          err,
+          'Failed to update author.'
+        )
       );
     } finally {
       setSaving(false);
     }
   };
 
-  // ─────────────────────────────────────────────
-  // DELETE
-  // ─────────────────────────────────────────────
-
   const handleDelete = async (id) => {
-    if (!window.confirm('Delete author?')) return;
+    if (!window.confirm('Are you sure you want to delete this author?')) {
+      return;
+    }
 
     try {
-      await authorsAPI.delete(id);
-      await load();
-    } catch (error) {
-      console.error('Delete author error:', error);
+      setError('');
+      setSuccess('');
 
-      alert(
-        error?.response?.data?.message ||
-        'Failed to delete author.'
+      await authorsAPI.delete(id);
+
+      setSuccess('Author deleted successfully.');
+
+      await load();
+    } catch (err) {
+      console.error('Delete author error:', err);
+
+      setError(
+        getErrorMessage(
+          err,
+          'Failed to delete author.'
+        )
       );
     }
   };
-
-  // ─────────────────────────────────────────────
-  // CLOSE MODAL
-  // ─────────────────────────────────────────────
 
   const closeEdit = () => {
     if (saving) return;
@@ -373,308 +779,6 @@ export function Authors() {
     setEditing(false);
     setEditAuthor(null);
   };
-
-  // ─────────────────────────────────────────────
-  // COLLAPSIBLE SECTION
-  // ─────────────────────────────────────────────
-
-  const toggleSection = (section) => {
-    setOpenSection(
-      openSection === section ? '' : section
-    );
-  };
-
-  // ─────────────────────────────────────────────
-  // FORM SECTION
-  // ─────────────────────────────────────────────
-
-  const FormSection = ({
-    title,
-    id,
-    children
-  }) => (
-    <div className="author-section">
-      <button
-        type="button"
-        className="author-section-title"
-        onClick={() => toggleSection(id)}
-      >
-        <span>{title}</span>
-        <span>
-          {openSection === id ? '−' : '+'}
-        </span>
-      </button>
-
-      {openSection === id && (
-        <div className="author-section-content">
-          {children}
-        </div>
-      )}
-    </div>
-  );
-
-  // ─────────────────────────────────────────────
-  // AUTHOR FORM
-  // ─────────────────────────────────────────────
-
-  const AuthorForm = ({
-    data,
-    setData,
-    imageRef,
-    isEdit = false
-  }) => (
-    <>
-      <FormSection title="👤 Basic Information" id="basic">
-        <label style={labelStyle}>Full Name *</label>
-
-        <input
-          value={data.name}
-          onChange={(e) =>
-            setData(f => ({
-              ...f,
-              name: e.target.value
-            }))
-          }
-          required
-          placeholder="Author name…"
-          style={inputStyle}
-        />
-
-        <label style={labelStyle}>Email</label>
-
-        <input
-          type="email"
-          value={data.email}
-          onChange={(e) =>
-            setData(f => ({
-              ...f,
-              email: e.target.value
-            }))
-          }
-          placeholder="author@mfn.com"
-          style={inputStyle}
-        />
-
-        <label style={labelStyle}>Phone</label>
-
-        <input
-          value={data.phone}
-          onChange={(e) =>
-            setData(f => ({
-              ...f,
-              phone: e.target.value
-            }))
-          }
-          placeholder="+250..."
-          style={inputStyle}
-        />
-
-        <label style={labelStyle}>Location</label>
-
-        <input
-          value={data.location}
-          onChange={(e) =>
-            setData(f => ({
-              ...f,
-              location: e.target.value
-            }))
-          }
-          placeholder="Kigali, Rwanda"
-          style={inputStyle}
-        />
-
-        <label style={labelStyle}>Bio</label>
-
-        <textarea
-          value={data.bio}
-          onChange={(e) =>
-            setData(f => ({
-              ...f,
-              bio: e.target.value
-            }))
-          }
-          rows={4}
-          placeholder="Short biography…"
-          style={{
-            ...inputStyle,
-            resize: 'vertical'
-          }}
-        />
-
-        <label style={labelStyle}>
-          Profile Image
-        </label>
-
-        <input
-          ref={imageRef}
-          type="file"
-          accept="image/*"
-          style={{
-            ...inputStyle,
-            padding: '8px 12px'
-          }}
-        />
-      </FormSection>
-
-      <FormSection title="🌐 Social Media & Website" id="social">
-        <div className="author-social-grid">
-
-          <div>
-            <label style={labelStyle}>
-              Portfolio Website
-            </label>
-
-            <input
-              value={data.portfolio}
-              onChange={(e) =>
-                setData(f => ({
-                  ...f,
-                  portfolio: e.target.value
-                }))
-              }
-              placeholder="https://yourportfolio.com"
-              style={inputStyle}
-            />
-          </div>
-
-          <div>
-            <label style={labelStyle}>
-              LinkedIn
-            </label>
-
-            <input
-              value={data.linkedin}
-              onChange={(e) =>
-                setData(f => ({
-                  ...f,
-                  linkedin: e.target.value
-                }))
-              }
-              placeholder="LinkedIn URL"
-              style={inputStyle}
-            />
-          </div>
-
-          <div>
-            <label style={labelStyle}>
-              Facebook
-            </label>
-
-            <input
-              value={data.facebook}
-              onChange={(e) =>
-                setData(f => ({
-                  ...f,
-                  facebook: e.target.value
-                }))
-              }
-              placeholder="Facebook URL"
-              style={inputStyle}
-            />
-          </div>
-
-          <div>
-            <label style={labelStyle}>
-              Instagram
-            </label>
-
-            <input
-              value={data.instagram}
-              onChange={(e) =>
-                setData(f => ({
-                  ...f,
-                  instagram: e.target.value
-                }))
-              }
-              placeholder="@username / URL"
-              style={inputStyle}
-            />
-          </div>
-
-          <div>
-            <label style={labelStyle}>
-              X / Twitter
-            </label>
-
-            <input
-              value={data.twitter}
-              onChange={(e) =>
-                setData(f => ({
-                  ...f,
-                  twitter: e.target.value
-                }))
-              }
-              placeholder="@username / URL"
-              style={inputStyle}
-            />
-          </div>
-
-          <div>
-            <label style={labelStyle}>
-              YouTube
-            </label>
-
-            <input
-              value={data.youtube}
-              onChange={(e) =>
-                setData(f => ({
-                  ...f,
-                  youtube: e.target.value
-                }))
-              }
-              placeholder="YouTube channel URL"
-              style={inputStyle}
-            />
-          </div>
-
-        </div>
-      </FormSection>
-
-      <FormSection title="⭐ Professional Information" id="professional">
-
-        <label style={labelStyle}>
-          Expertise / Skills
-        </label>
-
-        <textarea
-          value={data.expertise}
-          onChange={(e) =>
-            setData(f => ({
-              ...f,
-              expertise: e.target.value
-            }))
-          }
-          rows={3}
-          placeholder="Sports journalism, politics, technology..."
-          style={{
-            ...inputStyle,
-            resize: 'vertical'
-          }}
-        />
-
-        <label style={labelStyle}>
-          Awards / Achievements
-        </label>
-
-        <textarea
-          value={data.achievements}
-          onChange={(e) =>
-            setData(f => ({
-              ...f,
-              achievements: e.target.value
-            }))
-          }
-          rows={3}
-          placeholder="Awards, certificates, major achievements..."
-          style={{
-            ...inputStyle,
-            resize: 'vertical'
-          }}
-        />
-
-      </FormSection>
-    </>
-  );
 
   return (
     <AdminLayout>
@@ -685,81 +789,79 @@ export function Authors() {
           fontWeight: 800,
           fontSize: '1.6rem',
           margin: '0 0 24px',
-          letterSpacing: '-0.03em'
+          letterSpacing: '-0.03em',
         }}
       >
         Author Profiles
       </h1>
 
+      {error && (
+        <div className="admin-message admin-error">
+          {error}
+        </div>
+      )}
+
+      {success && (
+        <div className="admin-message admin-success">
+          {success}
+        </div>
+      )}
+
       <div className="admin-form-grid">
-
-        {/* CREATE AUTHOR */}
         <Card>
-
           <h3
             style={{
               fontWeight: 800,
               margin: '0 0 20px',
-              fontSize: '1rem'
+              fontSize: '1rem',
             }}
           >
             Add New Author
           </h3>
 
           <form onSubmit={handleSubmit}>
-
             <AuthorForm
               data={form}
               setData={setForm}
               imageRef={fileRef}
+              openSection={openSection}
+              setOpenSection={setOpenSection}
             />
 
             <button
               type="submit"
               disabled={saving}
               style={{
-                width: '100%',
+                ...primaryButtonStyle,
                 background: saving
                   ? '#64748b'
                   : '#1a472a',
-                color: '#fff',
-                border: 'none',
-                padding: '12px',
-                borderRadius: 10,
-                fontWeight: 800,
-                fontSize: 14,
                 cursor: saving
                   ? 'not-allowed'
                   : 'pointer',
-                fontFamily: 'inherit'
               }}
             >
               {saving
-                ? 'Creating…'
+                ? 'Creating...'
                 : 'Create Author'}
             </button>
-
           </form>
-
         </Card>
 
-        {/* AUTHORS TABLE */}
         <Card
           className="admin-table-scroll"
           style={{
             padding: 0,
-            overflow: 'hidden'
+            overflow: 'hidden',
           }}
         >
-
           <table
             style={{
               width: '100%',
               borderCollapse: 'separate',
-              borderSpacing: 0
+              borderSpacing: 0,
             }}
           >
-
             <thead>
               <tr>
                 {[
@@ -767,10 +869,10 @@ export function Authors() {
                   'Name',
                   'Email',
                   'Stories',
-                  'Actions'
-                ].map(h => (
+                  'Actions',
+                ].map((heading) => (
                   <th
-                    key={h}
+                    key={heading}
                     style={{
                       padding: '14px 16px',
                       background: '#f8fafc',
@@ -780,209 +882,171 @@ export function Authors() {
                       fontWeight: 800,
                       borderBottom:
                         '1px solid #e2e8f0',
-                      textAlign: 'left'
+                      textAlign: 'left',
                     }}
                   >
-                    {h}
+                    {heading}
                   </th>
                 ))}
               </tr>
             </thead>
 
             <tbody>
-
-              {authors.map(a => (
-
-                <tr
-                  key={a.id}
-                  style={{
-                    borderBottom:
-                      '1px solid #f1f5f9'
-                  }}
-                >
-
-                  <td style={{
-                    padding: '14px 16px'
-                  }}>
-                    <img
-                      src={getImgUrl(
-                        a.profile_image
-                      )}
-                      alt=""
-                      style={{
-                        width: 44,
-                        height: 44,
-                        borderRadius: '50%',
-                        objectFit: 'cover'
-                      }}
-                      onError={e => {
-                        e.target.onerror = null;
-                        e.target.src =
-                          PLACEHOLDER;
-                      }}
-                    />
-                  </td>
-
-                  <td style={{
-                    padding: '14px 16px'
-                  }}>
-
-                    <div
-                      style={{
-                        fontWeight: 700,
-                        fontSize: 14
-                      }}
-                    >
-                      {a.name}
-                    </div>
-
-                    <div
-                      style={{
-                        fontSize: 12,
-                        color: '#94a3b8',
-                        maxWidth: 220
-                      }}
-                    >
-                      {a.bio?.substring(0, 70)}
-                      {a.bio?.length > 70
-                        ? '...'
-                        : ''}
-                    </div>
-
-                    {a.portfolio && (
-                      <div
-                        style={{
-                          marginTop: 4,
-                          fontSize: 11,
-                          color: '#0369a1'
-                        }}
-                      >
-                        🌐 Portfolio
-                      </div>
-                    )}
-
-                  </td>
-
-                  <td
-                    style={{
-                      padding: '14px 16px',
-                      fontSize: 13,
-                      color: '#475569'
-                    }}
-                  >
-                    {a.email || '—'}
-                  </td>
-
-                  <td
-                    style={{
-                      padding: '14px 16px',
-                      fontWeight: 700,
-                      color: '#0369a1'
-                    }}
-                  >
-                    {a.story_count || 0} stories
-                  </td>
-
-                  <td
-                    style={{
-                      padding: '14px 16px'
-                    }}
-                  >
-
-                    <div className="author-action-buttons">
-
-                      {can('manage_authors') && (
-                        <button
-                          onClick={() =>
-                            openEdit(a)
-                          }
-                          style={{
-                            padding:
-                              '5px 12px',
-                            background:
-                              '#eff6ff',
-                            color:
-                              '#2563eb',
-                            border:
-                              '1px solid #93c5fd',
-                            borderRadius: 6,
-                            cursor:
-                              'pointer',
-                            fontSize: 12,
-                            fontFamily:
-                              'inherit',
-                            fontWeight: 700
-                          }}
-                        >
-                          ✏️ Edit
-                        </button>
-                      )}
-
-                      {can('manage_authors') && (
-                        <button
-                          onClick={() =>
-                            handleDelete(
-                              a.id
-                            )
-                          }
-                          style={{
-                            padding:
-                              '5px 12px',
-                            background:
-                              '#fef2f2',
-                            color:
-                              '#ef4444',
-                            border:
-                              '1px solid #fca5a5',
-                            borderRadius: 6,
-                            cursor:
-                              'pointer',
-                            fontSize: 12,
-                            fontFamily:
-                              'inherit'
-                          }}
-                        >
-                          Delete
-                        </button>
-                      )}
-
-                    </div>
-
-                  </td>
-
-                </tr>
-
-              ))}
-
-              {authors.length === 0 && (
+              {loading ? (
                 <tr>
                   <td
                     colSpan={5}
-                    style={{
-                      padding: 40,
-                      textAlign: 'center',
-                      color: '#94a3b8'
-                    }}
+                    className="admin-empty"
                   >
-                    No authors found
+                    Loading authors...
                   </td>
                 </tr>
+              ) : (
+                <>
+                  {authors.map((author) => (
+                    <tr
+                      key={author.id}
+                      style={{
+                        borderBottom:
+                          '1px solid #f1f5f9',
+                      }}
+                    >
+                      <td
+                        style={{
+                          padding: '14px 16px',
+                        }}
+                      >
+                        <img
+                          src={getImgUrl(
+                            author.profile_image
+                          )}
+                          alt={author.name || 'Author'}
+                          style={{
+                            width: 44,
+                            height: 44,
+                            borderRadius: '50%',
+                            objectFit: 'cover',
+                          }}
+                          onError={(e) => {
+                            e.currentTarget.onerror = null;
+                            e.currentTarget.src =
+                              PLACEHOLDER;
+                          }}
+                        />
+                      </td>
+
+                      <td
+                        style={{
+                          padding: '14px 16px',
+                        }}
+                      >
+                        <div
+                          style={{
+                            fontWeight: 700,
+                            fontSize: 14,
+                          }}
+                        >
+                          {author.name}
+                        </div>
+
+                        <div
+                          style={{
+                            fontSize: 12,
+                            color: '#94a3b8',
+                            maxWidth: 220,
+                          }}
+                        >
+                          {author.bio
+                            ? author.bio.substring(
+                                0,
+                                70
+                              )
+                            : ''}
+
+                          {author.bio?.length > 70
+                            ? '...'
+                            : ''}
+                        </div>
+                      </td>
+
+                      <td
+                        style={{
+                          padding: '14px 16px',
+                          fontSize: 13,
+                          color: '#475569',
+                        }}
+                      >
+                        {author.email || '—'}
+                      </td>
+
+                      <td
+                        style={{
+                          padding: '14px 16px',
+                          fontWeight: 700,
+                          color: '#0369a1',
+                        }}
+                      >
+                        {author.story_count || 0}
+                      </td>
+
+                      <td
+                        style={{
+                          padding: '14px 16px',
+                        }}
+                      >
+                        <div className="author-action-buttons">
+                          {can('manage_authors') && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                openEdit(author)
+                              }
+                              style={
+                                editButtonStyle
+                              }
+                            >
+                              ✏️ Edit
+                            </button>
+                          )}
+
+                          {can('manage_authors') && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                handleDelete(
+                                  author.id
+                                )
+                              }
+                              style={
+                                dangerButtonStyle
+                              }
+                            >
+                              Delete
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+
+                  {authors.length === 0 && (
+                    <tr>
+                      <td
+                        colSpan={5}
+                        className="admin-empty"
+                      >
+                        No authors found.
+                      </td>
+                    </tr>
+                  )}
+                </>
               )}
-
             </tbody>
-
           </table>
-
         </Card>
-
       </div>
 
-      {/* ─────────────────────────────────────────
-          EDIT AUTHOR MODAL
-      ───────────────────────────────────────── */}
-
       {editing && editAuthor && (
-
         <div
           className="author-modal-overlay"
           onMouseDown={(e) => {
@@ -993,17 +1057,14 @@ export function Authors() {
             }
           }}
         >
-
           <div className="author-modal">
-
             <div className="author-modal-header">
-
               <div>
                 <div
                   style={{
                     fontWeight: 800,
                     fontSize: 18,
-                    color: '#0f172a'
+                    color: '#0f172a',
                   }}
                 >
                   Edit Author
@@ -1013,7 +1074,7 @@ export function Authors() {
                   style={{
                     fontSize: 12,
                     color: '#94a3b8',
-                    marginTop: 3
+                    marginTop: 3,
                   }}
                 >
                   Update {editAuthor.name}'s
@@ -1032,34 +1093,33 @@ export function Authors() {
                   borderRadius: 10,
                   background: '#f1f5f9',
                   color: '#475569',
-                  cursor: 'pointer',
-                  fontSize: 20
+                  cursor: saving
+                    ? 'not-allowed'
+                    : 'pointer',
+                  fontSize: 20,
                 }}
               >
                 ×
               </button>
-
             </div>
 
             <div className="author-modal-body">
-
               <form onSubmit={handleUpdate}>
-
                 <AuthorForm
                   data={editForm}
                   setData={setEditForm}
                   imageRef={editFileRef}
-                  isEdit
+                  openSection={openSection}
+                  setOpenSection={setOpenSection}
                 />
 
                 <div
                   style={{
                     display: 'flex',
                     gap: 10,
-                    marginTop: 8
+                    marginTop: 8,
                   }}
                 >
-
                   <button
                     type="button"
                     onClick={closeEdit}
@@ -1073,9 +1133,10 @@ export function Authors() {
                       background: '#fff',
                       color: '#475569',
                       fontWeight: 700,
-                      cursor: 'pointer',
-                      fontFamily:
-                        'inherit'
+                      cursor: saving
+                        ? 'not-allowed'
+                        : 'pointer',
+                      fontFamily: 'inherit',
                     }}
                   >
                     Cancel
@@ -1097,57 +1158,96 @@ export function Authors() {
                       cursor: saving
                         ? 'not-allowed'
                         : 'pointer',
-                      fontFamily:
-                        'inherit'
+                      fontFamily: 'inherit',
                     }}
                   >
                     {saving
-                      ? 'Saving…'
+                      ? 'Saving...'
                       : 'Save Changes'}
                   </button>
-
                 </div>
-
               </form>
-
             </div>
-
           </div>
-
         </div>
-
       )}
-
     </AdminLayout>
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// COMMENTS
-// ─────────────────────────────────────────────────────────────────────────────
+/* ============================================================
+   COMMENTS
+============================================================ */
 
 export function Comments() {
   const [comments, setComments] = useState([]);
   const [total, setTotal] = useState(0);
   const [status, setStatus] = useState('pending');
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
   const { can } = useAuth();
 
   const load = async () => {
-    setLoading(true);
+    try {
+      setLoading(true);
+      setError('');
 
-    commentsAPI
-      .getAll({ status, limit: 30 })
-      .then(r => {
-        setComments(r.data.comments || []);
-        setTotal(r.data.total || 0);
-        setLoading(false);
+      const response = await commentsAPI.getAll({
+        status,
+        limit: 30,
       });
+
+      setComments(response.data?.comments || []);
+      setTotal(response.data?.total || 0);
+    } catch (err) {
+      console.error('Comments loading error:', err);
+      setError(
+        getErrorMessage(
+          err,
+          'Failed to load comments.'
+        )
+      );
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
     load();
   }, [status]);
+
+  const approveComment = async (id) => {
+    try {
+      await commentsAPI.approve(id);
+      await load();
+    } catch (err) {
+      alert(
+        getErrorMessage(
+          err,
+          'Failed to approve comment.'
+        )
+      );
+    }
+  };
+
+  const deleteComment = async (id) => {
+    if (!window.confirm('Delete this comment?')) {
+      return;
+    }
+
+    try {
+      await commentsAPI.delete(id);
+      await load();
+    } catch (err) {
+      alert(
+        getErrorMessage(
+          err,
+          'Failed to delete comment.'
+        )
+      );
+    }
+  };
 
   return (
     <AdminLayout>
@@ -1160,14 +1260,14 @@ export function Comments() {
           justifyContent: 'space-between',
           alignItems: 'center',
           marginBottom: 24,
-          gap: '12px'
+          gap: 12,
         }}
       >
         <h1
           style={{
             fontWeight: 800,
             fontSize: '1.6rem',
-            margin: 0
+            margin: 0,
           }}
         >
           Comments
@@ -1181,67 +1281,72 @@ export function Comments() {
             borderRadius: 8,
             fontWeight: 700,
             fontSize: 13,
-            whiteSpace: 'nowrap'
+            whiteSpace: 'nowrap',
           }}
         >
           {total} {status}
         </span>
       </div>
 
+      {error && (
+        <div className="admin-message admin-error">
+          {error}
+        </div>
+      )}
+
       <div
         className="admin-flex-wrap"
         style={{
           display: 'flex',
           gap: 8,
-          marginBottom: 20
+          marginBottom: 20,
         }}
       >
-        {['pending', 'approved', 'spam'].map(s => (
-          <button
-            key={s}
-            onClick={() => setStatus(s)}
-            style={{
-              padding: '8px 18px',
-              background:
-                status === s
-                  ? '#1a472a'
-                  : '#fff',
-              color:
-                status === s
-                  ? '#fff'
-                  : '#64748b',
-              border:
-                '1px solid #e2e8f0',
-              borderRadius: 8,
-              cursor: 'pointer',
-              fontWeight: 700,
-              fontSize: 13,
-              textTransform:
-                'capitalize',
-              fontFamily: 'inherit'
-            }}
-          >
-            {s}
-          </button>
-        ))}
+        {['pending', 'approved', 'spam'].map(
+          (item) => (
+            <button
+              key={item}
+              type="button"
+              onClick={() =>
+                setStatus(item)
+              }
+              style={{
+                padding: '8px 18px',
+                background:
+                  status === item
+                    ? '#1a472a'
+                    : '#fff',
+                color:
+                  status === item
+                    ? '#fff'
+                    : '#64748b',
+                border:
+                  '1px solid #e2e8f0',
+                borderRadius: 8,
+                cursor: 'pointer',
+                fontWeight: 700,
+                fontSize: 13,
+                textTransform:
+                  'capitalize',
+                fontFamily: 'inherit',
+              }}
+            >
+              {item}
+            </button>
+          )
+        )}
       </div>
 
       <Card
         className="admin-table-scroll"
         style={{
           padding: 0,
-          overflow: 'hidden'
+          overflow: 'hidden',
         }}
       >
         {loading ? (
-          <div
-            style={{
-              padding: 40,
-              textAlign: 'center',
-              color: '#94a3b8'
-            }}
-          >
-            Loading…
+          <div className="admin-empty">
+            Loading comments...
           </div>
         ) : (
           <table
@@ -1249,7 +1354,7 @@ export function Comments() {
               width: '100%',
               borderCollapse:
                 'separate',
-              borderSpacing: 0
+              borderSpacing: 0,
             }}
           >
             <thead>
@@ -1259,63 +1364,62 @@ export function Comments() {
                   'Story',
                   'Comment',
                   'Date',
-                  'Actions'
-                ].map(h => (
+                  'Actions',
+                ].map((heading) => (
                   <th
-                    key={h}
+                    key={heading}
                     style={{
                       padding:
                         '14px 16px',
                       background:
                         '#f8fafc',
-                      color:
-                        '#64748b',
+                      color: '#64748b',
                       fontSize: 11,
                       textTransform:
                         'uppercase',
                       fontWeight: 800,
                       borderBottom:
                         '1px solid #e2e8f0',
-                      textAlign:
-                        'left'
+                      textAlign: 'left',
                     }}
                   >
-                    {h}
+                    {heading}
                   </th>
                 ))}
               </tr>
             </thead>
 
             <tbody>
-              {comments.map(c => (
+              {comments.map((comment) => (
                 <tr
-                  key={c.id}
+                  key={comment.id}
                   style={{
                     borderBottom:
-                      '1px solid #f1f5f9'
+                      '1px solid #f1f5f9',
                   }}
                 >
-                  <td style={{
-                    padding:
-                      '14px 16px'
-                  }}>
+                  <td
+                    style={{
+                      padding:
+                        '14px 16px',
+                    }}
+                  >
                     <div
                       style={{
                         fontWeight: 700,
-                        fontSize: 14
+                        fontSize: 14,
                       }}
                     >
-                      {c.name}
+                      {comment.name}
                     </div>
 
                     <div
                       style={{
                         fontSize: 12,
-                        color:
-                          '#94a3b8'
+                        color: '#94a3b8',
                       }}
                     >
-                      {c.email}
+                      {comment.email}
                     </div>
                   </td>
 
@@ -1324,22 +1428,20 @@ export function Comments() {
                       padding:
                         '14px 16px',
                       fontSize: 13,
-                      color:
-                        '#475569',
-                      maxWidth: 160
+                      color: '#475569',
+                      maxWidth: 180,
                     }}
                   >
                     <div
                       style={{
-                        overflow:
-                          'hidden',
+                        overflow: 'hidden',
                         textOverflow:
                           'ellipsis',
                         whiteSpace:
-                          'nowrap'
+                          'nowrap',
                       }}
                     >
-                      {c.story_title}
+                      {comment.story_title}
                     </div>
                   </td>
 
@@ -1348,20 +1450,19 @@ export function Comments() {
                       padding:
                         '14px 16px',
                       fontSize: 14,
-                      maxWidth: 300
+                      maxWidth: 300,
                     }}
                   >
                     <div
                       style={{
-                        overflow:
-                          'hidden',
+                        overflow: 'hidden',
                         textOverflow:
                           'ellipsis',
                         whiteSpace:
-                          'nowrap'
+                          'nowrap',
                       }}
                     >
-                      {c.comment}
+                      {comment.comment}
                     </div>
                   </td>
 
@@ -1370,26 +1471,27 @@ export function Comments() {
                       padding:
                         '14px 16px',
                       fontSize: 12,
-                      color:
-                        '#94a3b8',
+                      color: '#94a3b8',
                       whiteSpace:
-                        'nowrap'
+                        'nowrap',
                     }}
                   >
-                    {new Date(
-                      c.created_at
-                    ).toLocaleDateString()}
+                    {formatDate(
+                      comment.created_at
+                    )}
                   </td>
 
-                  <td style={{
-                    padding:
-                      '14px 16px'
-                  }}>
+                  <td
+                    style={{
+                      padding:
+                        '14px 16px',
+                    }}
+                  >
                     <div
                       style={{
-                        display:
-                          'flex',
-                        gap: 6
+                        display: 'flex',
+                        gap: 6,
+                        flexWrap: 'wrap',
                       }}
                     >
                       {status ===
@@ -1398,12 +1500,12 @@ export function Comments() {
                           'approve_comments'
                         ) && (
                           <button
-                            onClick={async () => {
-                              await commentsAPI.approve(
-                                c.id
-                              );
-                              load();
-                            }}
+                            type="button"
+                            onClick={() =>
+                              approveComment(
+                                comment.id
+                              )
+                            }
                             style={{
                               padding:
                                 '5px 10px',
@@ -1422,7 +1524,7 @@ export function Comments() {
                               fontFamily:
                                 'inherit',
                               whiteSpace:
-                                'nowrap'
+                                'nowrap',
                             }}
                           >
                             ✓ Approve
@@ -1433,38 +1535,15 @@ export function Comments() {
                         'delete_content'
                       ) && (
                         <button
-                          onClick={async () => {
-                            if (
-                              window.confirm(
-                                'Delete?'
-                              )
-                            ) {
-                              await commentsAPI.delete(
-                                c.id
-                              );
-                              load();
-                            }
-                          }}
-                          style={{
-                            padding:
-                              '5px 10px',
-                            background:
-                              '#fef2f2',
-                            color:
-                              '#ef4444',
-                            border:
-                              '1px solid #fca5a5',
-                            borderRadius:
-                              6,
-                            cursor:
-                              'pointer',
-                            fontSize:
-                              12,
-                            fontFamily:
-                              'inherit',
-                            whiteSpace:
-                              'nowrap'
-                          }}
+                          type="button"
+                          onClick={() =>
+                            deleteComment(
+                              comment.id
+                            )
+                          }
+                          style={
+                            dangerButtonStyle
+                          }
                         >
                           Delete
                         </button>
@@ -1478,15 +1557,9 @@ export function Comments() {
                 <tr>
                   <td
                     colSpan={5}
-                    style={{
-                      padding: 40,
-                      textAlign:
-                        'center',
-                      color:
-                        '#94a3b8'
-                    }}
+                    className="admin-empty"
                   >
-                    No {status} comments
+                    No {status} comments.
                   </td>
                 </tr>
               )}
@@ -1498,57 +1571,133 @@ export function Comments() {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// VIDEOS
-// ─────────────────────────────────────────────────────────────────────────────
+/* ============================================================
+   VIDEOS
+============================================================ */
 
 export function Videos() {
   const [videos, setVideos] = useState([]);
+
   const [form, setForm] = useState({
     title: '',
     youtube_url: '',
-    category: 'Sport'
+    category: 'Sport',
   });
 
-  const fileRef = useRef();
   const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
 
-  const load = () =>
-    videosAPI
-      .getAll({ limit: 50 })
-      .then(r => setVideos(r.data || []));
+  const fileRef = useRef(null);
+
+  const load = async () => {
+    try {
+      setLoading(true);
+      setError('');
+
+      const response = await videosAPI.getAll({
+        limit: 50,
+      });
+
+      setVideos(
+        Array.isArray(response.data)
+          ? response.data
+          : response.data?.videos || []
+      );
+    } catch (err) {
+      console.error('Videos loading error:', err);
+      setError(
+        getErrorMessage(
+          err,
+          'Failed to load videos.'
+        )
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     load();
   }, []);
 
-  const handleSubmit = async e => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    setSaving(true);
 
-    const fd = new FormData();
-
-    Object.entries(form).forEach(
-      ([k, v]) => fd.append(k, v)
-    );
-
-    if (fileRef.current?.files[0]) {
-      fd.append(
-        'thumbnail',
-        fileRef.current.files[0]
-      );
+    if (!form.title.trim()) {
+      setError('Video title is required.');
+      return;
     }
 
-    await videosAPI.create(fd);
+    if (!form.youtube_url.trim()) {
+      setError('YouTube URL is required.');
+      return;
+    }
 
-    setForm({
-      title: '',
-      youtube_url: '',
-      category: 'Sport'
-    });
+    try {
+      setSaving(true);
+      setError('');
+      setSuccess('');
 
-    load();
-    setSaving(false);
+      const fd = new FormData();
+
+      Object.entries(form).forEach(([key, value]) => {
+        fd.append(key, value);
+      });
+
+      if (fileRef.current?.files?.[0]) {
+        fd.append(
+          'thumbnail',
+          fileRef.current.files[0]
+        );
+      }
+
+      await videosAPI.create(fd);
+
+      setForm({
+        title: '',
+        youtube_url: '',
+        category: 'Sport',
+      });
+
+      if (fileRef.current) {
+        fileRef.current.value = '';
+      }
+
+      setSuccess('Video added successfully.');
+
+      await load();
+    } catch (err) {
+      console.error('Create video error:', err);
+
+      setError(
+        getErrorMessage(
+          err,
+          'Failed to add video.'
+        )
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const deleteVideo = async (id) => {
+    if (!window.confirm('Delete this video?')) {
+      return;
+    }
+
+    try {
+      await videosAPI.delete(id);
+      await load();
+    } catch (err) {
+      alert(
+        getErrorMessage(
+          err,
+          'Failed to delete video.'
+        )
+      );
+    }
   };
 
   return (
@@ -1559,11 +1708,23 @@ export function Videos() {
         style={{
           fontWeight: 800,
           fontSize: '1.6rem',
-          margin: '0 0 24px'
+          margin: '0 0 24px',
         }}
       >
         Videos
       </h1>
+
+      {error && (
+        <div className="admin-message admin-error">
+          {error}
+        </div>
+      )}
+
+      {success && (
+        <div className="admin-message admin-success">
+          {success}
+        </div>
+      )}
 
       <div className="admin-form-grid">
         <Card>
@@ -1571,28 +1732,27 @@ export function Videos() {
             style={{
               fontWeight: 800,
               margin: '0 0 20px',
-              fontSize: '1rem'
+              fontSize: '1rem',
             }}
           >
             Add YouTube Video
           </h3>
 
           <form onSubmit={handleSubmit}>
-
             <label style={labelStyle}>
               Title *
             </label>
 
             <input
               value={form.title}
-              onChange={e =>
-                setForm(f => ({
-                  ...f,
-                  title: e.target.value
+              onChange={(e) =>
+                setForm((current) => ({
+                  ...current,
+                  title: e.target.value,
                 }))
               }
               required
-              placeholder="Video title…"
+              placeholder="Video title..."
               style={inputStyle}
             />
 
@@ -1602,15 +1762,15 @@ export function Videos() {
 
             <input
               value={form.youtube_url}
-              onChange={e =>
-                setForm(f => ({
-                  ...f,
+              onChange={(e) =>
+                setForm((current) => ({
+                  ...current,
                   youtube_url:
-                    e.target.value
+                    e.target.value,
                 }))
               }
               required
-              placeholder="https://youtube.com/watch?v=…"
+              placeholder="https://youtube.com/watch?v=..."
               style={inputStyle}
             />
 
@@ -1620,11 +1780,11 @@ export function Videos() {
 
             <select
               value={form.category}
-              onChange={e =>
-                setForm(f => ({
-                  ...f,
+              onChange={(e) =>
+                setForm((current) => ({
+                  ...current,
                   category:
-                    e.target.value
+                    e.target.value,
                 }))
               }
               style={inputStyle}
@@ -1635,10 +1795,13 @@ export function Videos() {
                 'Technology',
                 'Health',
                 'Culture',
-                'Entertainment'
-              ].map(c => (
-                <option key={c}>
-                  {c}
+                'Entertainment',
+              ].map((category) => (
+                <option
+                  key={category}
+                  value={category}
+                >
+                  {category}
                 </option>
               ))}
             </select>
@@ -1653,8 +1816,7 @@ export function Videos() {
               accept="image/*"
               style={{
                 ...inputStyle,
-                padding:
-                  '8px 12px'
+                padding: '8px 12px',
               }}
             />
 
@@ -1662,25 +1824,19 @@ export function Videos() {
               type="submit"
               disabled={saving}
               style={{
-                width: '100%',
-                background:
-                  '#1a472a',
-                color: '#fff',
-                border: 'none',
-                padding: 12,
-                borderRadius: 10,
-                fontWeight: 800,
-                fontSize: 14,
-                cursor: 'pointer',
-                fontFamily:
-                  'inherit'
+                ...primaryButtonStyle,
+                background: saving
+                  ? '#64748b'
+                  : '#1a472a',
+                cursor: saving
+                  ? 'not-allowed'
+                  : 'pointer',
               }}
             >
               {saving
-                ? 'Saving…'
+                ? 'Saving...'
                 : 'Add Video'}
             </button>
-
           </form>
         </Card>
 
@@ -1688,7 +1844,7 @@ export function Videos() {
           className="admin-table-scroll"
           style={{
             padding: 0,
-            overflow: 'hidden'
+            overflow: 'hidden',
           }}
         >
           <table
@@ -1696,7 +1852,7 @@ export function Videos() {
               width: '100%',
               borderCollapse:
                 'separate',
-              borderSpacing: 0
+              borderSpacing: 0,
             }}
           >
             <thead>
@@ -1706,167 +1862,182 @@ export function Videos() {
                   'Title',
                   'Category',
                   'Date',
-                  'Action'
-                ].map(h => (
+                  'Action',
+                ].map((heading) => (
                   <th
-                    key={h}
+                    key={heading}
                     style={{
                       padding:
                         '14px 16px',
                       background:
                         '#f8fafc',
-                      color:
-                        '#64748b',
+                      color: '#64748b',
                       fontSize: 11,
                       textTransform:
                         'uppercase',
                       fontWeight: 800,
                       borderBottom:
                         '1px solid #e2e8f0',
-                      textAlign:
-                        'left'
+                      textAlign: 'left',
                     }}
                   >
-                    {h}
+                    {heading}
                   </th>
                 ))}
               </tr>
             </thead>
 
             <tbody>
-              {videos.map(v => (
-                <tr
-                  key={v.id}
-                  style={{
-                    borderBottom:
-                      '1px solid #f1f5f9'
-                  }}
-                >
-                  <td style={{
-                    padding:
-                      '12px 16px'
-                  }}>
-                    {v.thumbnail ? (
-                      <img
-                        src={getImgUrl(
-                          v.thumbnail
-                        )}
-                        alt=""
-                        style={{
-                          width: 80,
-                          height: 50,
-                          objectFit:
-                            'cover',
-                          borderRadius: 6
-                        }}
-                        onError={e =>
-                          (e.target.style.display =
-                            'none')
-                        }
-                      />
-                    ) : (
-                      <div
-                        style={{
-                          width: 80,
-                          height: 50,
-                          background:
-                            '#f1f5f9',
-                          borderRadius: 6,
-                          display:
-                            'flex',
-                          alignItems:
-                            'center',
-                          justifyContent:
-                            'center',
-                          fontSize: 20
-                        }}
-                      >
-                        🎬
-                      </div>
-                    )}
-                  </td>
-
-                  <td style={{
-                    padding:
-                      '12px 16px',
-                    fontWeight: 600,
-                    fontSize: 14
-                  }}>
-                    {v.title}
-                  </td>
-
-                  <td style={{
-                    padding:
-                      '12px 16px'
-                  }}>
-                    <span
-                      style={{
-                        background:
-                          '#f1f5f9',
-                        padding:
-                          '3px 10px',
-                        borderRadius: 6,
-                        fontSize: 12,
-                        fontWeight: 700
-                      }}
-                    >
-                      {v.category}
-                    </span>
-                  </td>
-
-                  <td style={{
-                    padding:
-                      '12px 16px',
-                    fontSize: 12,
-                    color:
-                      '#94a3b8'
-                  }}>
-                    {new Date(
-                      v.created_at
-                    ).toLocaleDateString()}
-                  </td>
-
-                  <td style={{
-                    padding:
-                      '12px 16px'
-                  }}>
-                    <button
-                      onClick={async () => {
-                        if (
-                          window.confirm(
-                            'Delete?'
-                          )
-                        ) {
-                          await videosAPI.delete(
-                            v.id
-                          );
-                          load();
-                        }
-                      }}
-                      style={{
-                        padding:
-                          '5px 10px',
-                        background:
-                          '#fef2f2',
-                        color:
-                          '#ef4444',
-                        border:
-                          '1px solid #fca5a5',
-                        borderRadius:
-                          6,
-                        cursor:
-                          'pointer',
-                        fontSize:
-                          12,
-                        fontFamily:
-                          'inherit'
-                      }}
-                    >
-                      Delete
-                    </button>
+              {loading ? (
+                <tr>
+                  <td
+                    colSpan={5}
+                    className="admin-empty"
+                  >
+                    Loading videos...
                   </td>
                 </tr>
-              ))}
+              ) : (
+                <>
+                  {videos.map((video) => (
+                    <tr
+                      key={video.id}
+                      style={{
+                        borderBottom:
+                          '1px solid #f1f5f9',
+                      }}
+                    >
+                      <td
+                        style={{
+                          padding:
+                            '12px 16px',
+                        }}
+                      >
+                        {video.thumbnail ? (
+                          <img
+                            src={getImgUrl(
+                              video.thumbnail
+                            )}
+                            alt={
+                              video.title ||
+                              'Video'
+                            }
+                            style={{
+                              width: 80,
+                              height: 50,
+                              objectFit:
+                                'cover',
+                              borderRadius: 6,
+                            }}
+                            onError={(e) => {
+                              e.currentTarget.onerror =
+                                null;
+                              e.currentTarget.src =
+                                PLACEHOLDER;
+                            }}
+                          />
+                        ) : (
+                          <div
+                            style={{
+                              width: 80,
+                              height: 50,
+                              background:
+                                '#f1f5f9',
+                              borderRadius: 6,
+                              display:
+                                'flex',
+                              alignItems:
+                                'center',
+                              justifyContent:
+                                'center',
+                              fontSize: 20,
+                            }}
+                          >
+                            🎬
+                          </div>
+                        )}
+                      </td>
+
+                      <td
+                        style={{
+                          padding:
+                            '12px 16px',
+                          fontWeight: 600,
+                          fontSize: 14,
+                        }}
+                      >
+                        {video.title}
+                      </td>
+
+                      <td
+                        style={{
+                          padding:
+                            '12px 16px',
+                        }}
+                      >
+                        <span
+                          style={{
+                            background:
+                              '#f1f5f9',
+                            padding:
+                              '3px 10px',
+                            borderRadius: 6,
+                            fontSize: 12,
+                            fontWeight: 700,
+                          }}
+                        >
+                          {video.category}
+                        </span>
+                      </td>
+
+                      <td
+                        style={{
+                          padding:
+                            '12px 16px',
+                          fontSize: 12,
+                          color: '#94a3b8',
+                        }}
+                      >
+                        {formatDate(
+                          video.created_at
+                        )}
+                      </td>
+
+                      <td
+                        style={{
+                          padding:
+                            '12px 16px',
+                        }}
+                      >
+                        <button
+                          type="button"
+                          onClick={() =>
+                            deleteVideo(
+                              video.id
+                            )
+                          }
+                          style={
+                            dangerButtonStyle
+                          }
+                        >
+                          Delete
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+
+                  {videos.length === 0 && (
+                    <tr>
+                      <td
+                        colSpan={5}
+                        className="admin-empty"
+                      >
+                        No videos found.
+                      </td>
+                    </tr>
+                  )}
+                </>
+              )}
             </tbody>
           </table>
         </Card>
@@ -1875,9 +2046,9 @@ export function Videos() {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// ADS
-// ─────────────────────────────────────────────────────────────────────────────
+/* ============================================================
+   ADS
+============================================================ */
 
 export function Ads() {
   const [ads, setAds] = useState([]);
@@ -1886,50 +2057,122 @@ export function Ads() {
     type: 'image',
     link: '',
     position: 'sidebar',
-    text: ''
+    text: '',
   });
 
-  const fileRef = useRef();
   const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
 
-  const load = () =>
-    adsAPI
-      .getAll()
-      .then(r => setAds(r.data || []));
+  const fileRef = useRef(null);
+
+  const load = async () => {
+    try {
+      setLoading(true);
+      setError('');
+
+      const response = await adsAPI.getAll();
+
+      setAds(
+        Array.isArray(response.data)
+          ? response.data
+          : response.data?.ads || []
+      );
+    } catch (err) {
+      console.error('Ads loading error:', err);
+
+      setError(
+        getErrorMessage(
+          err,
+          'Failed to load advertisements.'
+        )
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     load();
   }, []);
 
-  const handleSubmit = async e => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
-    setSaving(true);
+    if (
+      !fileRef.current?.files?.[0]
+    ) {
+      setError(
+        'Please select an advertisement media file.'
+      );
+      return;
+    }
 
-    const fd = new FormData();
+    try {
+      setSaving(true);
+      setError('');
+      setSuccess('');
 
-    Object.entries(form).forEach(
-      ([k, v]) => fd.append(k, v)
-    );
+      const fd = new FormData();
 
-    if (fileRef.current?.files[0]) {
+      Object.entries(form).forEach(([key, value]) => {
+        fd.append(key, value || '');
+      });
+
       fd.append(
         'file',
         fileRef.current.files[0]
       );
+
+      await adsAPI.create(fd);
+
+      setForm({
+        type: 'image',
+        link: '',
+        position: 'sidebar',
+        text: '',
+      });
+
+      if (fileRef.current) {
+        fileRef.current.value = '';
+      }
+
+      setSuccess(
+        'Advertisement uploaded successfully.'
+      );
+
+      await load();
+    } catch (err) {
+      console.error('Create ad error:', err);
+
+      setError(
+        getErrorMessage(
+          err,
+          'Failed to upload advertisement.'
+        )
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const deleteAd = async (id) => {
+    if (!window.confirm('Delete this advertisement?')) {
+      return;
     }
 
-    await adsAPI.create(fd);
-
-    setForm({
-      type: 'image',
-      link: '',
-      position: 'sidebar',
-      text: ''
-    });
-
-    load();
-    setSaving(false);
+    try {
+      await adsAPI.delete(id);
+      await load();
+    } catch (err) {
+      alert(
+        getErrorMessage(
+          err,
+          'Failed to delete advertisement.'
+        )
+      );
+    }
   };
 
   return (
@@ -1940,39 +2183,47 @@ export function Ads() {
         style={{
           fontWeight: 800,
           fontSize: '1.6rem',
-          margin: '0 0 24px'
+          margin: '0 0 24px',
         }}
       >
         Advertisements
       </h1>
 
+      {error && (
+        <div className="admin-message admin-error">
+          {error}
+        </div>
+      )}
+
+      {success && (
+        <div className="admin-message admin-success">
+          {success}
+        </div>
+      )}
+
       <div className="admin-form-grid">
-
         <Card>
-
           <h3
             style={{
               fontWeight: 800,
               margin: '0 0 20px',
-              fontSize: '1rem'
+              fontSize: '1rem',
             }}
           >
             Add Advertisement
           </h3>
 
           <form onSubmit={handleSubmit}>
-
             <label style={labelStyle}>
               Type
             </label>
 
             <select
               value={form.type}
-              onChange={e =>
-                setForm(f => ({
-                  ...f,
-                  type:
-                    e.target.value
+              onChange={(e) =>
+                setForm((current) => ({
+                  ...current,
+                  type: e.target.value,
                 }))
               }
               style={inputStyle}
@@ -1992,11 +2243,11 @@ export function Ads() {
 
             <select
               value={form.position}
-              onChange={e =>
-                setForm(f => ({
-                  ...f,
+              onChange={(e) =>
+                setForm((current) => ({
+                  ...current,
                   position:
-                    e.target.value
+                    e.target.value,
                 }))
               }
               style={inputStyle}
@@ -2023,32 +2274,31 @@ export function Ads() {
             </label>
 
             <input
+              type="url"
               value={form.link}
-              onChange={e =>
-                setForm(f => ({
-                  ...f,
-                  link:
-                    e.target.value
+              onChange={(e) =>
+                setForm((current) => ({
+                  ...current,
+                  link: e.target.value,
                 }))
               }
-              placeholder="https://…"
+              placeholder="https://example.com"
               style={inputStyle}
             />
 
             <label style={labelStyle}>
-              Caption (optional)
+              Caption
             </label>
 
             <input
               value={form.text}
-              onChange={e =>
-                setForm(f => ({
-                  ...f,
-                  text:
-                    e.target.value
+              onChange={(e) =>
+                setForm((current) => ({
+                  ...current,
+                  text: e.target.value,
                 }))
               }
-              placeholder="Ad caption…"
+              placeholder="Ad caption..."
               style={inputStyle}
             />
 
@@ -2059,12 +2309,15 @@ export function Ads() {
             <input
               ref={fileRef}
               type="file"
-              accept="image/*,video/*"
+              accept={
+                form.type === 'video'
+                  ? 'video/*'
+                  : 'image/*'
+              }
               required
               style={{
                 ...inputStyle,
-                padding:
-                  '8px 12px'
+                padding: '8px 12px',
               }}
             />
 
@@ -2072,35 +2325,27 @@ export function Ads() {
               type="submit"
               disabled={saving}
               style={{
-                width: '100%',
-                background:
-                  '#1a472a',
-                color: '#fff',
-                border: 'none',
-                padding: 12,
-                borderRadius: 10,
-                fontWeight: 800,
-                fontSize: 14,
-                cursor:
-                  'pointer',
-                fontFamily:
-                  'inherit'
+                ...primaryButtonStyle,
+                background: saving
+                  ? '#64748b'
+                  : '#1a472a',
+                cursor: saving
+                  ? 'not-allowed'
+                  : 'pointer',
               }}
             >
               {saving
-                ? 'Uploading…'
-                : 'Add Ad'}
+                ? 'Uploading...'
+                : 'Add Advertisement'}
             </button>
-
           </form>
-
         </Card>
 
         <Card
           className="admin-table-scroll"
           style={{
             padding: 0,
-            overflow: 'hidden'
+            overflow: 'hidden',
           }}
         >
           <table
@@ -2108,10 +2353,9 @@ export function Ads() {
               width: '100%',
               borderCollapse:
                 'separate',
-              borderSpacing: 0
+              borderSpacing: 0,
             }}
           >
-
             <thead>
               <tr>
                 {[
@@ -2119,208 +2363,258 @@ export function Ads() {
                   'Type',
                   'Position',
                   'Link',
-                  'Actions'
-                ].map(h => (
+                  'Actions',
+                ].map((heading) => (
                   <th
-                    key={h}
+                    key={heading}
                     style={{
                       padding:
                         '14px 16px',
                       background:
                         '#f8fafc',
-                      color:
-                        '#64748b',
+                      color: '#64748b',
                       fontSize: 11,
                       textTransform:
                         'uppercase',
                       fontWeight: 800,
                       borderBottom:
                         '1px solid #e2e8f0',
-                      textAlign:
-                        'left'
+                      textAlign: 'left',
                     }}
                   >
-                    {h}
+                    {heading}
                   </th>
                 ))}
               </tr>
             </thead>
 
             <tbody>
-
-              {ads.map(ad => (
-                <tr
-                  key={ad.id}
-                  style={{
-                    borderBottom:
-                      '1px solid #f1f5f9'
-                  }}
-                >
-
-                  <td style={{
-                    padding:
-                      '12px 16px'
-                  }}>
-                    {ad.type ===
-                    'video' ? (
-                      <video
-                        src={getImgUrl(
-                          ad.file
-                        )}
-                        style={{
-                          width: 100,
-                          height: 60,
-                          objectFit:
-                            'cover',
-                          borderRadius: 6
-                        }}
-                        muted
-                      />
-                    ) : (
-                      <img
-                        src={getImgUrl(
-                          ad.file
-                        )}
-                        alt=""
-                        style={{
-                          width: 100,
-                          height: 60,
-                          objectFit:
-                            'cover',
-                          borderRadius: 6
-                        }}
-                        onError={e =>
-                          (e.target.style.display =
-                            'none')
-                        }
-                      />
-                    )}
-                  </td>
-
-                  <td style={{
-                    padding:
-                      '12px 16px'
-                  }}>
-                    <span
-                      style={{
-                        background:
-                          '#e0f2fe',
-                        color:
-                          '#0369a1',
-                        padding:
-                          '3px 10px',
-                        borderRadius:
-                          6,
-                        fontSize:
-                          12,
-                        fontWeight:
-                          700
-                      }}
-                    >
-                      {ad.type}
-                    </span>
-                  </td>
-
-                  <td style={{
-                    padding:
-                      '12px 16px',
-                    fontSize: 13
-                  }}>
-                    {ad.position}
-                  </td>
-
+              {loading ? (
+                <tr>
                   <td
-                    style={{
-                      padding:
-                        '12px 16px',
-                      fontSize: 12,
-                      color:
-                        '#0369a1'
-                    }}
+                    colSpan={5}
+                    className="admin-empty"
                   >
-                    <a
-                      href={ad.link}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={{
-                        color:
-                          '#0369a1'
-                      }}
-                    >
-                      {ad.link?.substring(
-                        0,
-                        30
-                      )}
-                      …
-                    </a>
+                    Loading advertisements...
                   </td>
-
-                  <td style={{
-                    padding:
-                      '12px 16px'
-                  }}>
-                    <button
-                      onClick={async () => {
-                        if (
-                          window.confirm(
-                            'Delete ad?'
-                          )
-                        ) {
-                          await adsAPI.delete(
-                            ad.id
-                          );
-                          load();
-                        }
-                      }}
-                      style={{
-                        padding:
-                          '5px 10px',
-                        background:
-                          '#fef2f2',
-                        color:
-                          '#ef4444',
-                        border:
-                          '1px solid #fca5a5',
-                        borderRadius:
-                          6,
-                        cursor:
-                          'pointer',
-                        fontSize:
-                          12,
-                        fontFamily:
-                          'inherit'
-                      }}
-                    >
-                      Delete
-                    </button>
-                  </td>
-
                 </tr>
-              ))}
+              ) : (
+                <>
+                  {ads.map((ad) => (
+                    <tr
+                      key={ad.id}
+                      style={{
+                        borderBottom:
+                          '1px solid #f1f5f9',
+                      }}
+                    >
+                      <td
+                        style={{
+                          padding:
+                            '12px 16px',
+                        }}
+                      >
+                        {ad.type ===
+                        'video' ? (
+                          <video
+                            src={getImgUrl(
+                              ad.file
+                            )}
+                            style={{
+                              width: 100,
+                              height: 60,
+                              objectFit:
+                                'cover',
+                              borderRadius: 6,
+                              background:
+                                '#f1f5f9',
+                            }}
+                            muted
+                            controls
+                            preload="metadata"
+                          />
+                        ) : (
+                          <img
+                            src={getImgUrl(
+                              ad.file
+                            )}
+                            alt={
+                              ad.text ||
+                              'Advertisement'
+                            }
+                            style={{
+                              width: 100,
+                              height: 60,
+                              objectFit:
+                                'cover',
+                              borderRadius: 6,
+                            }}
+                            onError={(e) => {
+                              e.currentTarget.onerror =
+                                null;
+                              e.currentTarget.src =
+                                PLACEHOLDER;
+                            }}
+                          />
+                        )}
+                      </td>
 
+                      <td
+                        style={{
+                          padding:
+                            '12px 16px',
+                        }}
+                      >
+                        <span
+                          style={{
+                            background:
+                              '#e0f2fe',
+                            color:
+                              '#0369a1',
+                            padding:
+                              '3px 10px',
+                            borderRadius: 6,
+                            fontSize: 12,
+                            fontWeight: 700,
+                          }}
+                        >
+                          {ad.type}
+                        </span>
+                      </td>
+
+                      <td
+                        style={{
+                          padding:
+                            '12px 16px',
+                          fontSize: 13,
+                        }}
+                      >
+                        {ad.position}
+                      </td>
+
+                      <td
+                        style={{
+                          padding:
+                            '12px 16px',
+                          fontSize: 12,
+                          color:
+                            '#0369a1',
+                          maxWidth: 220,
+                        }}
+                      >
+                        {ad.link ? (
+                          <a
+                            href={ad.link}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{
+                              color:
+                                '#0369a1',
+                              textDecoration:
+                                'none',
+                            }}
+                          >
+                            {ad.link.length >
+                            35
+                              ? `${ad.link.substring(
+                                  0,
+                                  35
+                                )}...`
+                              : ad.link}
+                          </a>
+                        ) : (
+                          '—'
+                        )}
+                      </td>
+
+                      <td
+                        style={{
+                          padding:
+                            '12px 16px',
+                        }}
+                      >
+                        <button
+                          type="button"
+                          onClick={() =>
+                            deleteAd(ad.id)
+                          }
+                          style={
+                            dangerButtonStyle
+                          }
+                        >
+                          Delete
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+
+                  {ads.length === 0 && (
+                    <tr>
+                      <td
+                        colSpan={5}
+                        className="admin-empty"
+                      >
+                        No advertisements found.
+                      </td>
+                    </tr>
+                  )}
+                </>
+              )}
             </tbody>
           </table>
         </Card>
-
       </div>
     </AdminLayout>
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// SUBSCRIBERS
-// ─────────────────────────────────────────────────────────────────────────────
+/* ============================================================
+   SUBSCRIBERS
+============================================================ */
 
 export function Subscribers() {
   const [subs, setSubs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  const load = async () => {
+    try {
+      setLoading(true);
+      setError('');
+
+      const response =
+        await subscribeAPI.getAll();
+
+      setSubs(
+        Array.isArray(response.data)
+          ? response.data
+          : response.data?.subscribers || []
+      );
+    } catch (err) {
+      console.error(
+        'Subscribers loading error:',
+        err
+      );
+
+      setError(
+        getErrorMessage(
+          err,
+          'Failed to load subscribers.'
+        )
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    subscribeAPI
-      .getAll()
-      .then(r =>
-        setSubs(r.data || [])
-      );
+    load();
   }, []);
+
+  const activeCount = subs.filter(
+    (subscriber) =>
+      subscriber.status === 'active'
+  ).length;
 
   return (
     <AdminLayout>
@@ -2334,15 +2628,14 @@ export function Subscribers() {
             'space-between',
           alignItems: 'center',
           marginBottom: 24,
-          gap: '12px'
+          gap: 12,
         }}
       >
-
         <h1
           style={{
             fontWeight: 800,
             fontSize: '1.6rem',
-            margin: 0
+            margin: 0,
           }}
         >
           Subscribers
@@ -2350,176 +2643,219 @@ export function Subscribers() {
 
         <span
           style={{
-            background:
-              '#dcfce7',
-            color:
-              '#166534',
-            padding:
-              '6px 16px',
+            background: '#dcfce7',
+            color: '#166534',
+            padding: '6px 16px',
             borderRadius: 8,
             fontWeight: 700,
             fontSize: 14,
-            whiteSpace:
-              'nowrap'
+            whiteSpace: 'nowrap',
           }}
         >
-          {
-            subs.filter(
-              s =>
-                s.status ===
-                'active'
-            ).length
-          } active
+          {activeCount} active
         </span>
-
       </div>
+
+      {error && (
+        <div className="admin-message admin-error">
+          {error}
+        </div>
+      )}
 
       <Card
         className="admin-table-scroll"
         style={{
           padding: 0,
-          overflow: 'hidden'
+          overflow: 'hidden',
         }}
       >
-
         <table
           style={{
             width: '100%',
             borderCollapse:
               'separate',
-            borderSpacing: 0
+            borderSpacing: 0,
           }}
         >
-
           <thead>
             <tr>
               {[
                 'Email',
                 'Name',
                 'Joined',
-                'Status'
-              ].map(h => (
+                'Status',
+              ].map((heading) => (
                 <th
-                  key={h}
+                  key={heading}
                   style={{
                     padding:
                       '14px 16px',
                     background:
                       '#f8fafc',
-                    color:
-                      '#64748b',
+                    color: '#64748b',
                     fontSize: 11,
                     textTransform:
                       'uppercase',
                     fontWeight: 800,
                     borderBottom:
                       '1px solid #e2e8f0',
-                    textAlign:
-                      'left'
+                    textAlign: 'left',
                   }}
                 >
-                  {h}
+                  {heading}
                 </th>
               ))}
             </tr>
           </thead>
 
           <tbody>
-            {subs.map(s => (
-              <tr
-                key={s.id}
-                style={{
-                  borderBottom:
-                    '1px solid #f1f5f9'
-                }}
-              >
-
-                <td style={{
-                  padding:
-                    '14px 16px',
-                  fontWeight: 600,
-                  fontSize: 14
-                }}>
-                  {s.email}
+            {loading ? (
+              <tr>
+                <td
+                  colSpan={4}
+                  className="admin-empty"
+                >
+                  Loading subscribers...
                 </td>
-
-                <td style={{
-                  padding:
-                    '14px 16px',
-                  fontSize: 13,
-                  color:
-                    '#475569'
-                }}>
-                  {s.name || '—'}
-                </td>
-
-                <td style={{
-                  padding:
-                    '14px 16px',
-                  fontSize: 12,
-                  color:
-                    '#94a3b8'
-                }}>
-                  {new Date(
-                    s.subscribed_at
-                  ).toLocaleDateString()}
-                </td>
-
-                <td style={{
-                  padding:
-                    '14px 16px'
-                }}>
-                  <span
+              </tr>
+            ) : (
+              <>
+                {subs.map((subscriber) => (
+                  <tr
+                    key={subscriber.id}
                     style={{
-                      padding:
-                        '4px 10px',
-                      borderRadius:
-                        6,
-                      fontSize:
-                        11,
-                      fontWeight:
-                        700,
-                      background:
-                        s.status ===
-                        'active'
-                          ? '#dcfce7'
-                          : '#f1f5f9',
-                      color:
-                        s.status ===
-                        'active'
-                          ? '#166534'
-                          : '#475569'
+                      borderBottom:
+                        '1px solid #f1f5f9',
                     }}
                   >
-                    {s.status}
-                  </span>
-                </td>
+                    <td
+                      style={{
+                        padding:
+                          '14px 16px',
+                        fontWeight: 600,
+                        fontSize: 14,
+                      }}
+                    >
+                      {subscriber.email}
+                    </td>
 
-              </tr>
-            ))}
+                    <td
+                      style={{
+                        padding:
+                          '14px 16px',
+                        fontSize: 13,
+                        color: '#475569',
+                      }}
+                    >
+                      {subscriber.name ||
+                        '—'}
+                    </td>
+
+                    <td
+                      style={{
+                        padding:
+                          '14px 16px',
+                        fontSize: 12,
+                        color: '#94a3b8',
+                      }}
+                    >
+                      {formatDate(
+                        subscriber.subscribed_at
+                      )}
+                    </td>
+
+                    <td
+                      style={{
+                        padding:
+                          '14px 16px',
+                      }}
+                    >
+                      <span
+                        style={{
+                          padding:
+                            '4px 10px',
+                          borderRadius: 6,
+                          fontSize: 11,
+                          fontWeight: 700,
+                          background:
+                            subscriber.status ===
+                            'active'
+                              ? '#dcfce7'
+                              : '#f1f5f9',
+                          color:
+                            subscriber.status ===
+                            'active'
+                              ? '#166534'
+                              : '#475569',
+                        }}
+                      >
+                        {subscriber.status ||
+                          'unknown'}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+
+                {subs.length === 0 && (
+                  <tr>
+                    <td
+                      colSpan={4}
+                      className="admin-empty"
+                    >
+                      No subscribers found.
+                    </td>
+                  </tr>
+                )}
+              </>
+            )}
           </tbody>
-
         </table>
-
       </Card>
-
     </AdminLayout>
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// AUDIT LOGS
-// ─────────────────────────────────────────────────────────────────────────────
+/* ============================================================
+   AUDIT LOGS
+============================================================ */
 
 export function AuditLogs() {
   const [logs, setLogs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  const load = async () => {
+    try {
+      setLoading(true);
+      setError('');
+
+      const response =
+        await analyticsAPI.getAuditLogs();
+
+      setLogs(
+        Array.isArray(response.data)
+          ? response.data
+          : response.data?.logs || []
+      );
+    } catch (err) {
+      console.error(
+        'Audit logs loading error:',
+        err
+      );
+
+      setError(
+        getErrorMessage(
+          err,
+          'Failed to load audit logs.'
+        )
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    analyticsAPI
-      .getAuditLogs()
-      .then(r =>
-        setLogs(r.data || [])
-      );
+    load();
   }, []);
 
   return (
@@ -2530,124 +2866,157 @@ export function AuditLogs() {
         style={{
           fontWeight: 800,
           fontSize: '1.6rem',
-          margin:
-            '0 0 24px'
+          margin: '0 0 24px',
         }}
       >
         Security Audit Logs
       </h1>
 
+      {error && (
+        <div className="admin-message admin-error">
+          {error}
+        </div>
+      )}
+
       <Card
         className="admin-table-scroll"
         style={{
           padding: 0,
-          overflow: 'hidden'
+          overflow: 'hidden',
         }}
       >
-
         <table
           style={{
             width: '100%',
             borderCollapse:
               'separate',
-            borderSpacing: 0
+            borderSpacing: 0,
           }}
         >
-
           <thead>
             <tr>
               {[
                 'User',
                 'Action',
                 'IP',
-                'Timestamp'
-              ].map(h => (
+                'Timestamp',
+              ].map((heading) => (
                 <th
-                  key={h}
+                  key={heading}
                   style={{
                     padding:
                       '14px 16px',
                     background:
                       '#f8fafc',
-                    color:
-                      '#64748b',
+                    color: '#64748b',
                     fontSize: 11,
                     textTransform:
                       'uppercase',
                     fontWeight: 800,
                     borderBottom:
                       '1px solid #e2e8f0',
-                    textAlign:
-                      'left'
+                    textAlign: 'left',
                   }}
                 >
-                  {h}
+                  {heading}
                 </th>
               ))}
             </tr>
           </thead>
 
           <tbody>
-
-            {logs.map(l => (
-              <tr
-                key={l.id}
-                style={{
-                  borderBottom:
-                    '1px solid #f1f5f9'
-                }}
-              >
-
-                <td style={{
-                  padding:
-                    '14px 16px',
-                  fontWeight: 700,
-                  fontSize: 14
-                }}>
-                  {l.username}
+            {loading ? (
+              <tr>
+                <td
+                  colSpan={4}
+                  className="admin-empty"
+                >
+                  Loading audit logs...
                 </td>
-
-                <td style={{
-                  padding:
-                    '14px 16px',
-                  fontSize: 14
-                }}>
-                  {l.action}
-                </td>
-
-                <td style={{
-                  padding:
-                    '14px 16px',
-                  fontSize: 12,
-                  color:
-                    '#94a3b8'
-                }}>
-                  {l.ip_address ||
-                    '—'}
-                </td>
-
-                <td style={{
-                  padding:
-                    '14px 16px',
-                  fontSize: 12,
-                  color:
-                    '#94a3b8',
-                  whiteSpace:
-                    'nowrap'
-                }}>
-                  {new Date(
-                    l.created_at
-                  ).toLocaleString()}
-                </td>
-
               </tr>
-            ))}
+            ) : (
+              <>
+                {logs.map((log) => (
+                  <tr
+                    key={log.id}
+                    style={{
+                      borderBottom:
+                        '1px solid #f1f5f9',
+                    }}
+                  >
+                    <td
+                      style={{
+                        padding:
+                          '14px 16px',
+                        fontWeight: 700,
+                        fontSize: 14,
+                      }}
+                    >
+                      {log.username ||
+                        log.user_name ||
+                        '—'}
+                    </td>
 
+                    <td
+                      style={{
+                        padding:
+                          '14px 16px',
+                        fontSize: 14,
+                      }}
+                    >
+                      {log.action || '—'}
+                    </td>
+
+                    <td
+                      style={{
+                        padding:
+                          '14px 16px',
+                        fontSize: 12,
+                        color: '#94a3b8',
+                      }}
+                    >
+                      {log.ip_address ||
+                        '—'}
+                    </td>
+
+                    <td
+                      style={{
+                        padding:
+                          '14px 16px',
+                        fontSize: 12,
+                        color: '#94a3b8',
+                        whiteSpace:
+                          'nowrap',
+                      }}
+                    >
+                      {formatDateTime(
+                        log.created_at
+                      )}
+                    </td>
+                  </tr>
+                ))}
+
+                {logs.length === 0 && (
+                  <tr>
+                    <td
+                      colSpan={4}
+                      className="admin-empty"
+                    >
+                      No audit logs found.
+                    </td>
+                  </tr>
+                )}
+              </>
+            )}
           </tbody>
-
         </table>
-
       </Card>
     </AdminLayout>
   );
 }
+
+/* ============================================================
+   DEFAULT EXPORT
+============================================================ */
+
+export default Authors;
