@@ -1,21 +1,36 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+
 import {
-  Facebook,
-  Instagram,
-  Youtube,
-  Music2,
-  MessageCircle,
-  Twitter,
+  Search,
+  Menu,
+  X,
+  ChevronDown,
+  CalendarDays,
+  Sun,
+  MapPin,
   Mail,
   Phone,
-  MapPin,
-  ExternalLink,
   Send,
-  ArrowUp
+  ArrowUp,
+  ExternalLink,
 } from 'lucide-react';
 
+import {
+  FaFacebookF,
+  FaInstagram,
+  FaYoutube,
+  FaWhatsapp,
+  FaTiktok,
+  FaXTwitter,
+} from 'react-icons/fa6';
+
 import { breakingAPI, subscribeAPI } from '../../utils/api';
+
+
+/* =========================================================
+   NAVIGATION CATEGORIES
+========================================================= */
 
 const CATEGORIES = [
   { label: 'Home', path: '/' },
@@ -28,6 +43,7 @@ const CATEGORIES = [
   { label: 'Entertainment', path: '/category/Entertainment' },
   { label: 'Education', path: '/category/Education' },
   { label: 'Video', path: '/videos', icon: '▶' },
+
   {
     label: 'More',
     sub: [
@@ -35,45 +51,56 @@ const CATEGORIES = [
       { label: 'Environment', path: '/category/Environment' },
       { label: 'Music', path: '/category/Music' },
       { label: 'Transport', path: '/category/Transport' },
-      { label: 'Job Links', path: '/category/job-links' }
-    ]
-  }
+      { label: 'Job Links', path: '/category/job-links' },
+    ],
+  },
 ];
+
+
+/* =========================================================
+   SOCIAL MEDIA
+========================================================= */
 
 const SOCIALS = [
   {
-    icon: Facebook,
+    icon: FaFacebookF,
     href: 'https://www.facebook.com/profile.php?id=61579631955116',
-    label: 'Facebook'
+    label: 'Facebook',
   },
   {
-    icon: Twitter,
+    icon: FaXTwitter,
     href: 'https://x.com/ZigaMichel28110',
-    label: 'X'
+    label: 'X',
   },
   {
-    icon: Instagram,
+    icon: FaInstagram,
     href: 'https://www.instagram.com/invites/contact/?utm_source=ig_contact_invite&utm_medium=copy_link&utm_content=xyzx1jj',
-    label: 'Instagram'
+    label: 'Instagram',
   },
   {
-    icon: Music2,
+    icon: FaTiktok,
     href: 'https://www.tiktok.com/@mahoko.friday.news',
-    label: 'TikTok'
+    label: 'TikTok',
   },
   {
-    icon: Youtube,
+    icon: FaYoutube,
     href: 'https://youtube.com/@mahokofridaynews-n3p',
-    label: 'YouTube'
+    label: 'YouTube',
   },
   {
-    icon: MessageCircle,
+    icon: FaWhatsapp,
     href: 'https://chat.whatsapp.com/H40lstF5ft180ah97R1L9E',
-    label: 'WhatsApp'
-  }
+    label: 'WhatsApp',
+  },
 ];
 
+
+/* =========================================================
+   COMPONENT
+========================================================= */
+
 export default function PublicLayout({ children }) {
+
   const [breaking, setBreaking] = useState([]);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [searchQ, setSearchQ] = useState('');
@@ -83,87 +110,128 @@ export default function PublicLayout({ children }) {
 
   const navigate = useNavigate();
 
+
+  /* =======================================================
+     LOAD BREAKING NEWS
+  ======================================================= */
+
   useEffect(() => {
+
     breakingAPI
       .get()
-      .then((r) => {
-        setBreaking(Array.isArray(r.data) ? r.data : []);
+      .then((res) => {
+        setBreaking(Array.isArray(res.data) ? res.data : []);
       })
       .catch(() => {
         setBreaking([]);
       });
 
-    const onScroll = () => {
+
+    const handleScroll = () => {
       setScrolled(window.scrollY > 60);
     };
 
-    window.addEventListener('scroll', onScroll);
+
+    window.addEventListener('scroll', handleScroll);
 
     return () => {
-      window.removeEventListener('scroll', onScroll);
+      window.removeEventListener('scroll', handleScroll);
     };
+
   }, []);
 
+
+  /* =======================================================
+     SEARCH
+  ======================================================= */
+
   const handleSearch = (e) => {
+
     e.preventDefault();
 
-    if (searchQ.trim()) {
-      navigate(`/search?q=${encodeURIComponent(searchQ.trim())}`);
-      setMobileOpen(false);
-    }
+    const query = searchQ.trim();
+
+    if (!query) return;
+
+    navigate(`/search?q=${encodeURIComponent(query)}`);
+
+    setSearchQ('');
+    setMobileOpen(false);
   };
 
+
+  /* =======================================================
+     NEWSLETTER
+  ======================================================= */
+
   const handleSubscribe = async (e) => {
+
     e.preventDefault();
 
+    if (!email.trim()) return;
+
     try {
-      const res = await subscribeAPI.subscribe({ email });
+
+      const res = await subscribeAPI.subscribe({
+        email: email.trim(),
+      });
 
       setSubMsg(
-        res?.data?.message || 'Successfully subscribed!'
+        res?.data?.message ||
+        'Successfully subscribed!'
       );
 
       setEmail('');
+
     } catch (error) {
+
       setSubMsg(
-        error?.response?.data?.message ||
-          'Something went wrong. Please try again.'
+        'Something went wrong. Please try again.'
       );
+
     }
+
   };
+
+
+  /* =======================================================
+     BACK TO TOP
+  ======================================================= */
 
   const scrollToTop = () => {
+
     window.scrollTo({
       top: 0,
-      behavior: 'smooth'
+      behavior: 'smooth',
     });
+
   };
 
+
+  /* =======================================================
+     CURRENT DATE
+  ======================================================= */
+
+  const today = new Date().toLocaleDateString(
+    'en-US',
+    {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    }
+  );
+
+
   return (
-    <div
-      style={{
-        fontFamily: "'Source Serif 4', Georgia, serif",
-        background: '#faf8f3',
-        color: '#0d0d0d',
-        minHeight: '100vh'
-      }}
-    >
+
+    <div className="mfn-layout">
+
+      {/* ===================================================
+          GLOBAL CSS
+      =================================================== */}
+
       <style>{`
-
-        /* =====================================================
-           GLOBAL
-        ===================================================== */
-
-        :root {
-          --red: #c0392b;
-          --red-dark: #962d22;
-          --ink: #0d0d0d;
-          --gold: #b8860b;
-          --light: #e8e4d8;
-          --mid: #5a5a5a;
-          --white: #ffffff;
-          --paper: #faf8f3;
-        }
 
         * {
           box-sizing: border-box;
@@ -177,7 +245,8 @@ export default function PublicLayout({ children }) {
 
         body {
           margin: 0;
-          background: var(--paper);
+          background: #faf8f3;
+          color: #0d0d0d;
         }
 
         a {
@@ -190,28 +259,203 @@ export default function PublicLayout({ children }) {
           font-family: inherit;
         }
 
-        a:hover {
-          color: var(--red);
+
+        /* =================================================
+           HEADER TOP
+        ================================================= */
+
+        .mfn-header-top {
+          background: #080808;
+          color: #999;
+          border-bottom: 1px solid rgba(255,255,255,.08);
         }
 
+        .mfn-header-top-inner {
+          max-width: 1400px;
+          margin: auto;
+          padding: 8px 25px;
 
-        /* =====================================================
-           BREAKING TICKER
-        ===================================================== */
+          min-height: 38px;
 
-        .ticker {
           display: flex;
-          white-space: nowrap;
-          gap: 60px;
-          animation: tickerScroll 35s linear infinite;
-          min-width: max-content;
+          align-items: center;
+          justify-content: space-between;
+          gap: 20px;
         }
 
-        .ticker:hover {
+        .mfn-header-info {
+          display: flex;
+          align-items: center;
+          gap: 13px;
+          flex-wrap: wrap;
+        }
+
+        .mfn-header-info-item {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+
+          font-family: 'Barlow Condensed',
+            sans-serif;
+
+          font-size: 11px;
+          letter-spacing: .5px;
+        }
+
+        .mfn-header-info-item svg {
+          width: 13px;
+          height: 13px;
+          color: #c0392b;
+        }
+
+        .mfn-header-separator {
+          width: 1px;
+          height: 14px;
+          background: rgba(255,255,255,.14);
+        }
+
+
+        /* SOCIAL HEADER */
+
+        .mfn-header-socials {
+          display: flex;
+          align-items: center;
+          gap: 5px;
+        }
+
+        .mfn-header-social {
+          width: 27px;
+          height: 27px;
+
+          display: flex;
+          align-items: center;
+          justify-content: center;
+
+          color: #777;
+
+          border-radius: 50%;
+
+          transition:
+            transform .2s ease,
+            color .2s ease,
+            background .2s ease;
+        }
+
+        .mfn-header-social:hover {
+          color: #fff;
+          background: #c0392b;
+          transform: translateY(-2px);
+        }
+
+        .mfn-header-social svg {
+          width: 13px;
+          height: 13px;
+        }
+
+        .mfn-signin {
+          margin-left: 7px;
+
+          font-family:
+            'Barlow Condensed',
+            sans-serif;
+
+          font-size: 10px;
+          font-weight: 700;
+          letter-spacing: 1.5px;
+          text-transform: uppercase;
+
+          color: #999;
+        }
+
+        .mfn-signin:hover {
+          color: #fff;
+        }
+
+
+        /* =================================================
+           BREAKING NEWS
+        ================================================= */
+
+        .mfn-breaking {
+          height: 39px;
+
+          display: flex;
+          overflow: hidden;
+
+          background: #c0392b;
+          color: #fff;
+        }
+
+        .mfn-breaking-label {
+          flex-shrink: 0;
+
+          display: flex;
+          align-items: center;
+          gap: 8px;
+
+          padding: 0 20px;
+
+          background: #090909;
+
+          font-family:
+            'Barlow Condensed',
+            sans-serif;
+
+          font-size: 11px;
+          font-weight: 800;
+          letter-spacing: 2px;
+          text-transform: uppercase;
+        }
+
+        .mfn-live-dot {
+          width: 7px;
+          height: 7px;
+
+          background: #c0392b;
+          border-radius: 50%;
+
+          animation:
+            mfnPulse 1s infinite;
+        }
+
+        @keyframes mfnPulse {
+
+          0%,
+          100% {
+            opacity: 1;
+            transform: scale(1);
+          }
+
+          50% {
+            opacity: .4;
+            transform: scale(.7);
+          }
+
+        }
+
+        .mfn-breaking-track {
+          flex: 1;
+          overflow: hidden;
+
+          display: flex;
+          align-items: center;
+        }
+
+        .mfn-ticker {
+          display: flex;
+          gap: 65px;
+          white-space: nowrap;
+
+          animation:
+            mfnTicker 38s linear infinite;
+        }
+
+        .mfn-ticker:hover {
           animation-play-state: paused;
         }
 
-        @keyframes tickerScroll {
+        @keyframes mfnTicker {
+
           from {
             transform: translateX(0);
           }
@@ -219,1262 +463,1681 @@ export default function PublicLayout({ children }) {
           to {
             transform: translateX(-50%);
           }
+
         }
 
-        @keyframes pulse {
-          0%,
-          100% {
-            opacity: 1;
-          }
+        .mfn-ticker-item {
+          font-family:
+            'Barlow Condensed',
+            sans-serif;
 
-          50% {
-            opacity: 0.35;
-          }
-        }
-
-
-        /* =====================================================
-           DROPDOWN
-        ===================================================== */
-
-        .dropdown-menu {
-          display: none;
-          position: absolute;
-          top: 100%;
-          left: 0;
-          background: #111;
-          min-width: 210px;
-          border-top: 3px solid var(--red);
-          z-index: 1000;
-          box-shadow: 0 12px 35px rgba(0, 0, 0, 0.4);
-        }
-
-        .nav-item:hover .dropdown-menu {
-          display: block;
-        }
-
-        .dropdown-menu a {
-          display: block;
-          padding: 11px 18px;
-          color: #aaa;
-          font-size: 12px;
-          font-family: 'Barlow Condensed', sans-serif;
+          font-size: 13px;
           font-weight: 600;
-          letter-spacing: 1px;
-          text-transform: uppercase;
-          border-bottom: 1px solid rgba(255,255,255,.06);
-          transition: all .2s ease;
-        }
-
-        .dropdown-menu a:hover {
-          color: #fff;
-          background: rgba(255,255,255,.07);
-          padding-left: 23px;
         }
 
 
-        /* =====================================================
-           HEADER
-        ===================================================== */
+        /* =================================================
+           BRAND AREA
+        ================================================= */
 
-        .masthead-grid {
+        .mfn-brand-area {
+          background:
+            linear-gradient(
+              180deg,
+              #fff 0%,
+              #faf8f3 100%
+            );
+
+          border-bottom:
+            1px solid #d9d5ca;
+        }
+
+        .mfn-brand-container {
+          max-width: 1400px;
+          margin: auto;
+
+          min-height: 165px;
+
+          padding: 27px 25px;
+
           display: grid;
-          grid-template-columns: 1fr auto 1fr;
+          grid-template-columns:
+            1fr auto 1fr;
+
           align-items: center;
-          gap: 20px;
+
+          gap: 35px;
         }
 
-        .masthead-links {
+
+        /* BRAND BUTTONS */
+
+        .mfn-brand-buttons {
           display: flex;
-          gap: 10px;
+          gap: 8px;
         }
 
-        .masthead-search {
+        .mfn-brand-button {
+          background: #0d0d0d;
+          color: #fff;
+
+          padding: 9px 14px;
+
+          font-family:
+            'Barlow Condensed',
+            sans-serif;
+
+          font-size: 10px;
+          font-weight: 700;
+          letter-spacing: 1.5px;
+
+          text-transform: uppercase;
+
+          transition: .2s;
+        }
+
+        .mfn-brand-button:hover {
+          background: #c0392b;
+          color: #fff;
+        }
+
+
+        /* BRAND */
+
+        .mfn-main-brand {
+          text-align: center;
+        }
+
+        .mfn-brand-kicker {
+          color: #b8860b;
+
+          font-family:
+            'Barlow Condensed',
+            sans-serif;
+
+          font-size: 9px;
+          font-weight: 800;
+
+          letter-spacing: 5px;
+
+          margin-bottom: 9px;
+        }
+
+        .mfn-main-brand h1 {
+          color: #0d0d0d;
+
+          font-family:
+            'Playfair Display',
+            Georgia,
+            serif;
+
+          font-size:
+            clamp(
+              2rem,
+              5vw,
+              4rem
+            );
+
+          font-weight: 900;
+
+          line-height: .9;
+
+          letter-spacing: -.065em;
+
+          white-space: nowrap;
+        }
+
+        .mfn-main-brand h1 span {
+          color: #c0392b;
+        }
+
+        .mfn-brand-tagline {
+          margin-top: 13px;
+
+          display: flex;
+          justify-content: center;
+          align-items: center;
+
+          gap: 10px;
+
+          color: #777;
+
+          font-family:
+            'Barlow Condensed',
+            sans-serif;
+
+          font-size: 9px;
+          font-weight: 700;
+
+          letter-spacing: 3px;
+
+          text-transform: uppercase;
+        }
+
+        .mfn-brand-tagline span {
+          width: 35px;
+          height: 1px;
+          background: #c0392b;
+        }
+
+
+        /* SEARCH */
+
+        .mfn-search-area {
           display: flex;
           justify-content: flex-end;
         }
 
-        .top-bar-inner {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          flex-wrap: wrap;
-          gap: 8px;
-        }
+        .mfn-search {
+          width: 300px;
 
-        .top-bar-socials {
-          display: flex;
-          gap: 15px;
-          align-items: center;
-        }
-
-        .top-social {
           display: flex;
           align-items: center;
-          justify-content: center;
-          color: #888;
-          transition: all .2s ease;
+
+          border:
+            1px solid #191919;
+
+          background: #fff;
         }
 
-        .top-social:hover {
-          color: #fff;
-          transform: translateY(-2px);
+        .mfn-search > svg {
+          margin-left: 11px;
+          color: #c0392b;
+          flex-shrink: 0;
         }
 
+        .mfn-search input {
+          flex: 1;
+          min-width: 0;
 
-        /* =====================================================
-           NAVIGATION
-        ===================================================== */
+          border: none;
+          outline: none;
 
-        .main-navigation {
+          background: transparent;
+
+          padding: 11px 10px;
+
+          font-family:
+            'Source Serif 4',
+            Georgia,
+            serif;
+
+          font-size: 12px;
+        }
+
+        .mfn-search button {
+          border: none;
+
           background: #0d0d0d;
+          color: #fff;
+
+          padding: 11px 14px;
+
+          cursor: pointer;
+
+          font-family:
+            'Barlow Condensed',
+            sans-serif;
+
+          font-size: 10px;
+          font-weight: 800;
+
+          letter-spacing: 1px;
+
+          text-transform: uppercase;
+        }
+
+        .mfn-search button:hover {
+          background: #c0392b;
+        }
+
+
+        /* =================================================
+           NAVIGATION
+        ================================================= */
+
+        .mfn-nav {
           position: sticky;
           top: 0;
           z-index: 999;
-          transition: box-shadow .3s ease;
+
+          background: #0d0d0d;
+
+          transition:
+            box-shadow .3s ease;
         }
 
-        .nav-inner {
-          max-width: 1260px;
-          margin: 0 auto;
-          padding: 0 20px;
+        .mfn-nav.scrolled {
+          box-shadow:
+            0 8px 30px
+            rgba(0,0,0,.3);
+        }
+
+        .mfn-nav-inner {
+          max-width: 1400px;
+          margin: auto;
+
+          padding: 0 25px;
+
+          min-height: 51px;
+
           display: flex;
           align-items: center;
           justify-content: space-between;
         }
 
-        .nav-desktop {
+        .mfn-nav-list {
           display: flex;
           list-style: none;
-          flex-wrap: wrap;
         }
 
-        .nav-link {
-          display: block;
-          font-family: 'Barlow Condensed', sans-serif;
-          font-weight: 700;
-          font-size: 13px;
-          letter-spacing: 1.5px;
-          text-transform: uppercase;
-          color: #ccc;
-          padding: 14px 15px;
-          transition: color .2s, background .2s;
+        .mfn-nav-item {
+          position: relative;
         }
 
-        .nav-link:hover {
-          color: #fff;
-          background: rgba(255,255,255,.08);
-        }
-
-        .subscribe-nav {
+        .mfn-nav-link {
           display: flex;
-          gap: 8px;
-          padding: 0 10px;
-        }
+          align-items: center;
+          gap: 5px;
 
-        .subscribe-button {
-          background: var(--red);
-          color: #fff;
-          border: none;
-          padding: 7px 15px;
-          font-family: 'Barlow Condensed', sans-serif;
+          padding: 17px 12px;
+
+          color: #aaa;
+
+          font-family:
+            'Barlow Condensed',
+            sans-serif;
+
+          font-size: 12px;
           font-weight: 700;
-          font-size: 11px;
-          letter-spacing: 1px;
+
+          letter-spacing: 1.2px;
+
           text-transform: uppercase;
-          cursor: pointer;
-          white-space: nowrap;
-          transition: all .2s ease;
+
+          transition: .2s;
         }
 
-        .subscribe-button:hover {
+        .mfn-nav-link:hover {
+          background: #191919;
+          color: #fff;
+        }
+
+        .mfn-video-icon {
+          color: #c0392b;
+        }
+
+
+        /* DROPDOWN */
+
+        .mfn-dropdown {
+          display: none;
+
+          position: absolute;
+
+          top: 100%;
+          left: 0;
+
+          min-width: 210px;
+
+          background: #111;
+
+          border-top:
+            3px solid #c0392b;
+
+          box-shadow:
+            0 15px 40px
+            rgba(0,0,0,.45);
+
+          z-index: 1000;
+        }
+
+        .mfn-nav-item:hover
+        .mfn-dropdown {
+          display: block;
+        }
+
+        .mfn-dropdown a {
+          display: block;
+
+          padding: 12px 18px;
+
+          color: #888;
+
+          border-bottom:
+            1px solid
+            rgba(255,255,255,.06);
+
+          font-family:
+            'Barlow Condensed',
+            sans-serif;
+
+          font-size: 11px;
+          font-weight: 700;
+
+          letter-spacing: 1px;
+
+          text-transform: uppercase;
+        }
+
+        .mfn-dropdown a:hover {
+          color: #fff;
+          background: #191919;
+        }
+
+
+        /* SUBSCRIBE */
+
+        .mfn-subscribe {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+
+          padding: 9px 15px;
+
+          background: #c0392b;
+          color: #fff;
+
+          font-family:
+            'Barlow Condensed',
+            sans-serif;
+
+          font-size: 10px;
+          font-weight: 800;
+
+          letter-spacing: 1.5px;
+
+          text-transform: uppercase;
+
+          transition: .2s;
+        }
+
+        .mfn-subscribe:hover {
           background: #e04b3a;
           color: #fff;
-          transform: translateY(-1px);
         }
 
-        .hamburger {
+
+        /* MOBILE BUTTON */
+
+        .mfn-mobile-button {
           display: none;
-          background: none;
+
           border: none;
+          background: transparent;
+
           color: #fff;
-          font-size: 22px;
+
           cursor: pointer;
-          padding: 14px;
         }
 
 
-        /* =====================================================
+        /* =================================================
            MOBILE MENU
-        ===================================================== */
+        ================================================= */
 
-        .mobile-menu {
+        .mfn-mobile-menu {
           position: fixed;
           inset: 0;
-          background: #111;
+
           z-index: 9999;
+
           overflow-y: auto;
-          padding: 20px;
-          display: flex;
-          flex-direction: column;
-        }
 
-        .mobile-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 20px;
-          padding-bottom: 16px;
-          border-bottom: 1px solid rgba(255,255,255,.1);
-        }
-
-        .mobile-logo {
-          font-family: 'Playfair Display', serif;
-          color: #fff;
-          font-size: 1.25rem;
-          font-weight: 900;
-        }
-
-        .mobile-close {
-          background: none;
-          border: none;
-          color: #fff;
-          font-size: 23px;
-          cursor: pointer;
-        }
-
-        .mobile-search {
-          display: flex;
-          border: 1px solid rgba(255,255,255,.2);
-          margin-bottom: 20px;
-        }
-
-        .mobile-search input {
-          flex: 1;
-          background: transparent;
-          border: none;
-          color: #fff;
-          padding: 11px 14px;
-          outline: none;
-          font-size: 15px;
-        }
-
-        .mobile-search button {
-          background: var(--red);
-          border: none;
-          color: #fff;
-          padding: 0 17px;
-          cursor: pointer;
-        }
-
-        .mobile-link {
-          font-family: 'Barlow Condensed', sans-serif;
-          font-size: 16px;
-          font-weight: 700;
-          letter-spacing: 1.5px;
-          text-transform: uppercase;
-          color: #ccc;
-          padding: 14px 0;
-          border-bottom: 1px solid rgba(255,255,255,.06);
-          display: block;
-        }
-
-        .mobile-link:hover {
-          color: #fff;
-        }
-
-        .mobile-sub-title {
-          font-family: 'Barlow Condensed', sans-serif;
-          font-size: 16px;
-          font-weight: 700;
-          letter-spacing: 1.5px;
-          text-transform: uppercase;
-          color: #888;
-          padding: 14px 0;
-          display: block;
-        }
-
-        .mobile-sub-link {
-          font-family: 'Barlow Condensed', sans-serif;
-          font-size: 14px;
-          color: #666;
-          padding: 10px 16px;
-          display: block;
-        }
-
-        .mobile-sub-link:hover {
-          color: #fff;
-        }
-
-        .mobile-subscribe {
-          margin-top: 20px;
-          background: var(--red);
-          color: #fff;
-          text-align: center;
-          padding: 14px;
-          font-family: 'Barlow Condensed', sans-serif;
-          font-weight: 700;
-          font-size: 14px;
-          letter-spacing: 2px;
-          text-transform: uppercase;
-        }
-
-
-        /* =====================================================
-           FOOTER
-        ===================================================== */
-
-        .site-footer {
           background:
             radial-gradient(
-              circle at 10% 10%,
-              rgba(192,57,43,.13),
-              transparent 30%
-            ),
-            radial-gradient(
-              circle at 90% 80%,
-              rgba(184,134,11,.09),
-              transparent 30%
+              circle at top right,
+              rgba(192,57,43,.16),
+              transparent 35%
             ),
             #090909;
 
-          color: #aaa;
-          margin-top: 60px;
-          position: relative;
-          overflow: hidden;
+          padding: 22px;
         }
 
-        .site-footer::before {
+        .mfn-mobile-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+
+          padding-bottom: 18px;
+
+          border-bottom:
+            1px solid
+            rgba(255,255,255,.1);
+
+          margin-bottom: 20px;
+        }
+
+        .mfn-mobile-logo {
+          color: #fff;
+
+          font-family:
+            'Playfair Display',
+            Georgia,
+            serif;
+
+          font-size: 1.4rem;
+          font-weight: 900;
+        }
+
+        .mfn-mobile-logo span {
+          color: #c0392b;
+        }
+
+        .mfn-mobile-close {
+          border: none;
+          background: transparent;
+          color: #fff;
+          cursor: pointer;
+        }
+
+        .mfn-mobile-search {
+          display: flex;
+
+          border:
+            1px solid
+            rgba(255,255,255,.15);
+
+          margin-bottom: 22px;
+        }
+
+        .mfn-mobile-search input {
+          flex: 1;
+
+          min-width: 0;
+
+          border: none;
+          outline: none;
+
+          background: transparent;
+          color: #fff;
+
+          padding: 12px;
+
+          font-size: 14px;
+        }
+
+        .mfn-mobile-search button {
+          border: none;
+
+          background: #c0392b;
+          color: #fff;
+
+          padding: 0 15px;
+
+          cursor: pointer;
+        }
+
+        .mfn-mobile-link {
+          display: block;
+
+          color: #ccc;
+
+          padding: 15px 4px;
+
+          border-bottom:
+            1px solid
+            rgba(255,255,255,.06);
+
+          font-family:
+            'Barlow Condensed',
+            sans-serif;
+
+          font-size: 16px;
+          font-weight: 700;
+
+          letter-spacing: 1.5px;
+
+          text-transform: uppercase;
+        }
+
+        .mfn-mobile-link:hover {
+          color: #c0392b;
+        }
+
+        .mfn-mobile-sub {
+          padding-left: 16px;
+        }
+
+        .mfn-mobile-sub a {
+          display: block;
+
+          color: #777;
+
+          padding: 10px 0;
+
+          font-family:
+            'Barlow Condensed',
+            sans-serif;
+
+          font-size: 13px;
+        }
+
+        .mfn-mobile-sub a:hover {
+          color: #fff;
+        }
+
+        .mfn-mobile-subscribe {
+          display: block;
+
+          margin-top: 20px;
+
+          padding: 14px;
+
+          background: #c0392b;
+
+          color: #fff;
+
+          text-align: center;
+
+          font-family:
+            'Barlow Condensed',
+            sans-serif;
+
+          font-size: 13px;
+          font-weight: 800;
+
+          letter-spacing: 2px;
+
+          text-transform: uppercase;
+        }
+
+
+        /* =================================================
+           FOOTER
+        ================================================= */
+
+        .mfn-footer {
+          position: relative;
+
+          overflow: hidden;
+
+          margin-top: 70px;
+
+          color: #aaa;
+
+          background:
+            radial-gradient(
+              circle at 10% 20%,
+              rgba(192,57,43,.12),
+              transparent 28%
+            ),
+            radial-gradient(
+              circle at 90% 70%,
+              rgba(184,134,11,.08),
+              transparent 25%
+            ),
+            #080808;
+        }
+
+        .mfn-footer::before {
           content: "";
+
           position: absolute;
+
           top: 0;
           left: 0;
           right: 0;
+
           height: 4px;
-          background: linear-gradient(
-            90deg,
-            #c0392b,
-            #b8860b,
-            #c0392b
-          );
+
+          background:
+            linear-gradient(
+              90deg,
+              #c0392b,
+              #b8860b,
+              #c0392b
+            );
         }
 
-        .footer-container {
-          max-width: 1260px;
+        .mfn-footer-container {
+          max-width: 1400px;
           margin: auto;
-          padding: 70px 20px 35px;
-          position: relative;
-          z-index: 1;
+
+          padding:
+            85px 25px
+            30px;
         }
 
-        .footer-main {
+        .mfn-footer-grid {
           display: grid;
-          grid-template-columns: 1.6fr 1fr 1fr 1.3fr;
+
+          grid-template-columns:
+            1.5fr
+            .9fr
+            .9fr
+            1.2fr;
+
           gap: 55px;
-          padding-bottom: 55px;
+
+          padding-bottom: 60px;
         }
 
-        .footer-brand {
-          max-width: 390px;
-        }
 
-        .footer-logo {
-          font-family: 'Playfair Display', Georgia, serif;
-          font-size: clamp(2rem, 4vw, 3rem);
+        /* FOOTER BRAND */
+
+        .mfn-footer-mark {
+          width: 58px;
+          height: 58px;
+
+          display: flex;
+          align-items: center;
+          justify-content: center;
+
+          border:
+            1px solid #c0392b;
+
+          color: #c0392b;
+
+          font-family:
+            'Barlow Condensed',
+            sans-serif;
+
           font-weight: 900;
-          letter-spacing: -.05em;
-          line-height: 1;
+
+          letter-spacing: 2px;
+
+          margin-bottom: 18px;
+        }
+
+        .mfn-footer-brand h2 {
           color: #fff;
+
+          font-family:
+            'Playfair Display',
+            Georgia,
+            serif;
+
+          font-size:
+            clamp(
+              2rem,
+              3vw,
+              2.8rem
+            );
+
+          line-height: .95;
+
+          letter-spacing: -.05em;
+
           margin-bottom: 15px;
         }
 
-        .footer-logo span {
-          color: var(--red);
+        .mfn-footer-brand h2 span {
+          color: #c0392b;
         }
 
-        .footer-tagline {
-          font-family: 'Barlow Condensed', sans-serif;
-          color: var(--gold);
-          font-size: 11px;
-          font-weight: 700;
-          letter-spacing: 3px;
-          text-transform: uppercase;
-          margin-bottom: 18px;
+        .mfn-footer-rule {
+          display: flex;
+          align-items: center;
+
+          gap: 8px;
+
+          color: #b8860b;
+
+          font-family:
+            'Barlow Condensed',
+            sans-serif;
+
+          font-size: 8px;
+          font-weight: 800;
+
+          letter-spacing: 2.5px;
+
+          margin-bottom: 20px;
         }
 
-        .footer-description {
-          font-family: 'Source Serif 4', Georgia, serif;
-          font-size: 14px;
+        .mfn-footer-rule span {
+          width: 27px;
+          height: 1px;
+          background: #c0392b;
+        }
+
+        .mfn-footer-brand p {
+          max-width: 390px;
+
+          color: #777;
+
+          font-family:
+            'Source Serif 4',
+            Georgia,
+            serif;
+
+          font-size: 13px;
           line-height: 1.8;
-          color: #888;
+
           margin-bottom: 25px;
         }
 
-        .footer-socials {
+
+        /* FOOTER SOCIAL */
+
+        .mfn-footer-socials {
           display: flex;
-          gap: 9px;
           flex-wrap: wrap;
+          gap: 8px;
         }
 
-        .footer-social {
-          width: 43px;
-          height: 43px;
+        .mfn-footer-social {
+          width: 44px;
+          height: 44px;
+
           display: flex;
           align-items: center;
           justify-content: center;
-          border: 1px solid rgba(255,255,255,.12);
-          background: rgba(255,255,255,.035);
-          color: #aaa;
-          transition: all .25s ease;
+
+          color: #888;
+
+          background:
+            rgba(255,255,255,.035);
+
+          border:
+            1px solid
+            rgba(255,255,255,.1);
+
+          transition: .25s;
         }
 
-        .footer-social:hover {
-          color: #fff;
-          background: var(--red);
-          border-color: var(--red);
-          transform: translateY(-5px);
-          box-shadow: 0 8px 25px rgba(192,57,43,.25);
+        .mfn-footer-social svg {
+          width: 17px;
+          height: 17px;
         }
 
-        .footer-column h4 {
+        .mfn-footer-social:hover {
           color: #fff;
-          font-family: 'Barlow Condensed', sans-serif;
+
+          background: #c0392b;
+
+          border-color: #c0392b;
+
+          transform:
+            translateY(-5px);
+
+          box-shadow:
+            0 12px 30px
+            rgba(192,57,43,.25);
+        }
+
+
+        /* FOOTER HEADINGS */
+
+        .mfn-footer-heading {
+          color: #fff;
+
+          font-family:
+            'Barlow Condensed',
+            sans-serif;
+
           font-size: 12px;
           font-weight: 800;
-          letter-spacing: 2.5px;
+
+          letter-spacing: 3px;
+
           text-transform: uppercase;
-          margin-bottom: 20px;
-          padding-bottom: 12px;
-          border-bottom: 1px solid rgba(255,255,255,.1);
-          position: relative;
         }
 
-        .footer-column h4::after {
-          content: "";
-          position: absolute;
-          left: 0;
-          bottom: -1px;
+        .mfn-footer-heading-line {
           width: 35px;
           height: 2px;
-          background: var(--red);
+
+          background: #c0392b;
+
+          margin:
+            12px 0
+            20px;
         }
 
-        .footer-links {
+
+        /* FOOTER LINKS */
+
+        .mfn-footer-links {
           list-style: none;
-          padding: 0;
-          margin: 0;
         }
 
-        .footer-links li {
-          margin-bottom: 11px;
+        .mfn-footer-links li {
+          border-bottom:
+            1px solid
+            rgba(255,255,255,.055);
         }
 
-        .footer-links a {
-          color: #777;
-          font-family: 'Source Serif 4', Georgia, serif;
-          font-size: 13px;
-          transition: all .2s ease;
-          display: inline-flex;
-          align-items: center;
-          gap: 7px;
-        }
-
-        .footer-links a::before {
-          content: "→";
-          color: var(--red);
-          font-family: Arial, sans-serif;
-        }
-
-        .footer-links a:hover {
-          color: #fff;
-          transform: translateX(4px);
-        }
-
-        .newsletter-box {
-          background:
-            linear-gradient(
-              145deg,
-              rgba(255,255,255,.07),
-              rgba(255,255,255,.025)
-            );
-
-          border: 1px solid rgba(255,255,255,.1);
-          padding: 25px;
-          position: relative;
-          overflow: hidden;
-        }
-
-        .newsletter-box::after {
-          content: "NEWS";
-          position: absolute;
-          right: -10px;
-          bottom: -12px;
-          font-family: 'Playfair Display', serif;
-          font-size: 75px;
-          font-weight: 900;
-          color: rgba(255,255,255,.025);
-          pointer-events: none;
-        }
-
-        .newsletter-box h3 {
-          color: #fff;
-          font-family: 'Playfair Display', Georgia, serif;
-          font-size: 1.4rem;
-          margin-bottom: 8px;
-        }
-
-        .newsletter-box p {
-          font-family: 'Source Serif 4', Georgia, serif;
-          font-size: 12px;
-          line-height: 1.6;
-          color: #777;
-          margin-bottom: 18px;
-        }
-
-        .newsletter-form {
-          display: flex;
-          border: 1px solid rgba(255,255,255,.15);
-          background: #111;
-          position: relative;
-          z-index: 2;
-        }
-
-        .newsletter-form input {
-          min-width: 0;
-          flex: 1;
-          background: transparent;
-          border: none;
-          outline: none;
-          color: #fff;
-          padding: 11px;
-          font-family: 'Source Serif 4', serif;
-          font-size: 12px;
-        }
-
-        .newsletter-form input::placeholder {
-          color: #555;
-        }
-
-        .newsletter-form button {
-          border: none;
-          background: var(--red);
-          color: #fff;
-          width: 48px;
+        .mfn-footer-links a {
           display: flex;
           align-items: center;
-          justify-content: center;
-          cursor: pointer;
-          transition: background .2s;
+          gap: 10px;
+
+          padding: 9px 0;
+
+          color: #777;
+
+          font-family:
+            'Barlow Condensed',
+            sans-serif;
+
+          font-size: 12px;
+
+          transition: .2s;
         }
 
-        .newsletter-form button:hover {
-          background: #e04b3a;
+        .mfn-footer-links a span {
+          color: #c0392b;
+          min-width: 18px;
         }
 
-        .subscribe-message {
-          display: block;
-          margin-top: 9px;
-          font-family: 'Barlow Condensed', sans-serif;
-          font-size: 11px;
-          color: #a8e6cf;
+        .mfn-footer-links a:hover {
+          color: #fff;
+          transform: translateX(5px);
         }
 
-        .contact-info {
-          margin-top: 20px;
+
+        /* CONTACT */
+
+        .mfn-footer-contact {
           display: flex;
           flex-direction: column;
-          gap: 10px;
+
+          gap: 12px;
+
+          margin-top: 24px;
         }
 
-        .contact-item {
+        .mfn-footer-contact div {
           display: flex;
           align-items: center;
-          gap: 10px;
-          color: #777;
-          font-size: 12px;
+          gap: 9px;
+
+          color: #666;
+
+          font-size: 11px;
         }
 
-        .contact-item svg {
-          color: var(--red);
+        .mfn-footer-contact svg {
+          width: 14px;
+          height: 14px;
+
+          color: #c0392b;
+
           flex-shrink: 0;
         }
 
 
-        /* =====================================================
-           DEVELOPER
-        ===================================================== */
+        /* NEWSLETTER */
 
-        .developer-section {
-          border-top: 1px solid rgba(255,255,255,.08);
-          border-bottom: 1px solid rgba(255,255,255,.08);
-          padding: 25px 0;
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 20px;
-          flex-wrap: wrap;
+        .mfn-newsletter {
+          position: relative;
+
+          overflow: hidden;
+
+          padding: 28px;
+
+          background:
+            linear-gradient(
+              145deg,
+              rgba(255,255,255,.07),
+              rgba(255,255,255,.015)
+            );
+
+          border:
+            1px solid
+            rgba(255,255,255,.1);
         }
 
-        .developer-text {
-          font-family: 'Barlow Condensed', sans-serif;
+        .mfn-newsletter::after {
+          content: "MFN";
+
+          position: absolute;
+
+          right: -10px;
+          bottom: -30px;
+
+          color:
+            rgba(255,255,255,.025);
+
+          font-family:
+            'Playfair Display',
+            serif;
+
+          font-size: 100px;
+
+          font-weight: 900;
+
+          pointer-events: none;
+        }
+
+        .mfn-newsletter-label {
+          color: #c0392b;
+
+          font-family:
+            'Barlow Condensed',
+            sans-serif;
+
+          font-size: 9px;
+          font-weight: 800;
+
+          letter-spacing: 3px;
+
+          margin-bottom: 12px;
+        }
+
+        .mfn-newsletter h3 {
+          color: #fff;
+
+          font-family:
+            'Playfair Display',
+            Georgia,
+            serif;
+
+          font-size: 2rem;
+
+          line-height: 1;
+
+          margin-bottom: 15px;
+        }
+
+        .mfn-newsletter p {
+          color: #777;
+
           font-size: 12px;
-          color: #666;
-          letter-spacing: .5px;
+
+          line-height: 1.7;
+
+          margin-bottom: 20px;
         }
 
-        .developer-link {
-          display: inline-flex;
-          align-items: center;
-          gap: 7px;
-          color: #fff;
-          font-weight: 700;
-          transition: color .2s ease;
-        }
-
-        .developer-link:hover {
-          color: var(--red);
-        }
-
-        .developer-badge {
-          display: inline-flex;
-          align-items: center;
-          gap: 7px;
-          border: 1px solid rgba(255,255,255,.1);
-          padding: 8px 13px;
-          color: #888;
-          font-family: 'Barlow Condensed', sans-serif;
-          font-size: 11px;
-          text-transform: uppercase;
-          letter-spacing: 1px;
-        }
-
-
-        /* =====================================================
-           FOOTER BOTTOM
-        ===================================================== */
-
-        .footer-bottom {
-          background: #050505;
-          padding: 18px 0;
-        }
-
-        .footer-bottom-inner {
-          max-width: 1260px;
-          margin: auto;
-          padding: 0 20px;
+        .mfn-newsletter-form {
           display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 15px;
-          flex-wrap: wrap;
+
+          position: relative;
+
+          z-index: 2;
         }
 
-        .copyright {
-          font-family: 'Barlow Condensed', sans-serif;
-          color: #555;
-          font-size: 11px;
-          letter-spacing: .5px;
-        }
+        .mfn-newsletter-form input {
+          flex: 1;
+          min-width: 0;
 
-        .copyright strong {
-          color: var(--red);
-        }
+          border:
+            1px solid
+            rgba(255,255,255,.15);
 
-        .legal-links {
-          display: flex;
-          gap: 22px;
-        }
+          border-right: none;
 
-        .legal-links a {
-          color: #555;
-          font-family: 'Barlow Condensed', sans-serif;
-          font-size: 11px;
-          text-transform: uppercase;
-          letter-spacing: 1px;
-          transition: color .2s;
-        }
+          outline: none;
 
-        .legal-links a:hover {
+          background: #111;
           color: #fff;
+
+          padding: 11px;
+
+          font-size: 11px;
         }
 
-        .back-top {
-          width: 40px;
-          height: 40px;
-          border: 1px solid rgba(255,255,255,.12);
-          background: rgba(255,255,255,.04);
-          color: #aaa;
+        .mfn-newsletter-form button {
+          width: 48px;
+
+          border: none;
+
+          background: #c0392b;
+          color: #fff;
+
           display: flex;
           align-items: center;
           justify-content: center;
+
           cursor: pointer;
-          transition: all .2s;
         }
 
-        .back-top:hover {
-          background: var(--red);
+        .mfn-newsletter-form button:hover {
+          background: #e04b3a;
+        }
+
+        .mfn-sub-message {
+          display: block;
+
+          margin-top: 8px;
+
+          color: #9be7c1;
+
+          font-size: 10px;
+        }
+
+
+        /* =================================================
+           DEVELOPER
+        ================================================= */
+
+        .mfn-developer {
+          padding: 25px 0;
+
+          border-top:
+            1px solid
+            rgba(255,255,255,.08);
+
+          border-bottom:
+            1px solid
+            rgba(255,255,255,.08);
+
+          display: flex;
+
+          align-items: center;
+
+          justify-content: space-between;
+
+          gap: 20px;
+        }
+
+        .mfn-developer-info {
+          display: flex;
+          align-items: center;
+          flex-wrap: wrap;
+          gap: 10px;
+        }
+
+        .mfn-developer-label {
+          color: #555;
+
+          font-family:
+            'Barlow Condensed',
+            sans-serif;
+
+          font-size: 9px;
+          font-weight: 700;
+
+          letter-spacing: 2px;
+        }
+
+        .mfn-developer-name {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+
           color: #fff;
-          border-color: var(--red);
+
+          font-family:
+            'Barlow Condensed',
+            sans-serif;
+
+          font-size: 12px;
+          font-weight: 700;
+        }
+
+        .mfn-developer-name:hover {
+          color: #c0392b;
+        }
+
+        .mfn-developer-button {
+          display: flex;
+          align-items: center;
+          gap: 7px;
+
+          padding: 9px 15px;
+
+          border:
+            1px solid
+            rgba(255,255,255,.12);
+
+          color: #aaa;
+
+          font-family:
+            'Barlow Condensed',
+            sans-serif;
+
+          font-size: 9px;
+          font-weight: 700;
+
+          letter-spacing: 1px;
+
+          text-transform: uppercase;
+
+          transition: .2s;
+        }
+
+        .mfn-developer-button:hover {
+          background: #c0392b;
+          border-color: #c0392b;
+          color: #fff;
         }
 
 
-        /* =====================================================
+        /* =================================================
+           FOOTER BOTTOM
+        ================================================= */
+
+        .mfn-footer-bottom {
+          background: #050505;
+        }
+
+        .mfn-footer-bottom-inner {
+          max-width: 1400px;
+          margin: auto;
+
+          padding:
+            17px 25px;
+
+          display: flex;
+
+          align-items: center;
+
+          justify-content: space-between;
+
+          gap: 15px;
+
+          flex-wrap: wrap;
+
+          color: #4f4f4f;
+
+          font-family:
+            'Barlow Condensed',
+            sans-serif;
+
+          font-size: 10px;
+        }
+
+        .mfn-footer-bottom strong {
+          color: #c0392b;
+        }
+
+        .mfn-footer-legal {
+          display: flex;
+          align-items: center;
+          gap: 18px;
+        }
+
+        .mfn-footer-legal a {
+          color: #555;
+
+          text-transform: uppercase;
+
+          letter-spacing: 1px;
+        }
+
+        .mfn-footer-legal a:hover {
+          color: #fff;
+        }
+
+        .mfn-top-button {
+          width: 34px;
+          height: 34px;
+
+          display: flex;
+          align-items: center;
+          justify-content: center;
+
+          border:
+            1px solid
+            rgba(255,255,255,.12);
+
+          background: transparent;
+
+          color: #777;
+
+          cursor: pointer;
+        }
+
+        .mfn-top-button:hover {
+          background: #c0392b;
+          border-color: #c0392b;
+          color: #fff;
+        }
+
+
+        /* =================================================
            RESPONSIVE
-        ===================================================== */
+        ================================================= */
 
-        @media (max-width: 1100px) {
+        @media (max-width: 1150px) {
 
-          .nav-link {
-            padding-left: 10px;
-            padding-right: 10px;
-            font-size: 12px;
+          .mfn-brand-container {
+            grid-template-columns: 1fr;
+            gap: 20px;
           }
 
-          .footer-main {
-            grid-template-columns: repeat(2, 1fr);
-            gap: 40px;
-          }
-        }
-
-
-        @media (max-width: 900px) {
-
-          .nav-desktop {
-            display: none !important;
+          .mfn-brand-buttons {
+            justify-content: center;
           }
 
-          .subscribe-nav {
+          .mfn-search-area {
+            justify-content: center;
+          }
+
+          .mfn-nav-list {
             display: none;
           }
 
-          .hamburger {
-            display: block;
+          .mfn-mobile-button {
+            display: flex;
           }
 
-          .masthead-grid {
-            grid-template-columns: 1fr !important;
-            text-align: center;
+          .mfn-footer-grid {
+            grid-template-columns:
+              repeat(2, 1fr);
           }
 
-          .masthead-links {
-            justify-content: center;
-            margin-bottom: 12px;
-          }
-
-          .masthead-search {
-            justify-content: center;
-            margin-top: 12px;
-            width: 100%;
-          }
-
-          .masthead-search input {
-            width: 100% !important;
-          }
-
-          .top-bar-inner {
-            flex-direction: column;
-            gap: 7px;
-            text-align: center;
-          }
-
-          .top-bar-socials {
-            justify-content: center;
-            width: 100%;
-          }
         }
 
 
-        @media (max-width: 650px) {
+        @media (max-width: 700px) {
 
-          .footer-container {
-            padding: 50px 20px 25px;
+          .mfn-header-top-inner {
+            justify-content: center;
           }
 
-          .footer-main {
+          .mfn-header-info {
+            justify-content: center;
+          }
+
+          .mfn-header-socials {
+            display: none;
+          }
+
+          .mfn-header-separator {
+            display: none;
+          }
+
+          .mfn-brand-container {
+            min-height: 130px;
+            padding: 22px 15px;
+          }
+
+          .mfn-main-brand h1 {
+            font-size: 2.15rem;
+          }
+
+          .mfn-brand-kicker {
+            letter-spacing: 3px;
+          }
+
+          .mfn-brand-tagline {
+            font-size: 8px;
+            letter-spacing: 1.5px;
+          }
+
+          .mfn-brand-tagline span {
+            width: 20px;
+          }
+
+          .mfn-brand-buttons {
+            display: none;
+          }
+
+          .mfn-search {
+            width: 100%;
+          }
+
+          .mfn-nav-inner {
+            padding: 0 15px;
+          }
+
+          .mfn-subscribe {
+            display: none;
+          }
+
+          .mfn-breaking-label {
+            padding: 0 12px;
+          }
+
+          .mfn-breaking-label {
+            font-size: 9px;
+          }
+
+          .mfn-footer-container {
+            padding:
+              60px 20px
+              25px;
+          }
+
+          .mfn-footer-grid {
             grid-template-columns: 1fr;
-            gap: 35px;
+            gap: 40px;
           }
 
-          .footer-brand {
+          .mfn-footer-brand p {
             max-width: none;
           }
 
-          .developer-section {
-            align-items: flex-start;
+          .mfn-developer {
             flex-direction: column;
+            align-items: flex-start;
           }
 
-          .footer-bottom-inner {
+          .mfn-footer-bottom-inner {
             justify-content: center;
             text-align: center;
           }
 
-          .copyright {
-            width: 100%;
-          }
-
-          .legal-links {
-            order: 2;
-          }
-
-          .back-top {
-            order: 1;
-          }
-        }
-
-
-        @media (max-width: 400px) {
-
-          .masthead-links {
-            flex-wrap: wrap;
-          }
-
-          .footer-social {
-            width: 40px;
-            height: 40px;
-          }
-
-          .newsletter-box {
-            padding: 20px;
-          }
         }
 
       `}</style>
 
 
-      {/* =====================================================
-          TOP BAR
-      ===================================================== */}
+      {/* ===================================================
+          HEADER
+      =================================================== */}
 
-      <div
-        style={{
-          background: '#0d0d0d',
-          color: '#ccc',
-          fontFamily: "'Barlow Condensed', sans-serif",
-          fontSize: 12,
-          padding: '8px 0'
-        }}
-      >
-        <div
-          className="top-bar-inner"
-          style={{
-            maxWidth: 1260,
-            margin: '0 auto',
-            padding: '0 20px'
-          }}
-        >
+      <header>
 
-          <div
-            style={{
-              display: 'flex',
-              gap: 20,
-              alignItems: 'center',
-              flexWrap: 'wrap',
-              justifyContent: 'center'
-            }}
-          >
-            <span>
-              📅{' '}
-              {new Date().toLocaleDateString('en-US', {
-                weekday: 'long',
-                day: 'numeric',
-                month: 'long',
-                year: 'numeric'
-              })}
-            </span>
+        {/* TOP BAR */}
 
-            <span style={{ color: '#888' }}>
-              ☀ Kigali · 24°C
-            </span>
-          </div>
+        <div className="mfn-header-top">
 
+          <div className="mfn-header-top-inner">
 
-          <div className="top-bar-socials">
+            <div className="mfn-header-info">
 
-            {SOCIALS.map((social) => {
-              const Icon = social.icon;
+              <span className="mfn-header-info-item">
+                <CalendarDays />
+                {today}
+              </span>
 
-              return (
-                <a
-                  key={social.label}
-                  href={social.href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="top-social"
-                  title={social.label}
-                  aria-label={social.label}
-                >
-                  <Icon size={14} />
-                </a>
-              );
-            })}
+              <span className="mfn-header-separator"></span>
 
-            <Link
-              to="/admin/login"
-              style={{
-                color: '#888',
-                letterSpacing: 1,
-                textTransform: 'uppercase',
-                fontSize: 11
-              }}
-            >
-              Sign In
-            </Link>
+              <span className="mfn-header-info-item">
+                <MapPin />
+                Kigali, Rwanda
+              </span>
 
-          </div>
+              <span className="mfn-header-separator"></span>
 
-        </div>
-      </div>
-
-
-      {/* =====================================================
-          BREAKING NEWS
-      ===================================================== */}
-
-      {breaking.length > 0 && (
-        <div
-          style={{
-            background: '#c0392b',
-            color: '#fff',
-            display: 'flex',
-            overflow: 'hidden',
-            height: 38
-          }}
-        >
-
-          <div
-            style={{
-              background: '#0d0d0d',
-              padding: '0 18px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              flexShrink: 0,
-              fontFamily: "'Barlow Condensed', sans-serif",
-              fontWeight: 800,
-              fontSize: 11,
-              letterSpacing: 2,
-              textTransform: 'uppercase'
-            }}
-          >
-            <span
-              style={{
-                width: 6,
-                height: 6,
-                background: '#c0392b',
-                borderRadius: '50%',
-                animation: 'pulse 1s infinite'
-              }}
-            />
-
-            Breaking
-          </div>
-
-
-          <div
-            style={{
-              flex: 1,
-              overflow: 'hidden',
-              display: 'flex',
-              alignItems: 'center'
-            }}
-          >
-            <div className="ticker">
-
-              {[...breaking, ...breaking].map((b, i) => (
-                <span
-                  key={`${b._id || b.id || b.title}-${i}`}
-                  style={{
-                    fontFamily: "'Barlow Condensed', sans-serif",
-                    fontSize: 13,
-                    fontWeight: 600
-                  }}
-                >
-                  ◆ {b.title}
-                </span>
-              ))}
-
-            </div>
-          </div>
-
-        </div>
-      )}
-
-
-      {/* =====================================================
-          MASTHEAD
-      ===================================================== */}
-
-      <div
-        style={{
-          background: '#fff',
-          borderBottom: '3px double #0d0d0d',
-          padding: '20px 0 16px'
-        }}
-      >
-
-        <div
-          className="masthead-grid"
-          style={{
-            maxWidth: 1260,
-            margin: '0 auto',
-            padding: '0 20px'
-          }}
-        >
-
-          <div className="masthead-links">
-
-            <Link
-              to="/archive"
-              style={{
-                background: '#0d0d0d',
-                color: '#fff',
-                padding: '5px 12px',
-                fontFamily: "'Barlow Condensed', sans-serif",
-                fontWeight: 700,
-                fontSize: 10,
-                letterSpacing: 1
-              }}
-            >
-              Archive
-            </Link>
-
-            <Link
-              to="/epaper"
-              style={{
-                background: '#0d0d0d',
-                color: '#fff',
-                padding: '5px 12px',
-                fontFamily: "'Barlow Condensed', sans-serif",
-                fontWeight: 700,
-                fontSize: 10,
-                letterSpacing: 1
-              }}
-            >
-              E-Paper
-            </Link>
-
-          </div>
-
-
-          <Link
-            to="/"
-            style={{
-              textAlign: 'center'
-            }}
-          >
-
-            <h1
-              style={{
-                fontFamily: "'Playfair Display', Georgia, serif",
-                fontSize: 'clamp(1.6rem,4vw,2.8rem)',
-                fontWeight: 900,
-                letterSpacing: '-0.04em',
-                lineHeight: 1,
-                color: '#0d0d0d'
-              }}
-            >
-              <span style={{ color: '#c0392b' }}>M</span>
-              ahoko{' '}
-              <span style={{ color: '#c0392b' }}>F</span>
-              riday{' '}
-              <span style={{ color: '#c0392b' }}>N</span>
-              ews
-            </h1>
-
-            <p
-              style={{
-                fontFamily: "'Barlow Condensed', sans-serif",
-                fontSize: 10,
-                letterSpacing: 4,
-                textTransform: 'uppercase',
-                color: '#5a5a5a',
-                marginTop: 4
-              }}
-            >
-              Latest News · Truth & Independence
-            </p>
-
-          </Link>
-
-
-          <form
-            onSubmit={handleSearch}
-            className="masthead-search"
-          >
-
-            <div
-              style={{
-                display: 'flex',
-                border: '1.5px solid #0d0d0d',
-                width: '100%',
-                maxWidth: 220
-              }}
-            >
-
-              <input
-                value={searchQ}
-                onChange={(e) => setSearchQ(e.target.value)}
-                placeholder="Search stories…"
-                style={{
-                  border: 'none',
-                  outline: 'none',
-                  padding: '7px 12px',
-                  width: '100%',
-                  fontFamily: "'Source Serif 4', Georgia, serif",
-                  fontSize: 13,
-                  background: '#faf8f3'
-                }}
-              />
-
-              <button
-                type="submit"
-                style={{
-                  background: '#0d0d0d',
-                  color: '#fff',
-                  border: 'none',
-                  padding: '7px 14px',
-                  cursor: 'pointer'
-                }}
-              >
-                🔍
-              </button>
+              <span className="mfn-header-info-item">
+                <Sun />
+                24°C
+              </span>
 
             </div>
 
-          </form>
 
-        </div>
-      </div>
+            <div className="mfn-header-socials">
 
+              {SOCIALS.map((social) => {
 
-      {/* =====================================================
-          MAIN NAVIGATION
-      ===================================================== */}
+                const Icon = social.icon;
 
-      <nav
-        className="main-navigation"
-        style={{
-          boxShadow: scrolled
-            ? '0 2px 20px rgba(0,0,0,.3)'
-            : 'none'
-        }}
-      >
-
-        <div className="nav-inner">
-
-          <ul className="nav-desktop">
-
-            {CATEGORIES.map((cat) => (
-
-              <li
-                key={cat.label}
-                className="nav-item"
-                style={{
-                  position: 'relative'
-                }}
-              >
-
-                {cat.path ? (
-
-                  <Link
-                    to={cat.path}
-                    className="nav-link"
+                return (
+                  <a
+                    key={social.label}
+                    href={social.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title={social.label}
+                    aria-label={social.label}
+                    className="mfn-header-social"
                   >
-                    {cat.icon && (
-                      <span
-                        style={{
-                          color: '#c0392b',
-                          marginRight: 4
-                        }}
-                      >
-                        {cat.icon}
-                      </span>
-                    )}
+                    <Icon />
+                  </a>
+                );
 
-                    {cat.label}
-                  </Link>
+              })}
 
-                ) : (
+              <span className="mfn-header-separator"></span>
 
-                  <>
+              <Link
+                to="/admin/login"
+                className="mfn-signin"
+              >
+                Sign In
+              </Link>
+
+            </div>
+
+          </div>
+
+        </div>
+
+
+        {/* BREAKING */}
+
+        {breaking.length > 0 && (
+
+          <div className="mfn-breaking">
+
+            <div className="mfn-breaking-label">
+
+              <span className="mfn-live-dot"></span>
+
+              Breaking
+
+            </div>
+
+
+            <div className="mfn-breaking-track">
+
+              <div className="mfn-ticker">
+
+                {[...breaking, ...breaking].map(
+                  (item, index) => (
+
                     <span
-                      className="nav-link"
-                      style={{
-                        cursor: 'pointer'
-                      }}
+                      className="mfn-ticker-item"
+                      key={`${item._id || item.id || item.title}-${index}`}
                     >
-                      {cat.label} ▾
+                      ◆ {item.title}
                     </span>
 
-                    <div className="dropdown-menu">
-
-                      {cat.sub?.map((sub) => (
-                        <Link
-                          key={sub.label}
-                          to={sub.path}
-                        >
-                          {sub.label}
-                        </Link>
-                      ))}
-
-                    </div>
-                  </>
-
+                  )
                 )}
 
-              </li>
+              </div>
 
-            ))}
+            </div>
 
-          </ul>
+          </div>
+
+        )}
 
 
-          <div className="subscribe-nav">
+        {/* BRAND */}
+
+        <div className="mfn-brand-area">
+
+          <div className="mfn-brand-container">
+
+
+            <div className="mfn-brand-buttons">
+
+              <Link
+                to="/archive"
+                className="mfn-brand-button"
+              >
+                Archive
+              </Link>
+
+              <Link
+                to="/epaper"
+                className="mfn-brand-button"
+              >
+                E-Paper
+              </Link>
+
+            </div>
+
+
+            <Link
+              to="/"
+              className="mfn-main-brand"
+            >
+
+              <div className="mfn-brand-kicker">
+                THE VOICE OF YOUTH
+              </div>
+
+              <h1>
+                <span>M</span>ahoko{' '}
+                <span>F</span>riday{' '}
+                <span>N</span>ews
+              </h1>
+
+              <div className="mfn-brand-tagline">
+
+                <span></span>
+
+                Truth · Independence · Youth Voices
+
+                <span></span>
+
+              </div>
+
+            </Link>
+
+
+            <div className="mfn-search-area">
+
+              <form
+                onSubmit={handleSearch}
+                className="mfn-search"
+              >
+
+                <Search size={16} />
+
+                <input
+                  value={searchQ}
+                  onChange={(e) =>
+                    setSearchQ(e.target.value)
+                  }
+                  placeholder="Search stories..."
+                  aria-label="Search stories"
+                />
+
+                <button type="submit">
+                  Search
+                </button>
+
+              </form>
+
+            </div>
+
+          </div>
+
+        </div>
+
+
+        {/* NAVIGATION */}
+
+        <nav
+          className={`mfn-nav ${
+            scrolled ? 'scrolled' : ''
+          }`}
+        >
+
+          <div className="mfn-nav-inner">
+
+            <ul className="mfn-nav-list">
+
+              {CATEGORIES.map((category) => (
+
+                <li
+                  key={category.label}
+                  className="mfn-nav-item"
+                >
+
+                  {category.path ? (
+
+                    <Link
+                      to={category.path}
+                      className="mfn-nav-link"
+                    >
+
+                      {category.icon && (
+
+                        <span className="mfn-video-icon">
+                          {category.icon}
+                        </span>
+
+                      )}
+
+                      {category.label}
+
+                    </Link>
+
+                  ) : (
+
+                    <>
+
+                      <span className="mfn-nav-link">
+
+                        {category.label}
+
+                        <ChevronDown size={13} />
+
+                      </span>
+
+
+                      <div className="mfn-dropdown">
+
+                        {category.sub?.map(
+                          (sub) => (
+
+                            <Link
+                              key={sub.label}
+                              to={sub.path}
+                            >
+                              {sub.label}
+                            </Link>
+
+                          )
+                        )}
+
+                      </div>
+
+                    </>
+
+                  )}
+
+                </li>
+
+              ))}
+
+            </ul>
+
 
             <Link
               to="/subscribe"
-              className="subscribe-button"
+              className="mfn-subscribe"
             >
               Subscribe
+              <ArrowUp size={13} />
             </Link>
+
+
+            <button
+              className="mfn-mobile-button"
+              onClick={() =>
+                setMobileOpen(true)
+              }
+              aria-label="Open menu"
+            >
+              <Menu size={24} />
+            </button>
 
           </div>
 
+        </nav>
 
-          <button
-            className="hamburger"
-            onClick={() => setMobileOpen(true)}
-            aria-label="Open menu"
-          >
-            ☰
-          </button>
-
-        </div>
-
-      </nav>
+      </header>
 
 
-      {/* =====================================================
+      {/* ===================================================
           MOBILE MENU
-      ===================================================== */}
+      =================================================== */}
 
       {mobileOpen && (
 
-        <div className="mobile-menu">
+        <div className="mfn-mobile-menu">
 
-          <div className="mobile-header">
+          <div className="mfn-mobile-header">
 
-            <span className="mobile-logo">
-              Mahoko Friday News
-            </span>
+            <div className="mfn-mobile-logo">
+
+              <span>M</span>ahoko Friday News
+
+            </div>
 
             <button
-              className="mobile-close"
-              onClick={() => setMobileOpen(false)}
+              className="mfn-mobile-close"
+              onClick={() =>
+                setMobileOpen(false)
+              }
               aria-label="Close menu"
             >
-              ✕
+              <X size={25} />
             </button>
 
           </div>
@@ -1482,62 +2145,64 @@ export default function PublicLayout({ children }) {
 
           <form
             onSubmit={handleSearch}
-            className="mobile-search"
+            className="mfn-mobile-search"
           >
 
             <input
               value={searchQ}
-              onChange={(e) => setSearchQ(e.target.value)}
-              placeholder="Search…"
+              onChange={(e) =>
+                setSearchQ(e.target.value)
+              }
+              placeholder="Search stories..."
             />
 
             <button type="submit">
-              🔍
+              <Search size={18} />
             </button>
 
           </form>
 
 
-          {CATEGORIES.map((cat) => (
+          {CATEGORIES.map((category) => (
 
-            cat.path ? (
+            category.path ? (
 
               <Link
-                key={cat.label}
-                to={cat.path}
-                onClick={() => setMobileOpen(false)}
-                className="mobile-link"
+                key={category.label}
+                to={category.path}
+                onClick={() =>
+                  setMobileOpen(false)
+                }
+                className="mfn-mobile-link"
               >
-                {cat.label}
+                {category.label}
               </Link>
 
             ) : (
 
-              <div
-                key={cat.label}
-                style={{
-                  borderBottom:
-                    '1px solid rgba(255,255,255,.06)',
-                  paddingBottom: 8
-                }}
-              >
+              <div key={category.label}>
 
-                <span className="mobile-sub-title">
-                  {cat.label}
-                </span>
+                <div className="mfn-mobile-link">
+                  {category.label}
+                </div>
 
-                {cat.sub?.map((sub) => (
+                <div className="mfn-mobile-sub">
 
-                  <Link
-                    key={sub.label}
-                    to={sub.path}
-                    onClick={() => setMobileOpen(false)}
-                    className="mobile-sub-link"
-                  >
-                    {sub.label}
-                  </Link>
+                  {category.sub?.map((sub) => (
 
-                ))}
+                    <Link
+                      key={sub.label}
+                      to={sub.path}
+                      onClick={() =>
+                        setMobileOpen(false)
+                      }
+                    >
+                      {sub.label}
+                    </Link>
+
+                  ))}
+
+                </div>
 
               </div>
 
@@ -1548,8 +2213,10 @@ export default function PublicLayout({ children }) {
 
           <Link
             to="/subscribe"
-            onClick={() => setMobileOpen(false)}
-            className="mobile-subscribe"
+            onClick={() =>
+              setMobileOpen(false)
+            }
+            className="mfn-mobile-subscribe"
           >
             Subscribe Now
           </Link>
@@ -1559,49 +2226,59 @@ export default function PublicLayout({ children }) {
       )}
 
 
-      {/* =====================================================
+      {/* ===================================================
           PAGE CONTENT
-      ===================================================== */}
+      =================================================== */}
 
       <main>
         {children}
       </main>
 
 
-      {/* =====================================================
-          FOOTER
-      ===================================================== */}
+      {/* ===================================================
+          PREMIUM FOOTER
+      =================================================== */}
 
-      <footer className="site-footer">
+      <footer className="mfn-footer">
 
-        <div className="footer-container">
+        <div className="mfn-footer-container">
 
-          <div className="footer-main">
+          <div className="mfn-footer-grid">
 
 
             {/* BRAND */}
 
-            <div className="footer-brand">
+            <div className="mfn-footer-brand">
 
-              <h2 className="footer-logo">
+              <div className="mfn-footer-mark">
+                MFN
+              </div>
+
+              <h2>
                 <span>M</span>ahoko{' '}
                 <span>F</span>riday{' '}
                 <span>N</span>ews
               </h2>
 
-              <div className="footer-tagline">
-                Truth · Independence · Youth Voices
+              <div className="mfn-footer-rule">
+
+                <span></span>
+
+                TRUTH · INDEPENDENCE
+
+                <span></span>
+
               </div>
 
-              <p className="footer-description">
-                Reliable news about Rwanda and the world.
-                We bring stories that matter, amplify youth
-                voices, and keep our readers informed with
-                independent journalism.
+              <p>
+                Reliable news from Rwanda and
+                around the world. Mahoko Friday
+                News gives young voices a platform
+                and brings you stories that matter.
               </p>
 
 
-              <div className="footer-socials">
+              <div className="mfn-footer-socials">
 
                 {SOCIALS.map((social) => {
 
@@ -1613,14 +2290,11 @@ export default function PublicLayout({ children }) {
                       href={social.href}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="footer-social"
                       title={social.label}
                       aria-label={social.label}
+                      className="mfn-footer-social"
                     >
-                      <Icon
-                        size={18}
-                        strokeWidth={1.8}
-                      />
+                      <Icon />
                     </a>
                   );
 
@@ -1633,29 +2307,41 @@ export default function PublicLayout({ children }) {
 
             {/* EXPLORE */}
 
-            <div className="footer-column">
+            <div>
 
-              <h4>Explore</h4>
+              <div className="mfn-footer-heading">
+                Explore
+              </div>
 
-              <ul className="footer-links">
+              <div className="mfn-footer-heading-line"></div>
+
+              <ul className="mfn-footer-links">
 
                 {[
                   'Business',
                   'Sport',
                   'Technology',
-                  'Education',
                   'Health',
+                  'Education',
                   'Culture',
-                  'Entertainment',
-                  'Environment'
-                ].map((category) => (
+                  'Environment',
+                ].map((category, index) => (
 
                   <li key={category}>
 
                     <Link
                       to={`/category/${category}`}
                     >
+
+                      <span>
+                        {String(index + 1).padStart(
+                          2,
+                          '0'
+                        )}
+                      </span>
+
                       {category}
+
                     </Link>
 
                   </li>
@@ -1667,74 +2353,59 @@ export default function PublicLayout({ children }) {
             </div>
 
 
-            {/* SERVICES */}
+            {/* COMPANY */}
 
-            <div className="footer-column">
+            <div>
 
-              <h4>Mahoko News</h4>
+              <div className="mfn-footer-heading">
+                Company
+              </div>
 
-              <ul className="footer-links">
+              <div className="mfn-footer-heading-line"></div>
 
-                <li>
-                  <Link to="/about">
-                    About Us
-                  </Link>
-                </li>
+              <ul className="mfn-footer-links">
 
-                <li>
-                  <Link to="/contact">
-                    Contact
-                  </Link>
-                </li>
+                {[
+                  ['About Us', '/about'],
+                  ['Contact', '/contact'],
+                  ['Archive', '/archive'],
+                  ['E-Paper', '/epaper'],
+                  ['Videos', '/videos'],
+                  ['Newsletter', '/subscribe'],
+                ].map(([label, path]) => (
 
-                <li>
-                  <Link to="/epaper">
-                    E-Paper
-                  </Link>
-                </li>
+                  <li key={label}>
 
-                <li>
-                  <Link to="/archive">
-                    Archive
-                  </Link>
-                </li>
+                    <Link to={path}>
 
-                <li>
-                  <Link to="/videos">
-                    Videos
-                  </Link>
-                </li>
+                      <span>→</span>
 
-                <li>
-                  <Link to="/subscribe">
-                    Subscribe
-                  </Link>
-                </li>
+                      {label}
+
+                    </Link>
+
+                  </li>
+
+                ))}
 
               </ul>
 
 
-              <div className="contact-info">
+              <div className="mfn-footer-contact">
 
-                <div className="contact-item">
-                  <Mail size={15} />
-                  <span>
-                    mfnyouthvoices@gmail.com
-                  </span>
+                <div>
+                  <Mail />
+                  mfnyouthvoices@gmail.com
                 </div>
 
-                <div className="contact-item">
-                  <Phone size={15} />
-                  <span>
-                    +250 787 426 258
-                  </span>
+                <div>
+                  <Phone />
+                  +250 787 426 258
                 </div>
 
-                <div className="contact-item">
-                  <MapPin size={15} />
-                  <span>
-                    Kigali, Rwanda
-                  </span>
+                <div>
+                  <MapPin />
+                  Kigali, Rwanda
                 </div>
 
               </div>
@@ -1744,55 +2415,57 @@ export default function PublicLayout({ children }) {
 
             {/* NEWSLETTER */}
 
-            <div className="footer-column">
+            <div className="mfn-newsletter">
 
-              <h4>Stay Connected</h4>
-
-              <div className="newsletter-box">
-
-                <h3>
-                  Get the latest news.
-                </h3>
-
-                <p>
-                  Subscribe to Mahoko Friday News
-                  and receive important stories and
-                  updates directly in your inbox.
-                </p>
-
-
-                <form
-                  onSubmit={handleSubscribe}
-                  className="newsletter-form"
-                >
-
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) =>
-                      setEmail(e.target.value)
-                    }
-                    placeholder="Your email address"
-                    required
-                  />
-
-                  <button
-                    type="submit"
-                    aria-label="Subscribe"
-                  >
-                    <Send size={16} />
-                  </button>
-
-                </form>
-
-
-                {subMsg && (
-                  <span className="subscribe-message">
-                    {subMsg}
-                  </span>
-                )}
-
+              <div className="mfn-newsletter-label">
+                STAY INFORMED
               </div>
+
+              <h3>
+                News that
+                <br />
+                matters.
+              </h3>
+
+              <p>
+                Join our newsletter and get the
+                most important stories delivered
+                directly to your inbox.
+              </p>
+
+
+              <form
+                onSubmit={handleSubscribe}
+                className="mfn-newsletter-form"
+              >
+
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) =>
+                    setEmail(e.target.value)
+                  }
+                  placeholder="Your email address"
+                  required
+                />
+
+                <button
+                  type="submit"
+                  aria-label="Subscribe"
+                >
+                  <Send size={17} />
+                </button>
+
+              </form>
+
+
+              {subMsg && (
+
+                <small className="mfn-sub-message">
+                  {subMsg}
+                </small>
+
+              )}
 
             </div>
 
@@ -1800,37 +2473,39 @@ export default function PublicLayout({ children }) {
 
 
           {/* =================================================
-              DEVELOPER CREDIT
+              DEVELOPER
           ================================================= */}
 
-          <div className="developer-section">
+          <div className="mfn-developer">
 
-            <div className="developer-text">
+            <div className="mfn-developer-info">
 
-              Website designed & developed by{' '}
+              <span className="mfn-developer-label">
+                WEBSITE DESIGNED & DEVELOPED BY
+              </span>
 
               <a
                 href="https://nsengiyumva-gerard.netlify.app/"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="developer-link"
+                className="mfn-developer-name"
               >
                 Gerard Nsengiyumva
-
-                <ExternalLink size={13} />
-
+                <ExternalLink size={14} />
               </a>
 
             </div>
 
 
-            <div className="developer-badge">
-
-              <span>⚡</span>
-
-              Digital Development
-
-            </div>
+            <a
+              href="https://nsengiyumva-gerard.netlify.app/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mfn-developer-button"
+            >
+              View Developer
+              <ExternalLink size={13} />
+            </a>
 
           </div>
 
@@ -1838,28 +2513,29 @@ export default function PublicLayout({ children }) {
 
 
         {/* =================================================
-            FOOTER BOTTOM
+            BOTTOM
         ================================================= */}
 
-        <div className="footer-bottom">
+        <div className="mfn-footer-bottom">
 
-          <div className="footer-bottom-inner">
+          <div className="mfn-footer-bottom-inner">
 
-            <div className="copyright">
+            <div>
 
-              © {new Date().getFullYear()} Mahoko Friday News.
-              All rights reserved.
+              © {new Date().getFullYear()}{' '}
 
-              <span> · </span>
+              <strong>
+                Mahoko Friday News
+              </strong>
 
-              Developed by{' '}
+              {' · '}
 
-              <strong>Gerard</strong>.
+              All Rights Reserved
 
             </div>
 
 
-            <div className="legal-links">
+            <div className="mfn-footer-legal">
 
               <Link to="/privacy">
                 Privacy
@@ -1869,17 +2545,16 @@ export default function PublicLayout({ children }) {
                 Terms
               </Link>
 
+              <button
+                onClick={scrollToTop}
+                className="mfn-top-button"
+                title="Back to top"
+                aria-label="Back to top"
+              >
+                <ArrowUp size={16} />
+              </button>
+
             </div>
-
-
-            <button
-              className="back-top"
-              onClick={scrollToTop}
-              aria-label="Back to top"
-              title="Back to top"
-            >
-              <ArrowUp size={17} />
-            </button>
 
           </div>
 
@@ -1888,5 +2563,7 @@ export default function PublicLayout({ children }) {
       </footer>
 
     </div>
+
   );
+
 }
