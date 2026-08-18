@@ -1869,12 +1869,7 @@ export default function PublicLayout({ children }) {
 
               <span className="mfn-header-separator"></span>
 
-              <Link
-                to="/admin/login"
-                className="mfn-signin"
-              >
-                Sign In
-              </Link>
+             
 
             </div>
 
