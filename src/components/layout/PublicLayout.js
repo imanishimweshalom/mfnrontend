@@ -1964,7 +1964,7 @@ export default function PublicLayout({ children }) {
 
                 <span></span>
 
-                Truth · Independence · Youth Voices
+              Make Youth’s Voices Be Heard
 
                 <span></span>
 
