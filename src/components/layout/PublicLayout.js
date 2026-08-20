@@ -2259,17 +2259,14 @@ export default function PublicLayout({ children }) {
 
                 <span></span>
 
-                TRUTH · INDEPENDENCE
+            
 
                 <span></span>
 
               </div>
 
               <p>
-                Reliable news from Rwanda and
-                around the world. Mahoko Friday
-                News gives young voices a platform
-                and brings you stories that matter.
+                 Make Youth’s Voices Be Heard
               </p>
 
 
@@ -2400,7 +2397,7 @@ export default function PublicLayout({ children }) {
 
                 <div>
                   <MapPin />
-                  Kigali, Rwanda
+                  Rubavu, Rwanda
                 </div>
 
               </div>
