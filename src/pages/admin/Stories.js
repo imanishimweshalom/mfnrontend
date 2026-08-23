@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import AdminLayout from '../../components/layout/AdminLayout';
@@ -390,15 +391,37 @@ const ResponsiveStyles = () => (
       border-radius: 8px;
     }
 
-    .editor-content iframe,
-    .editor-content video {
-      max-width: 100%;
+    /* =====================================================
+       LARGE CENTERED VIDEO
+    ===================================================== */
+
+    .editor-content .article-video {
       width: 100%;
-      min-height: 360px;
-      border: 0;
-      border-radius: 12px;
+      max-width: 1200px;
+      margin: 35px auto;
       display: block;
-      margin: 20px auto;
+      position: relative;
+    }
+
+    .editor-content .article-video iframe,
+    .editor-content .article-video video {
+      width: 100%;
+      height: auto;
+      aspect-ratio: 16 / 9;
+      min-height: 0;
+      display: block;
+      border: 0;
+      border-radius: 14px;
+      margin: 0 auto;
+      background: #000;
+      object-fit: cover;
+    }
+
+    /* Make video slightly larger on big screens */
+    @media (min-width: 1400px) {
+      .editor-content .article-video {
+        max-width: 1250px;
+      }
     }
 
     .editor-content blockquote {
@@ -531,6 +554,31 @@ const ResponsiveStyles = () => (
       }
     }
 
+    /* =====================================================
+       MOBILE VIDEO
+    ===================================================== */
+
+    @media (max-width: 768px) {
+      .editor-content {
+        padding: 16px;
+      }
+
+      .editor-content .article-video {
+        width: 100%;
+        max-width: 100%;
+        margin: 25px auto;
+      }
+
+      .editor-content .article-video iframe,
+      .editor-content .article-video video {
+        width: 100%;
+        height: auto;
+        aspect-ratio: 16 / 9;
+        min-height: 0;
+        border-radius: 10px;
+      }
+    }
+
     @media (max-width: 600px) {
       .editor-content {
         padding: 16px;
@@ -545,9 +593,15 @@ const ResponsiveStyles = () => (
         display: none;
       }
 
-      .editor-content iframe,
-      .editor-content video {
-        min-height: 220px;
+      .editor-content .article-video {
+        margin: 20px auto;
+      }
+
+      .editor-content .article-video iframe,
+      .editor-content .article-video video {
+        width: 100%;
+        aspect-ratio: 16 / 9;
+        border-radius: 8px;
       }
     }
   `}</style>
@@ -594,7 +648,9 @@ function ImageSourcePopover({ onInsert, onClose }) {
       <div className="popup-tabs">
         <button
           type="button"
-          className={`popup-tab ${mode === 'device' ? 'active' : ''}`}
+          className={`popup-tab ${
+            mode === 'device' ? 'active' : ''
+          }`}
           onClick={() => setMode('device')}
         >
           Device
@@ -602,7 +658,9 @@ function ImageSourcePopover({ onInsert, onClose }) {
 
         <button
           type="button"
-          className={`popup-tab ${mode === 'link' ? 'active' : ''}`}
+          className={`popup-tab ${
+            mode === 'link' ? 'active' : ''
+          }`}
           onClick={() => setMode('link')}
         >
           Image URL
@@ -621,7 +679,14 @@ function ImageSourcePopover({ onInsert, onClose }) {
             background: 'var(--bg-subtle)',
           }}
         >
-          <div style={{ fontSize: 28, marginBottom: 8 }}>🖼️</div>
+          <div
+            style={{
+              fontSize: 28,
+              marginBottom: 8,
+            }}
+          >
+            🖼️
+          </div>
 
           <p
             style={{
@@ -640,14 +705,18 @@ function ImageSourcePopover({ onInsert, onClose }) {
             accept="image/*"
             multiple
             style={{ display: 'none' }}
-            onChange={(e) => handleFiles(e.target.files)}
+            onChange={(e) =>
+              handleFiles(e.target.files)
+            }
           />
         </div>
       ) : (
         <>
           <input
             value={linkValue}
-            onChange={(e) => setLinkValue(e.target.value)}
+            onChange={(e) =>
+              setLinkValue(e.target.value)
+            }
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
                 e.preventDefault();
@@ -702,7 +771,9 @@ function VideoSourcePopover({ onInsert, onClose }) {
       const parsed = new URL(value);
 
       if (parsed.hostname.includes('youtu.be')) {
-        return parsed.pathname.substring(1).split('?')[0];
+        return parsed.pathname
+          .substring(1)
+          .split('?')[0];
       }
 
       if (parsed.hostname.includes('youtube.com')) {
@@ -711,10 +782,12 @@ function VideoSourcePopover({ onInsert, onClose }) {
         }
 
         const parts = parsed.pathname.split('/');
-
         const embedIndex = parts.indexOf('embed');
 
-        if (embedIndex !== -1 && parts[embedIndex + 1]) {
+        if (
+          embedIndex !== -1 &&
+          parts[embedIndex + 1]
+        ) {
           return parts[embedIndex + 1];
         }
       }
@@ -726,7 +799,9 @@ function VideoSourcePopover({ onInsert, onClose }) {
   };
 
   const extractVimeoId = (value) => {
-    const match = value.match(/vimeo\.com\/(?:video\/)?(\d+)/i);
+    const match = value.match(
+      /vimeo\.com\/(?:video\/)?(\d+)/i
+    );
 
     return match ? match[1] : null;
   };
@@ -794,12 +869,16 @@ function VideoSourcePopover({ onInsert, onClose }) {
 
   return (
     <div className="media-popup">
-      <div className="popup-title">🎥 Insert Video</div>
+      <div className="popup-title">
+        🎥 Insert Video
+      </div>
 
       <div className="popup-tabs">
         <button
           type="button"
-          className={`popup-tab ${type === 'youtube' ? 'active' : ''}`}
+          className={`popup-tab ${
+            type === 'youtube' ? 'active' : ''
+          }`}
           onClick={() => setType('youtube')}
         >
           YouTube
@@ -807,7 +886,9 @@ function VideoSourcePopover({ onInsert, onClose }) {
 
         <button
           type="button"
-          className={`popup-tab ${type === 'vimeo' ? 'active' : ''}`}
+          className={`popup-tab ${
+            type === 'vimeo' ? 'active' : ''
+          }`}
           onClick={() => setType('vimeo')}
         >
           Vimeo
@@ -815,7 +896,9 @@ function VideoSourcePopover({ onInsert, onClose }) {
 
         <button
           type="button"
-          className={`popup-tab ${type === 'direct' ? 'active' : ''}`}
+          className={`popup-tab ${
+            type === 'direct' ? 'active' : ''
+          }`}
           onClick={() => setType('direct')}
         >
           Direct URL
@@ -824,7 +907,9 @@ function VideoSourcePopover({ onInsert, onClose }) {
 
       <input
         value={url}
-        onChange={(e) => setUrl(e.target.value)}
+        onChange={(e) =>
+          setUrl(e.target.value)
+        }
         placeholder={
           type === 'youtube'
             ? 'https://youtube.com/watch?v=...'
@@ -836,7 +921,11 @@ function VideoSourcePopover({ onInsert, onClose }) {
         style={{ marginBottom: 12 }}
       />
 
-      <button type="button" onClick={insert} className="s-btn s-btn-full">
+      <button
+        type="button"
+        onClick={insert}
+        className="s-btn s-btn-full"
+      >
         Insert Video
       </button>
 
@@ -869,8 +958,15 @@ function TablePopover({ onInsert, onClose }) {
   const [columns, setColumns] = useState(3);
 
   const insertTable = () => {
-    const safeRows = Math.min(Math.max(Number(rows) || 1, 1), 20);
-    const safeColumns = Math.min(Math.max(Number(columns) || 1, 1), 10);
+    const safeRows = Math.min(
+      Math.max(Number(rows) || 1, 1),
+      20
+    );
+
+    const safeColumns = Math.min(
+      Math.max(Number(columns) || 1, 1),
+      10
+    );
 
     let html = `
       <table>
@@ -909,11 +1005,24 @@ function TablePopover({ onInsert, onClose }) {
 
   return (
     <div className="media-popup">
-      <div className="popup-title">📊 Insert Table</div>
+      <div className="popup-title">
+        📊 Insert Table
+      </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr',
+          gap: 10,
+        }}
+      >
         <div>
-          <label style={{ fontSize: 11, fontWeight: 700 }}>
+          <label
+            style={{
+              fontSize: 11,
+              fontWeight: 700,
+            }}
+          >
             Rows
           </label>
 
@@ -922,14 +1031,21 @@ function TablePopover({ onInsert, onClose }) {
             min="1"
             max="20"
             value={rows}
-            onChange={(e) => setRows(e.target.value)}
+            onChange={(e) =>
+              setRows(e.target.value)
+            }
             className="s-input"
             style={{ marginTop: 5 }}
           />
         </div>
 
         <div>
-          <label style={{ fontSize: 11, fontWeight: 700 }}>
+          <label
+            style={{
+              fontSize: 11,
+              fontWeight: 700,
+            }}
+          >
             Columns
           </label>
 
@@ -938,7 +1054,9 @@ function TablePopover({ onInsert, onClose }) {
             min="1"
             max="10"
             value={columns}
-            onChange={(e) => setColumns(e.target.value)}
+            onChange={(e) =>
+              setColumns(e.target.value)
+            }
             className="s-input"
             style={{ marginTop: 5 }}
           />
@@ -977,27 +1095,40 @@ function TablePopover({ onInsert, onClose }) {
    RICH TEXT EDITOR
 ========================================================= */
 
-function RichTextEditor({ value, onChange, onImageClick }) {
+function RichTextEditor({
+  value,
+  onChange,
+  onImageClick,
+}) {
   const editorRef = useRef(null);
 
-  const [imagePopup, setImagePopup] = useState(false);
-  const [videoPopup, setVideoPopup] = useState(false);
-  const [tablePopup, setTablePopup] = useState(false);
+  const [imagePopup, setImagePopup] =
+    useState(false);
+
+  const [videoPopup, setVideoPopup] =
+    useState(false);
+
+  const [tablePopup, setTablePopup] =
+    useState(false);
 
   const savedRange = useRef(null);
 
   useEffect(() => {
     if (
       editorRef.current &&
-      editorRef.current.innerHTML !== (value || '')
+      editorRef.current.innerHTML !==
+        (value || '')
     ) {
-      editorRef.current.innerHTML = value || '';
+      editorRef.current.innerHTML =
+        value || '';
     }
   }, [value]);
 
   const emit = () => {
     if (editorRef.current) {
-      onChange(editorRef.current.innerHTML);
+      onChange(
+        editorRef.current.innerHTML
+      );
     }
   };
 
@@ -1008,12 +1139,23 @@ function RichTextEditor({ value, onChange, onImageClick }) {
 
     const selection = window.getSelection();
 
-    if (!selection || selection.rangeCount === 0) return;
+    if (
+      !selection ||
+      selection.rangeCount === 0
+    ) {
+      return;
+    }
 
-    const range = selection.getRangeAt(0);
+    const range =
+      selection.getRangeAt(0);
 
-    if (editor.contains(range.commonAncestorContainer)) {
-      savedRange.current = range.cloneRange();
+    if (
+      editor.contains(
+        range.commonAncestorContainer
+      )
+    ) {
+      savedRange.current =
+        range.cloneRange();
     }
   };
 
@@ -1028,14 +1170,23 @@ function RichTextEditor({ value, onChange, onImageClick }) {
 
     if (savedRange.current) {
       selection.removeAllRanges();
-      selection.addRange(savedRange.current);
+      selection.addRange(
+        savedRange.current
+      );
     }
   };
 
-  const exec = (command, valueArg = null) => {
+  const exec = (
+    command,
+    valueArg = null
+  ) => {
     restoreSelection();
 
-    document.execCommand(command, false, valueArg);
+    document.execCommand(
+      command,
+      false,
+      valueArg
+    );
 
     emit();
   };
@@ -1043,13 +1194,20 @@ function RichTextEditor({ value, onChange, onImageClick }) {
   const insertHTML = (html) => {
     restoreSelection();
 
-    document.execCommand('insertHTML', false, html);
+    document.execCommand(
+      'insertHTML',
+      false,
+      html
+    );
 
     emit();
   };
 
   const insertImageHtml = (src) => {
-    const safeSrc = String(src).replace(/"/g, '&quot;');
+    const safeSrc = String(src).replace(
+      /"/g,
+      '&quot;'
+    );
 
     insertHTML(`
       <img
@@ -1068,24 +1226,35 @@ function RichTextEditor({ value, onChange, onImageClick }) {
   };
 
   const handlePaste = (e) => {
-    const items = e.clipboardData?.items;
+    const items =
+      e.clipboardData?.items;
 
     if (!items) return;
 
-    for (let i = 0; i < items.length; i++) {
+    for (
+      let i = 0;
+      i < items.length;
+      i++
+    ) {
       const item = items[i];
 
-      if (item.type.startsWith('image/')) {
+      if (
+        item.type.startsWith('image/')
+      ) {
         e.preventDefault();
 
-        const file = item.getAsFile();
+        const file =
+          item.getAsFile();
 
         if (!file) return;
 
-        const reader = new FileReader();
+        const reader =
+          new FileReader();
 
         reader.onload = () => {
-          insertImageHtml(reader.result);
+          insertImageHtml(
+            reader.result
+          );
         };
 
         reader.readAsDataURL(file);
@@ -1099,21 +1268,33 @@ function RichTextEditor({ value, onChange, onImageClick }) {
     e.preventDefault();
     e.stopPropagation();
 
-    const files = e.dataTransfer?.files;
+    const files =
+      e.dataTransfer?.files;
 
     if (!files?.length) return;
 
-    Array.from(files).forEach((file) => {
-      if (!file.type.startsWith('image/')) return;
+    Array.from(files).forEach(
+      (file) => {
+        if (
+          !file.type.startsWith(
+            'image/'
+          )
+        ) {
+          return;
+        }
 
-      const reader = new FileReader();
+        const reader =
+          new FileReader();
 
-      reader.onload = () => {
-        insertImageHtml(reader.result);
-      };
+        reader.onload = () => {
+          insertImageHtml(
+            reader.result
+          );
+        };
 
-      reader.readAsDataURL(file);
-    });
+        reader.readAsDataURL(file);
+      }
+    );
   };
 
   const insertLink = () => {
@@ -1126,14 +1307,23 @@ function RichTextEditor({ value, onChange, onImageClick }) {
 
     if (!url) return;
 
-    if (!/^https?:\/\//i.test(url)) {
-      alert('Please enter a valid URL starting with http:// or https://');
+    if (
+      !/^https?:\/\//i.test(url)
+    ) {
+      alert(
+        'Please enter a valid URL starting with http:// or https://'
+      );
+
       return;
     }
 
     restoreSelection();
 
-    document.execCommand('createLink', false, url);
+    document.execCommand(
+      'createLink',
+      false,
+      url
+    );
 
     emit();
   };
@@ -1151,15 +1341,29 @@ function RichTextEditor({ value, onChange, onImageClick }) {
   const clearFormatting = () => {
     restoreSelection();
 
-    document.execCommand('removeFormat', false, null);
-    document.execCommand('unlink', false, null);
+    document.execCommand(
+      'removeFormat',
+      false,
+      null
+    );
+
+    document.execCommand(
+      'unlink',
+      false,
+      null
+    );
 
     emit();
   };
 
   const handleEditorClick = (e) => {
-    if (e.target.tagName === 'IMG' && onImageClick) {
-      onImageClick(e.target.src);
+    if (
+      e.target.tagName === 'IMG' &&
+      onImageClick
+    ) {
+      onImageClick(
+        e.target.src
+      );
     }
   };
 
@@ -1178,7 +1382,9 @@ function RichTextEditor({ value, onChange, onImageClick }) {
       type="button"
       title={title}
       className="editor-btn"
-      onMouseDown={(e) => e.preventDefault()}
+      onMouseDown={(e) =>
+        e.preventDefault()
+      }
       onClick={callback}
     >
       {label}
@@ -1189,20 +1395,28 @@ function RichTextEditor({ value, onChange, onImageClick }) {
     <div className="article-editor">
       <div className="editor-toolbar">
 
-        {/* FORMAT */}
         <select
           className="editor-select"
           defaultValue=""
-          onMouseDown={saveSelection}
+          onMouseDown={
+            saveSelection
+          }
           onChange={(e) => {
-            if (!e.target.value) return;
+            if (!e.target.value)
+              return;
 
-            exec('formatBlock', e.target.value);
+            exec(
+              'formatBlock',
+              e.target.value
+            );
 
             e.target.value = '';
           }}
         >
-          <option value="" disabled>
+          <option
+            value=""
+            disabled
+          >
             Format
           </option>
 
@@ -1233,7 +1447,6 @@ function RichTextEditor({ value, onChange, onImageClick }) {
 
         <div className="editor-divider" />
 
-        {/* TEXT */}
         {toolbarButton(
           'B',
           'Bold',
@@ -1255,49 +1468,58 @@ function RichTextEditor({ value, onChange, onImageClick }) {
         {toolbarButton(
           'S',
           'Strikethrough',
-          () => exec('strikeThrough')
+          () =>
+            exec('strikeThrough')
         )}
 
         <div className="editor-divider" />
 
-        {/* ALIGNMENT */}
         {toolbarButton(
           '⬅',
           'Align Left',
-          () => exec('justifyLeft')
+          () =>
+            exec('justifyLeft')
         )}
 
         {toolbarButton(
           '⬌',
           'Align Center',
-          () => exec('justifyCenter')
+          () =>
+            exec('justifyCenter')
         )}
 
         {toolbarButton(
           '➡',
           'Align Right',
-          () => exec('justifyRight')
+          () =>
+            exec('justifyRight')
         )}
 
         {toolbarButton(
           '↔',
           'Justify',
-          () => exec('justifyFull')
+          () =>
+            exec('justifyFull')
         )}
 
         <div className="editor-divider" />
 
-        {/* LIST */}
         {toolbarButton(
           '• List',
           'Bullet List',
-          () => exec('insertUnorderedList')
+          () =>
+            exec(
+              'insertUnorderedList'
+            )
         )}
 
         {toolbarButton(
           '1. List',
           'Numbered List',
-          () => exec('insertOrderedList')
+          () =>
+            exec(
+              'insertOrderedList'
+            )
         )}
 
         {toolbarButton(
@@ -1314,8 +1536,11 @@ function RichTextEditor({ value, onChange, onImageClick }) {
 
         <div className="editor-divider" />
 
-        {/* IMAGE */}
-        <div style={{ position: 'relative' }}>
+        <div
+          style={{
+            position: 'relative',
+          }}
+        >
           {toolbarButton(
             '🖼',
             'Insert Image',
@@ -1328,14 +1553,21 @@ function RichTextEditor({ value, onChange, onImageClick }) {
 
           {imagePopup && (
             <ImageSourcePopover
-              onInsert={insertImageHtml}
-              onClose={() => setImagePopup(false)}
+              onInsert={
+                insertImageHtml
+              }
+              onClose={() =>
+                setImagePopup(false)
+              }
             />
           )}
         </div>
 
-        {/* VIDEO */}
-        <div style={{ position: 'relative' }}>
+        <div
+          style={{
+            position: 'relative',
+          }}
+        >
           {toolbarButton(
             '🎥',
             'Insert Video',
@@ -1349,13 +1581,18 @@ function RichTextEditor({ value, onChange, onImageClick }) {
           {videoPopup && (
             <VideoSourcePopover
               onInsert={insertHTML}
-              onClose={() => setVideoPopup(false)}
+              onClose={() =>
+                setVideoPopup(false)
+              }
             />
           )}
         </div>
 
-        {/* TABLE */}
-        <div style={{ position: 'relative' }}>
+        <div
+          style={{
+            position: 'relative',
+          }}
+        >
           {toolbarButton(
             '📊',
             'Insert Table',
@@ -1369,33 +1606,35 @@ function RichTextEditor({ value, onChange, onImageClick }) {
           {tablePopup && (
             <TablePopover
               onInsert={insertHTML}
-              onClose={() => setTablePopup(false)}
+              onClose={() =>
+                setTablePopup(false)
+              }
             />
           )}
         </div>
 
-        {/* LINK */}
         {toolbarButton(
           '🔗',
           'Insert Link',
           insertLink
         )}
 
-        {/* QUOTE */}
         {toolbarButton(
           '❝',
           'Block Quote',
-          () => exec('formatBlock', '<blockquote>')
+          () =>
+            exec(
+              'formatBlock',
+              '<blockquote>'
+            )
         )}
 
-        {/* DIVIDER */}
         {toolbarButton(
           '―',
           'Horizontal Line',
           insertHorizontalRule
         )}
 
-        {/* CODE */}
         {toolbarButton(
           '</>',
           'Code Block',
@@ -1404,14 +1643,18 @@ function RichTextEditor({ value, onChange, onImageClick }) {
 
         <div className="editor-divider" />
 
-        {/* COLOR */}
         <input
           type="color"
           className="color-input"
           title="Text Color"
-          onMouseDown={saveSelection}
+          onMouseDown={
+            saveSelection
+          }
           onChange={(e) =>
-            exec('foreColor', e.target.value)
+            exec(
+              'foreColor',
+              e.target.value
+            )
           }
         />
 
@@ -1420,15 +1663,19 @@ function RichTextEditor({ value, onChange, onImageClick }) {
           className="color-input"
           title="Highlight Color"
           defaultValue="#fff59d"
-          onMouseDown={saveSelection}
+          onMouseDown={
+            saveSelection
+          }
           onChange={(e) =>
-            exec('hiliteColor', e.target.value)
+            exec(
+              'hiliteColor',
+              e.target.value
+            )
           }
         />
 
         <div className="editor-divider" />
 
-        {/* UNDO / REDO */}
         {toolbarButton(
           '↺',
           'Undo',
@@ -1463,8 +1710,12 @@ function RichTextEditor({ value, onChange, onImageClick }) {
         onKeyUp={saveSelection}
         onPaste={handlePaste}
         onDrop={handleDrop}
-        onDragOver={(e) => e.preventDefault()}
-        onClick={handleEditorClick}
+        onDragOver={(e) =>
+          e.preventDefault()
+        }
+        onClick={
+          handleEditorClick
+        }
       />
     </div>
   );
@@ -1475,15 +1726,26 @@ function RichTextEditor({ value, onChange, onImageClick }) {
 ========================================================= */
 
 export function StoriesList() {
-  const [stories, setStories] = useState([]);
-  const [total, setTotal] = useState(0);
-  const [page, setPage] = useState(1);
+  const [stories, setStories] =
+    useState([]);
 
-  const [search, setSearch] = useState('');
-  const [filterCat, setFilterCat] = useState('');
-  const [filterStatus, setFilterStatus] = useState('');
+  const [total, setTotal] =
+    useState(0);
 
-  const [loading, setLoading] = useState(true);
+  const [page, setPage] =
+    useState(1);
+
+  const [search, setSearch] =
+    useState('');
+
+  const [filterCat, setFilterCat] =
+    useState('');
+
+  const [filterStatus, setFilterStatus] =
+    useState('');
+
+  const [loading, setLoading] =
+    useState(true);
 
   const { can } = useAuth();
 
@@ -1495,19 +1757,31 @@ export function StoriesList() {
         page,
         limit: 12,
         search,
-        status: filterStatus || undefined,
+        status:
+          filterStatus || undefined,
       };
 
       if (filterCat) {
         params.category = filterCat;
       }
 
-      const res = await storiesAPI.getAll(params);
+      const res =
+        await storiesAPI.getAll(
+          params
+        );
 
-      setStories(res.data?.stories || []);
-      setTotal(res.data?.total || 0);
+      setStories(
+        res.data?.stories || []
+      );
+
+      setTotal(
+        res.data?.total || 0
+      );
     } catch (err) {
-      console.error('Failed to load stories:', err);
+      console.error(
+        'Failed to load stories:',
+        err
+      );
     } finally {
       setLoading(false);
     }
@@ -1515,10 +1789,22 @@ export function StoriesList() {
 
   useEffect(() => {
     load();
-  }, [page, filterCat, filterStatus]);
+  }, [
+    page,
+    filterCat,
+    filterStatus,
+  ]);
 
-  const handleDelete = async (id) => {
-    if (!window.confirm('Delete this story?')) return;
+  const handleDelete = async (
+    id
+  ) => {
+    if (
+      !window.confirm(
+        'Delete this story?'
+      )
+    ) {
+      return;
+    }
 
     try {
       await storiesAPI.delete(id);
@@ -1526,7 +1812,7 @@ export function StoriesList() {
     } catch (err) {
       alert(
         err.response?.data?.error ||
-        'Failed to delete story.'
+          'Failed to delete story.'
       );
     }
   };
@@ -1536,11 +1822,11 @@ export function StoriesList() {
       <ResponsiveStyles />
 
       <div className="s-container">
-
         <div
           style={{
             display: 'flex',
-            justifyContent: 'space-between',
+            justifyContent:
+              'space-between',
             alignItems: 'center',
             marginBottom: 28,
             flexWrap: 'wrap',
@@ -1552,8 +1838,10 @@ export function StoriesList() {
               fontWeight: 800,
               fontSize: '1.8rem',
               margin: 0,
-              letterSpacing: '-0.03em',
-              color: 'var(--text-main)',
+              letterSpacing:
+                '-0.03em',
+              color:
+                'var(--text-main)',
             }}
           >
             Content Library
@@ -1583,7 +1871,8 @@ export function StoriesList() {
               setSearch(e.target.value)
             }
             onKeyDown={(e) => {
-              if (e.key === 'Enter') load();
+              if (e.key === 'Enter')
+                load();
             }}
             placeholder="Search headlines..."
             className="s-input"
@@ -1596,7 +1885,9 @@ export function StoriesList() {
           <select
             value={filterCat}
             onChange={(e) => {
-              setFilterCat(e.target.value);
+              setFilterCat(
+                e.target.value
+              );
               setPage(1);
             }}
             className="s-select"
@@ -1609,20 +1900,24 @@ export function StoriesList() {
               All Categories
             </option>
 
-            {CATEGORIES.map((category) => (
-              <option
-                key={category}
-                value={category}
-              >
-                {category}
-              </option>
-            ))}
+            {CATEGORIES.map(
+              (category) => (
+                <option
+                  key={category}
+                  value={category}
+                >
+                  {category}
+                </option>
+              )
+            )}
           </select>
 
           <select
             value={filterStatus}
             onChange={(e) => {
-              setFilterStatus(e.target.value);
+              setFilterStatus(
+                e.target.value
+              );
               setPage(1);
             }}
             className="s-select"
@@ -1680,194 +1975,232 @@ export function StoriesList() {
                     'Status',
                     'Date',
                     'Actions',
-                  ].map((heading) => (
-                    <th key={heading}>
-                      {heading}
-                    </th>
-                  ))}
+                  ].map(
+                    (heading) => (
+                      <th key={heading}>
+                        {heading}
+                      </th>
+                    )
+                  )}
                 </tr>
               </thead>
 
               <tbody>
-                {stories.length === 0 ? (
+                {stories.length ===
+                0 ? (
                   <tr>
                     <td
                       colSpan="8"
                       style={{
                         padding: 50,
-                        textAlign: 'center',
-                        color: '#94a3b8',
+                        textAlign:
+                          'center',
+                        color:
+                          '#94a3b8',
                       }}
                     >
                       No stories found.
                     </td>
                   </tr>
                 ) : (
-                  stories.map((story) => (
-                    <tr key={story.id}>
-                      <td>
-                        <img
-                          src={getImgUrl(story.image)}
-                          alt=""
-                          style={{
-                            width: 56,
-                            height: 56,
-                            borderRadius: 12,
-                            objectFit: 'cover',
-                          }}
-                          onError={(e) => {
-                            e.currentTarget.onerror = null;
-                            e.currentTarget.src =
-                              PLACEHOLDER;
-                          }}
-                        />
-                      </td>
+                  stories.map(
+                    (story) => (
+                      <tr
+                        key={story.id}
+                      >
+                        <td>
+                          <img
+                            src={getImgUrl(
+                              story.image
+                            )}
+                            alt=""
+                            style={{
+                              width: 56,
+                              height: 56,
+                              borderRadius:
+                                12,
+                              objectFit:
+                                'cover',
+                            }}
+                            onError={(
+                              e
+                            ) => {
+                              e.currentTarget.onerror =
+                                null;
 
-                      <td>
-                        <div
+                              e.currentTarget.src =
+                                PLACEHOLDER;
+                            }}
+                          />
+                        </td>
+
+                        <td>
+                          <div
+                            style={{
+                              fontWeight: 700,
+                              fontSize: 14,
+                              overflow:
+                                'hidden',
+                              textOverflow:
+                                'ellipsis',
+                              whiteSpace:
+                                'nowrap',
+                              marginBottom: 2,
+                              color:
+                                'var(--text-main)',
+                            }}
+                          >
+                            {story.title}
+                          </div>
+
+                          <div
+                            style={{
+                              fontSize: 12,
+                              color:
+                                'var(--text-faint)',
+                            }}
+                          >
+                            ID: {story.id}
+                          </div>
+                        </td>
+
+                        <td>
+                          <span
+                            className="badge"
+                            style={{
+                              background:
+                                '#f1f5f9',
+                              color:
+                                '#475569',
+                            }}
+                          >
+                            {
+                              story.category
+                            }
+                          </span>
+                        </td>
+
+                        <td
+                          style={{
+                            color:
+                              'var(--text-muted)',
+                            fontWeight: 500,
+                          }}
+                        >
+                          {
+                            story.author
+                          }
+                        </td>
+
+                        <td
                           style={{
                             fontWeight: 700,
-                            fontSize: 14,
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap',
-                            marginBottom: 2,
-                            color: 'var(--text-main)',
+                            color:
+                              '#0369a1',
                           }}
                         >
-                          {story.title}
-                        </div>
+                          {Number(
+                            story.views ||
+                              0
+                          ).toLocaleString()}
+                        </td>
 
-                        <div
+                        <td>
+                          <span
+                            className="badge"
+                            style={{
+                              background:
+                                story.status ===
+                                'published'
+                                  ? '#dcfce7'
+                                  : story.status ===
+                                    'scheduled'
+                                  ? '#e0f2fe'
+                                  : '#f1f5f9',
+
+                              color:
+                                story.status ===
+                                'published'
+                                  ? '#166534'
+                                  : story.status ===
+                                    'scheduled'
+                                  ? '#0369a1'
+                                  : '#475569',
+                            }}
+                          >
+                            {story.status?.toUpperCase()}
+                          </span>
+                        </td>
+
+                        <td
                           style={{
                             fontSize: 12,
-                            color: 'var(--text-faint)',
-                          }}
-                        >
-                          ID: {story.id}
-                        </div>
-                      </td>
-
-                      <td>
-                        <span
-                          className="badge"
-                          style={{
-                            background: '#f1f5f9',
-                            color: '#475569',
-                          }}
-                        >
-                          {story.category}
-                        </span>
-                      </td>
-
-                      <td
-                        style={{
-                          color: 'var(--text-muted)',
-                          fontWeight: 500,
-                        }}
-                      >
-                        {story.author}
-                      </td>
-
-                      <td
-                        style={{
-                          fontWeight: 700,
-                          color: '#0369a1',
-                        }}
-                      >
-                        {Number(
-                          story.views || 0
-                        ).toLocaleString()}
-                      </td>
-
-                      <td>
-                        <span
-                          className="badge"
-                          style={{
-                            background:
-                              story.status ===
-                              'published'
-                                ? '#dcfce7'
-                                : story.status ===
-                                  'scheduled'
-                                ? '#e0f2fe'
-                                : '#f1f5f9',
-
                             color:
-                              story.status ===
-                              'published'
-                                ? '#166534'
-                                : story.status ===
-                                  'scheduled'
-                                ? '#0369a1'
-                                : '#475569',
+                              'var(--text-faint)',
                           }}
                         >
-                          {story.status?.toUpperCase()}
-                        </span>
-                      </td>
+                          {story.created_at
+                            ? new Date(
+                                story.created_at
+                              ).toLocaleDateString()
+                            : '-'}
+                        </td>
 
-                      <td
-                        style={{
-                          fontSize: 12,
-                          color: 'var(--text-faint)',
-                        }}
-                      >
-                        {story.created_at
-                          ? new Date(
-                              story.created_at
-                            ).toLocaleDateString()
-                          : '-'}
-                      </td>
-
-                      <td>
-                        <div
-                          style={{
-                            display: 'flex',
-                            gap: 6,
-                            flexWrap: 'nowrap',
-                          }}
-                        >
-                          <Link
-                            to={`/story/${story.id}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="s-btn s-btn-outline"
+                        <td>
+                          <div
                             style={{
-                              padding: '6px 10px',
-                              fontSize: 12,
+                              display:
+                                'flex',
+                              gap: 6,
+                              flexWrap:
+                                'nowrap',
                             }}
                           >
-                            View
-                          </Link>
-
-                          <Link
-                            to={`/admin/stories/edit/${story.id}`}
-                            className="s-btn"
-                            style={{
-                              padding: '6px 10px',
-                              fontSize: 12,
-                            }}
-                          >
-                            Edit
-                          </Link>
-
-                          {can('delete_content') && (
-                            <button
-                              onClick={() =>
-                                handleDelete(
-                                  story.id
-                                )
-                              }
-                              className="s-btn s-btn-danger"
+                            <Link
+                              to={`/story/${story.id}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="s-btn s-btn-outline"
+                              style={{
+                                padding:
+                                  '6px 10px',
+                                fontSize: 12,
+                              }}
                             >
-                              Del
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))
+                              View
+                            </Link>
+
+                            <Link
+                              to={`/admin/stories/edit/${story.id}`}
+                              className="s-btn"
+                              style={{
+                                padding:
+                                  '6px 10px',
+                                fontSize: 12,
+                              }}
+                            >
+                              Edit
+                            </Link>
+
+                            {can(
+                              'delete_content'
+                            ) && (
+                              <button
+                                onClick={() =>
+                                  handleDelete(
+                                    story.id
+                                  )
+                                }
+                                className="s-btn s-btn-danger"
+                              >
+                                Del
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  )
                 )}
               </tbody>
             </table>
@@ -1876,7 +2209,8 @@ export function StoriesList() {
           {!loading && (
             <div
               style={{
-                padding: '16px 20px',
+                padding:
+                  '16px 20px',
                 borderTop:
                   '1px solid #f1f5f9',
                 display: 'flex',
@@ -1890,7 +2224,8 @@ export function StoriesList() {
               <span
                 style={{
                   fontSize: 13,
-                  color: 'var(--text-faint)',
+                  color:
+                    'var(--text-faint)',
                   fontWeight: 600,
                 }}
               >
@@ -1901,12 +2236,15 @@ export function StoriesList() {
                 style={{
                   display: 'flex',
                   gap: 6,
-                  flexWrap: 'wrap',
+                  flexWrap:
+                    'wrap',
                 }}
               >
                 {[
                   ...Array(
-                    Math.ceil(total / 12)
+                    Math.ceil(
+                      total / 12
+                    )
                   ).keys(),
                 ]
                   .slice(0, 8)
@@ -1914,21 +2252,27 @@ export function StoriesList() {
                     <button
                       key={i}
                       onClick={() =>
-                        setPage(i + 1)
+                        setPage(
+                          i + 1
+                        )
                       }
                       className="s-btn"
                       style={{
-                        padding: '6px 12px',
+                        padding:
+                          '6px 12px',
                         background:
-                          page === i + 1
+                          page ===
+                          i + 1
                             ? 'linear-gradient(135deg,var(--primary),var(--primary-light))'
                             : '#fff',
                         color:
-                          page === i + 1
+                          page ===
+                          i + 1
                             ? '#fff'
                             : '#475569',
                         border:
-                          page === i + 1
+                          page ===
+                          i + 1
                             ? 'none'
                             : '2px solid var(--border)',
                         fontSize: 13,
@@ -1958,29 +2302,36 @@ export function StoryForm() {
 
   const navigate = useNavigate();
 
-  const [authors, setAuthors] = useState([]);
+  const [authors, setAuthors] =
+    useState([]);
 
-  const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
+  const [loading, setLoading] =
+    useState(false);
 
-  const [error, setError] = useState('');
+  const [saving, setSaving] =
+    useState(false);
 
-  const [preview, setPreview] = useState(null);
+  const [error, setError] =
+    useState('');
+
+  const [preview, setPreview] =
+    useState(null);
 
   const fileRef = useRef(null);
 
-  const [form, setForm] = useState({
-    title: '',
-    category: 'Business',
-    subcategory: '',
-    description: '',
-    author_id: '',
-    tags: '',
-    meta_description: '',
-    status: 'published',
-    scheduled_at: '',
-    featured: false,
-  });
+  const [form, setForm] =
+    useState({
+      title: '',
+      category: 'Business',
+      subcategory: '',
+      description: '',
+      author_id: '',
+      tags: '',
+      meta_description: '',
+      status: 'published',
+      scheduled_at: '',
+      featured: false,
+    });
 
   /* =====================================================
      LOAD AUTHORS / STORY
@@ -1994,7 +2345,9 @@ export function StoryForm() {
       .then((response) => {
         if (!mounted) return;
 
-        setAuthors(response.data || []);
+        setAuthors(
+          response.data || []
+        );
       })
       .catch((err) => {
         console.error(
@@ -2011,34 +2364,50 @@ export function StoryForm() {
         .then((response) => {
           if (!mounted) return;
 
-          const story = response.data;
+          const story =
+            response.data;
 
           setForm({
-            title: story.title || '',
+            title:
+              story.title || '',
             category:
-              story.category || 'Business',
+              story.category ||
+              'Business',
             subcategory:
-              story.subcategory || '',
+              story.subcategory ||
+              '',
             description:
-              story.description || '',
+              story.description ||
+              '',
             author_id:
-              story.author_id || '',
-            tags: story.tags || '',
+              story.author_id ||
+              '',
+            tags:
+              story.tags || '',
             meta_description:
-              story.meta_description || '',
+              story.meta_description ||
+              '',
             status:
-              story.status || 'published',
-            scheduled_at: story.scheduled_at
-              ? story.scheduled_at.slice(0, 16)
-              : '',
-            featured: Boolean(
-              story.featured
-            ),
+              story.status ||
+              'published',
+            scheduled_at:
+              story.scheduled_at
+                ? story.scheduled_at.slice(
+                    0,
+                    16
+                  )
+                : '',
+            featured:
+              Boolean(
+                story.featured
+              ),
           });
 
           if (story.image) {
             setPreview(
-              getImgUrl(story.image)
+              getImgUrl(
+                story.image
+              )
             );
           }
         })
@@ -2081,7 +2450,9 @@ export function StoryForm() {
         );
       }
 
-      if (!form.description.trim()) {
+      if (
+        !form.description.trim()
+      ) {
         throw new Error(
           'Story content is required.'
         );
@@ -2093,7 +2464,8 @@ export function StoryForm() {
         );
       }
 
-      const formData = new FormData();
+      const formData =
+        new FormData();
 
       Object.entries(form).forEach(
         ([key, value]) => {
@@ -2107,7 +2479,9 @@ export function StoryForm() {
         }
       );
 
-      if (fileRef.current?.files?.[0]) {
+      if (
+        fileRef.current?.files?.[0]
+      ) {
         formData.append(
           'image',
           fileRef.current.files[0]
@@ -2178,7 +2552,6 @@ export function StoryForm() {
 
       <div className="s-container">
 
-        {/* HEADER */}
         <div
           style={{
             display: 'flex',
@@ -2196,7 +2569,8 @@ export function StoryForm() {
                 fontWeight: 800,
                 fontSize: '1.8rem',
                 margin: 0,
-                letterSpacing: '-0.03em',
+                letterSpacing:
+                  '-0.03em',
                 color:
                   'var(--text-main)',
               }}
@@ -2208,7 +2582,8 @@ export function StoryForm() {
 
             <p
               style={{
-                margin: '6px 0 0',
+                margin:
+                  '6px 0 0',
                 color:
                   'var(--text-muted)',
                 fontSize: 13,
@@ -2227,13 +2602,13 @@ export function StoryForm() {
           </Link>
         </div>
 
-        {/* ERROR */}
         {error && (
           <div
             style={{
               background: '#fef2f2',
               color: '#b91c1c',
-              padding: '14px 18px',
+              padding:
+                '14px 18px',
               borderRadius: 12,
               marginBottom: 24,
               fontSize: 14,
@@ -2246,18 +2621,15 @@ export function StoryForm() {
           </div>
         )}
 
-        <form onSubmit={handleSubmit}>
-
+        <form
+          onSubmit={handleSubmit}
+        >
           <div
             className="grid-1 grid-form-table"
             style={{
               display: 'grid',
             }}
           >
-
-            {/* =================================================
-                MAIN CONTENT
-            ================================================= */}
 
             <div
               style={{
@@ -2268,20 +2640,19 @@ export function StoryForm() {
               }}
             >
 
-              {/* HEADLINE + BODY */}
               <div className="s-card">
 
-                {/* TITLE */}
                 <div className="s-input-group">
-
                   <input
                     value={form.title}
                     onChange={(e) =>
-                      setForm((current) => ({
-                        ...current,
-                        title:
-                          e.target.value,
-                      }))
+                      setForm(
+                        (current) => ({
+                          ...current,
+                          title:
+                            e.target.value,
+                        })
+                      )
                     }
                     required
                     placeholder=" "
@@ -2301,7 +2672,6 @@ export function StoryForm() {
                   </label>
                 </div>
 
-                {/* CONTENT */}
                 <div
                   style={{
                     marginBottom: 24,
@@ -2351,7 +2721,9 @@ export function StoryForm() {
                     value={
                       form.description
                     }
-                    onChange={(html) =>
+                    onChange={(
+                      html
+                    ) =>
                       setForm(
                         (current) => ({
                           ...current,
@@ -2383,7 +2755,6 @@ export function StoryForm() {
                   </p>
                 </div>
 
-                {/* SEO */}
                 <div
                   className="s-input-group"
                   style={{
@@ -2399,8 +2770,7 @@ export function StoryForm() {
                         (current) => ({
                           ...current,
                           meta_description:
-                            e.target
-                              .value,
+                            e.target.value,
                         })
                       )
                     }
@@ -2409,7 +2779,8 @@ export function StoryForm() {
                     rows={3}
                     className="s-input"
                     style={{
-                      resize: 'vertical',
+                      resize:
+                        'vertical',
                     }}
                   />
 
@@ -2427,7 +2798,6 @@ export function StoryForm() {
                 </div>
               </div>
 
-              {/* FEATURED IMAGE */}
               <div className="s-card">
 
                 <label
@@ -2459,7 +2829,8 @@ export function StoryForm() {
                     padding: preview
                       ? 12
                       : 40,
-                    textAlign: 'center',
+                    textAlign:
+                      'center',
                     cursor: 'pointer',
                     background:
                       'var(--bg-subtle)',
@@ -2548,10 +2919,6 @@ export function StoryForm() {
               </div>
             </div>
 
-            {/* =================================================
-                SIDEBAR
-            ================================================= */}
-
             <div
               className="sidebar-section"
               style={{
@@ -2562,7 +2929,6 @@ export function StoryForm() {
               }}
             >
 
-              {/* PUBLISH */}
               <div className="s-card">
 
                 <h3 className="s-card-title">
@@ -2576,8 +2942,7 @@ export function StoryForm() {
                       (current) => ({
                         ...current,
                         status:
-                          e.target
-                            .value,
+                          e.target.value,
                       })
                     )
                   }
@@ -2599,7 +2964,6 @@ export function StoryForm() {
                 {form.status ===
                   'scheduled' && (
                   <div className="s-input-group">
-
                     <input
                       type="datetime-local"
                       value={
@@ -2610,8 +2974,7 @@ export function StoryForm() {
                           (current) => ({
                             ...current,
                             scheduled_at:
-                              e.target
-                                .value,
+                              e.target.value,
                           })
                         )
                       }
@@ -2640,8 +3003,7 @@ export function StoryForm() {
                     alignItems:
                       'center',
                     gap: 10,
-                    cursor:
-                      'pointer',
+                    cursor: 'pointer',
                     marginBottom: 20,
                     fontSize: 14,
                     fontWeight: 600,
@@ -2657,8 +3019,7 @@ export function StoryForm() {
                         (current) => ({
                           ...current,
                           featured:
-                            e.target
-                              .checked,
+                            e.target.checked,
                         })
                       )
                     }
@@ -2686,7 +3047,6 @@ export function StoryForm() {
                 </button>
               </div>
 
-              {/* CATEGORY */}
               <div className="s-card">
 
                 <h3 className="s-card-title">
@@ -2702,8 +3062,7 @@ export function StoryForm() {
                       (current) => ({
                         ...current,
                         category:
-                          e.target
-                            .value,
+                          e.target.value,
                       })
                     )
                   }
@@ -2714,9 +3073,7 @@ export function StoryForm() {
                     (category) => (
                       <option
                         key={category}
-                        value={
-                          category
-                        }
+                        value={category}
                       >
                         {category}
                       </option>
@@ -2725,7 +3082,6 @@ export function StoryForm() {
                 </select>
 
                 <div className="s-input-group">
-
                   <input
                     value={
                       form.subcategory
@@ -2735,8 +3091,7 @@ export function StoryForm() {
                         (current) => ({
                           ...current,
                           subcategory:
-                            e.target
-                              .value,
+                            e.target.value,
                         })
                       )
                     }
@@ -2759,15 +3114,13 @@ export function StoryForm() {
                     marginBottom: 0,
                   }}
                 >
-
                   <input
                     value={form.tags}
                     onChange={(e) =>
                       setForm(
                         (current) => ({
                           ...current,
-                          tags: e.target
-                            .value,
+                          tags: e.target.value,
                         })
                       )
                     }
@@ -2786,7 +3139,6 @@ export function StoryForm() {
                 </div>
               </div>
 
-              {/* AUTHOR */}
               <div className="s-card">
 
                 <h3 className="s-card-title">
@@ -2802,8 +3154,7 @@ export function StoryForm() {
                       (current) => ({
                         ...current,
                         author_id:
-                          e.target
-                            .value,
+                          e.target.value,
                       })
                     )
                   }
@@ -2840,7 +3191,6 @@ export function StoryForm() {
                   + Add new author
                 </Link>
               </div>
-
             </div>
           </div>
         </form>
@@ -2854,3 +3204,4 @@ export function StoryForm() {
 ========================================================= */
 
 export default StoryForm;
+
