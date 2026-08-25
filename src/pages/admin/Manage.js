@@ -41,7 +41,7 @@ const getImgUrl = (path) => {
     return PLACEHOLDER;
   }
 
-  let cleanPath = value
+  const cleanPath = value
     .replace(/^uploads[\\/]/i, '')
     .replace(/^\/+/, '');
 
@@ -290,7 +290,10 @@ const responsiveCSS = `
    SMALL HELPERS
 ============================================================ */
 
-const getErrorMessage = (error, fallback = 'Something went wrong.') => {
+const getErrorMessage = (
+  error,
+  fallback = 'Something went wrong.'
+) => {
   return (
     error?.response?.data?.message ||
     error?.response?.data?.error ||
@@ -324,6 +327,162 @@ const formatDateTime = (date) => {
 };
 
 /* ============================================================
+   PAGINATION
+============================================================ */
+
+const ITEMS_PER_PAGE = 10;
+
+function Pagination({
+  currentPage,
+  totalItems,
+  itemsPerPage = ITEMS_PER_PAGE,
+  onPageChange,
+}) {
+  const totalPages = Math.ceil(
+    totalItems / itemsPerPage
+  );
+
+  if (totalPages <= 1) {
+    return null;
+  }
+
+  const pages = [];
+
+  for (let i = 1; i <= totalPages; i += 1) {
+    pages.push(i);
+  }
+
+  const firstItem =
+    totalItems === 0
+      ? 0
+      : (currentPage - 1) * itemsPerPage + 1;
+
+  const lastItem = Math.min(
+    currentPage * itemsPerPage,
+    totalItems
+  );
+
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 12,
+        flexWrap: 'wrap',
+        padding: 16,
+        borderTop: '1px solid #e2e8f0',
+        background: '#fff',
+      }}
+    >
+      <div
+        style={{
+          fontSize: 12,
+          color: '#64748b',
+          fontWeight: 600,
+        }}
+      >
+        Showing {firstItem} - {lastItem} of {totalItems}
+      </div>
+
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 5,
+          flexWrap: 'wrap',
+        }}
+      >
+        <button
+          type="button"
+          disabled={currentPage === 1}
+          onClick={() => onPageChange(currentPage - 1)}
+          style={{
+            padding: '7px 11px',
+            border: '1px solid #e2e8f0',
+            borderRadius: 7,
+            background:
+              currentPage === 1
+                ? '#f8fafc'
+                : '#fff',
+            color:
+              currentPage === 1
+                ? '#cbd5e1'
+                : '#334155',
+            cursor:
+              currentPage === 1
+                ? 'not-allowed'
+                : 'pointer',
+            fontWeight: 700,
+            fontSize: 12,
+          }}
+        >
+          ← Previous
+        </button>
+
+        {pages.map((page) => (
+          <button
+            key={page}
+            type="button"
+            onClick={() => onPageChange(page)}
+            style={{
+              minWidth: 34,
+              height: 34,
+              padding: '0 9px',
+              border:
+                currentPage === page
+                  ? '1px solid #1a472a'
+                  : '1px solid #e2e8f0',
+              borderRadius: 7,
+              background:
+                currentPage === page
+                  ? '#1a472a'
+                  : '#fff',
+              color:
+                currentPage === page
+                  ? '#fff'
+                  : '#475569',
+              cursor: 'pointer',
+              fontWeight: 800,
+              fontSize: 12,
+            }}
+          >
+            {page}
+          </button>
+        ))}
+
+        <button
+          type="button"
+          disabled={currentPage === totalPages}
+          onClick={() => onPageChange(currentPage + 1)}
+          style={{
+            padding: '7px 11px',
+            border: '1px solid #e2e8f0',
+            borderRadius: 7,
+            background:
+              currentPage === totalPages
+                ? '#f8fafc'
+                : '#fff',
+            color:
+              currentPage === totalPages
+                ? '#cbd5e1'
+                : '#334155',
+            cursor:
+              currentPage === totalPages
+                ? 'not-allowed'
+                : 'pointer',
+            fontWeight: 700,
+            fontSize: 12,
+          }}
+        >
+          Next →
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================
    AUTHORS
 ============================================================ */
 
@@ -351,10 +510,16 @@ function AuthorForm({
   setOpenSection,
 }) {
   const toggleSection = (section) => {
-    setOpenSection(openSection === section ? '' : section);
+    setOpenSection(
+      openSection === section ? '' : section
+    );
   };
 
-  const FormSection = ({ title, id, children }) => (
+  const FormSection = ({
+    title,
+    id,
+    children,
+  }) => (
     <div className="author-section">
       <button
         type="button"
@@ -362,7 +527,9 @@ function AuthorForm({
         onClick={() => toggleSection(id)}
       >
         <span>{title}</span>
-        <span>{openSection === id ? '−' : '+'}</span>
+        <span>
+          {openSection === id ? '−' : '+'}
+        </span>
       </button>
 
       {openSection === id && (
@@ -382,50 +549,73 @@ function AuthorForm({
 
   return (
     <>
-      <FormSection title="👤 Basic Information" id="basic">
-        <label style={labelStyle}>Full Name *</label>
+      <FormSection
+        title="👤 Basic Information"
+        id="basic"
+      >
+        <label style={labelStyle}>
+          Full Name *
+        </label>
 
         <input
           value={data.name}
-          onChange={(e) => update('name', e.target.value)}
+          onChange={(e) =>
+            update('name', e.target.value)
+          }
           required
           placeholder="Author name..."
           style={inputStyle}
         />
 
-        <label style={labelStyle}>Email</label>
+        <label style={labelStyle}>
+          Email
+        </label>
 
         <input
           type="email"
           value={data.email}
-          onChange={(e) => update('email', e.target.value)}
+          onChange={(e) =>
+            update('email', e.target.value)
+          }
           placeholder="author@mfn.com"
           style={inputStyle}
         />
 
-        <label style={labelStyle}>Phone</label>
+        <label style={labelStyle}>
+          Phone
+        </label>
 
         <input
           value={data.phone}
-          onChange={(e) => update('phone', e.target.value)}
+          onChange={(e) =>
+            update('phone', e.target.value)
+          }
           placeholder="+250..."
           style={inputStyle}
         />
 
-        <label style={labelStyle}>Location</label>
+        <label style={labelStyle}>
+          Location
+        </label>
 
         <input
           value={data.location}
-          onChange={(e) => update('location', e.target.value)}
+          onChange={(e) =>
+            update('location', e.target.value)
+          }
           placeholder="Kigali, Rwanda"
           style={inputStyle}
         />
 
-        <label style={labelStyle}>Bio</label>
+        <label style={labelStyle}>
+          Bio
+        </label>
 
         <textarea
           value={data.bio}
-          onChange={(e) => update('bio', e.target.value)}
+          onChange={(e) =>
+            update('bio', e.target.value)
+          }
           rows={4}
           placeholder="Short biography..."
           style={{
@@ -434,7 +624,9 @@ function AuthorForm({
           }}
         />
 
-        <label style={labelStyle}>Profile Image</label>
+        <label style={labelStyle}>
+          Profile Image
+        </label>
 
         <input
           ref={imageRef}
@@ -453,12 +645,17 @@ function AuthorForm({
       >
         <div className="author-social-grid">
           <div>
-            <label style={labelStyle}>Portfolio Website</label>
+            <label style={labelStyle}>
+              Portfolio Website
+            </label>
 
             <input
               value={data.portfolio}
               onChange={(e) =>
-                update('portfolio', e.target.value)
+                update(
+                  'portfolio',
+                  e.target.value
+                )
               }
               placeholder="https://yourportfolio.com"
               style={inputStyle}
@@ -466,12 +663,17 @@ function AuthorForm({
           </div>
 
           <div>
-            <label style={labelStyle}>LinkedIn</label>
+            <label style={labelStyle}>
+              LinkedIn
+            </label>
 
             <input
               value={data.linkedin}
               onChange={(e) =>
-                update('linkedin', e.target.value)
+                update(
+                  'linkedin',
+                  e.target.value
+                )
               }
               placeholder="LinkedIn URL"
               style={inputStyle}
@@ -479,12 +681,17 @@ function AuthorForm({
           </div>
 
           <div>
-            <label style={labelStyle}>Facebook</label>
+            <label style={labelStyle}>
+              Facebook
+            </label>
 
             <input
               value={data.facebook}
               onChange={(e) =>
-                update('facebook', e.target.value)
+                update(
+                  'facebook',
+                  e.target.value
+                )
               }
               placeholder="Facebook URL"
               style={inputStyle}
@@ -492,12 +699,17 @@ function AuthorForm({
           </div>
 
           <div>
-            <label style={labelStyle}>Instagram</label>
+            <label style={labelStyle}>
+              Instagram
+            </label>
 
             <input
               value={data.instagram}
               onChange={(e) =>
-                update('instagram', e.target.value)
+                update(
+                  'instagram',
+                  e.target.value
+                )
               }
               placeholder="@username / URL"
               style={inputStyle}
@@ -505,12 +717,17 @@ function AuthorForm({
           </div>
 
           <div>
-            <label style={labelStyle}>X / Twitter</label>
+            <label style={labelStyle}>
+              X / Twitter
+            </label>
 
             <input
               value={data.twitter}
               onChange={(e) =>
-                update('twitter', e.target.value)
+                update(
+                  'twitter',
+                  e.target.value
+                )
               }
               placeholder="@username / URL"
               style={inputStyle}
@@ -518,12 +735,17 @@ function AuthorForm({
           </div>
 
           <div>
-            <label style={labelStyle}>YouTube</label>
+            <label style={labelStyle}>
+              YouTube
+            </label>
 
             <input
               value={data.youtube}
               onChange={(e) =>
-                update('youtube', e.target.value)
+                update(
+                  'youtube',
+                  e.target.value
+                )
               }
               placeholder="YouTube channel URL"
               style={inputStyle}
@@ -543,7 +765,10 @@ function AuthorForm({
         <textarea
           value={data.expertise}
           onChange={(e) =>
-            update('expertise', e.target.value)
+            update(
+              'expertise',
+              e.target.value
+            )
           }
           rows={3}
           placeholder="Sports journalism, politics, technology..."
@@ -560,7 +785,10 @@ function AuthorForm({
         <textarea
           value={data.achievements}
           onChange={(e) =>
-            update('achievements', e.target.value)
+            update(
+              'achievements',
+              e.target.value
+            )
           }
           rows={3}
           placeholder="Awards, certificates, major achievements..."
@@ -577,18 +805,24 @@ function AuthorForm({
 export function Authors() {
   const [authors, setAuthors] = useState([]);
   const [form, setForm] = useState(emptyAuthor);
-  const [editForm, setEditForm] = useState(emptyAuthor);
+  const [editForm, setEditForm] =
+    useState(emptyAuthor);
 
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const [editing, setEditing] = useState(false);
-  const [editAuthor, setEditAuthor] = useState(null);
+  const [editAuthor, setEditAuthor] =
+    useState(null);
 
-  const [openSection, setOpenSection] = useState('basic');
+  const [openSection, setOpenSection] =
+    useState('basic');
 
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+
+  const [currentPage, setCurrentPage] =
+    useState(1);
 
   const fileRef = useRef(null);
   const editFileRef = useRef(null);
@@ -600,16 +834,27 @@ export function Authors() {
       setLoading(true);
       setError('');
 
-      const response = await authorsAPI.getAll();
+      const response =
+        await authorsAPI.getAll();
 
-      setAuthors(
-        Array.isArray(response.data)
-          ? response.data
-          : response.data?.authors || []
-      );
+      const data = Array.isArray(response.data)
+        ? response.data
+        : response.data?.authors || [];
+
+      setAuthors(data);
+      setCurrentPage(1);
     } catch (err) {
-      console.error('Failed to load authors:', err);
-      setError(getErrorMessage(err, 'Failed to load authors.'));
+      console.error(
+        'Failed to load authors:',
+        err
+      );
+
+      setError(
+        getErrorMessage(
+          err,
+          'Failed to load authors.'
+        )
+      );
     } finally {
       setLoading(false);
     }
@@ -619,11 +864,19 @@ export function Authors() {
     load();
   }, []);
 
+  const paginatedAuthors =
+    authors.slice(
+      (currentPage - 1) * ITEMS_PER_PAGE,
+      currentPage * ITEMS_PER_PAGE
+    );
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
     if (!form.name.trim()) {
-      setError('Author name is required.');
+      setError(
+        'Author name is required.'
+      );
       return;
     }
 
@@ -634,9 +887,11 @@ export function Authors() {
 
       const fd = new FormData();
 
-      Object.entries(form).forEach(([key, value]) => {
-        fd.append(key, value || '');
-      });
+      Object.entries(form).forEach(
+        ([key, value]) => {
+          fd.append(key, value || '');
+        }
+      );
 
       if (fileRef.current?.files?.[0]) {
         fd.append(
@@ -653,11 +908,17 @@ export function Authors() {
         fileRef.current.value = '';
       }
 
-      setSuccess('Author created successfully.');
+      setSuccess(
+        'Author created successfully.'
+      );
 
       await load();
     } catch (err) {
-      console.error('Create author error:', err);
+      console.error(
+        'Create author error:',
+        err
+      );
+
       setError(
         getErrorMessage(
           err,
@@ -677,15 +938,23 @@ export function Authors() {
       bio: author.bio || '',
       email: author.email || '',
       twitter: author.twitter || '',
-      portfolio: author.portfolio || '',
-      linkedin: author.linkedin || '',
-      facebook: author.facebook || '',
-      instagram: author.instagram || '',
-      youtube: author.youtube || '',
+      portfolio:
+        author.portfolio || '',
+      linkedin:
+        author.linkedin || '',
+      facebook:
+        author.facebook || '',
+      instagram:
+        author.instagram || '',
+      youtube:
+        author.youtube || '',
       phone: author.phone || '',
-      location: author.location || '',
-      expertise: author.expertise || '',
-      achievements: author.achievements || '',
+      location:
+        author.location || '',
+      expertise:
+        author.expertise || '',
+      achievements:
+        author.achievements || '',
     });
 
     setOpenSection('basic');
@@ -699,7 +968,9 @@ export function Authors() {
     if (!editAuthor) return;
 
     if (!editForm.name.trim()) {
-      setError('Author name is required.');
+      setError(
+        'Author name is required.'
+      );
       return;
     }
 
@@ -710,9 +981,11 @@ export function Authors() {
 
       const fd = new FormData();
 
-      Object.entries(editForm).forEach(([key, value]) => {
-        fd.append(key, value || '');
-      });
+      Object.entries(editForm).forEach(
+        ([key, value]) => {
+          fd.append(key, value || '');
+        }
+      );
 
       if (editFileRef.current?.files?.[0]) {
         fd.append(
@@ -721,7 +994,10 @@ export function Authors() {
         );
       }
 
-      await authorsAPI.update(editAuthor.id, fd);
+      await authorsAPI.update(
+        editAuthor.id,
+        fd
+      );
 
       setEditing(false);
       setEditAuthor(null);
@@ -730,11 +1006,16 @@ export function Authors() {
         editFileRef.current.value = '';
       }
 
-      setSuccess('Author updated successfully.');
+      setSuccess(
+        'Author updated successfully.'
+      );
 
       await load();
     } catch (err) {
-      console.error('Update author error:', err);
+      console.error(
+        'Update author error:',
+        err
+      );
 
       setError(
         getErrorMessage(
@@ -748,7 +1029,11 @@ export function Authors() {
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this author?')) {
+    if (
+      !window.confirm(
+        'Are you sure you want to delete this author?'
+      )
+    ) {
       return;
     }
 
@@ -758,11 +1043,16 @@ export function Authors() {
 
       await authorsAPI.delete(id);
 
-      setSuccess('Author deleted successfully.');
+      setSuccess(
+        'Author deleted successfully.'
+      );
 
       await load();
     } catch (err) {
-      console.error('Delete author error:', err);
+      console.error(
+        'Delete author error:',
+        err
+      );
 
       setError(
         getErrorMessage(
@@ -858,7 +1148,8 @@ export function Authors() {
           <table
             style={{
               width: '100%',
-              borderCollapse: 'separate',
+              borderCollapse:
+                'separate',
               borderSpacing: 0,
             }}
           >
@@ -874,11 +1165,14 @@ export function Authors() {
                   <th
                     key={heading}
                     style={{
-                      padding: '14px 16px',
-                      background: '#f8fafc',
+                      padding:
+                        '14px 16px',
+                      background:
+                        '#f8fafc',
                       color: '#64748b',
                       fontSize: 11,
-                      textTransform: 'uppercase',
+                      textTransform:
+                        'uppercase',
                       fontWeight: 800,
                       borderBottom:
                         '1px solid #e2e8f0',
@@ -903,131 +1197,157 @@ export function Authors() {
                 </tr>
               ) : (
                 <>
-                  {authors.map((author) => (
-                    <tr
-                      key={author.id}
-                      style={{
-                        borderBottom:
-                          '1px solid #f1f5f9',
-                      }}
-                    >
-                      <td
+                  {paginatedAuthors.map(
+                    (author) => (
+                      <tr
+                        key={author.id}
                         style={{
-                          padding: '14px 16px',
+                          borderBottom:
+                            '1px solid #f1f5f9',
                         }}
                       >
-                        <img
-                          src={getImgUrl(
-                            author.profile_image
-                          )}
-                          alt={author.name || 'Author'}
+                        <td
                           style={{
-                            width: 44,
-                            height: 44,
-                            borderRadius: '50%',
-                            objectFit: 'cover',
-                          }}
-                          onError={(e) => {
-                            e.currentTarget.onerror = null;
-                            e.currentTarget.src =
-                              PLACEHOLDER;
-                          }}
-                        />
-                      </td>
-
-                      <td
-                        style={{
-                          padding: '14px 16px',
-                        }}
-                      >
-                        <div
-                          style={{
-                            fontWeight: 700,
-                            fontSize: 14,
+                            padding:
+                              '14px 16px',
                           }}
                         >
-                          {author.name}
-                        </div>
+                          <img
+                            src={getImgUrl(
+                              author.profile_image
+                            )}
+                            alt={
+                              author.name ||
+                              'Author'
+                            }
+                            style={{
+                              width: 44,
+                              height: 44,
+                              borderRadius:
+                                '50%',
+                              objectFit:
+                                'cover',
+                            }}
+                            onError={(e) => {
+                              e.currentTarget.onerror =
+                                null;
 
-                        <div
+                              e.currentTarget.src =
+                                PLACEHOLDER;
+                            }}
+                          />
+                        </td>
+
+                        <td
                           style={{
-                            fontSize: 12,
-                            color: '#94a3b8',
-                            maxWidth: 220,
+                            padding:
+                              '14px 16px',
                           }}
                         >
-                          {author.bio
-                            ? author.bio.substring(
-                                0,
-                                70
-                              )
-                            : ''}
+                          <div
+                            style={{
+                              fontWeight: 700,
+                              fontSize: 14,
+                            }}
+                          >
+                            {author.name}
+                          </div>
 
-                          {author.bio?.length > 70
-                            ? '...'
-                            : ''}
-                        </div>
-                      </td>
-
-                      <td
-                        style={{
-                          padding: '14px 16px',
-                          fontSize: 13,
-                          color: '#475569',
-                        }}
-                      >
-                        {author.email || '—'}
-                      </td>
-
-                      <td
-                        style={{
-                          padding: '14px 16px',
-                          fontWeight: 700,
-                          color: '#0369a1',
-                        }}
-                      >
-                        {author.story_count || 0}
-                      </td>
-
-                      <td
-                        style={{
-                          padding: '14px 16px',
-                        }}
-                      >
-                        <div className="author-action-buttons">
-                          {can('manage_authors') && (
-                            <button
-                              type="button"
-                              onClick={() =>
-                                openEdit(author)
-                              }
-                              style={
-                                editButtonStyle
-                              }
-                            >
-                              ✏️ Edit
-                            </button>
-                          )}
-
-                          {can('manage_authors') && (
-                            <button
-                              type="button"
-                              onClick={() =>
-                                handleDelete(
-                                  author.id
+                          <div
+                            style={{
+                              fontSize: 12,
+                              color:
+                                '#94a3b8',
+                              maxWidth: 220,
+                            }}
+                          >
+                            {author.bio
+                              ? author.bio.substring(
+                                  0,
+                                  70
                                 )
-                              }
-                              style={
-                                dangerButtonStyle
-                              }
-                            >
-                              Delete
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                              : ''}
+
+                            {author.bio
+                              ?.length > 70
+                              ? '...'
+                              : ''}
+                          </div>
+                        </td>
+
+                        <td
+                          style={{
+                            padding:
+                              '14px 16px',
+                            fontSize: 13,
+                            color:
+                              '#475569',
+                          }}
+                        >
+                          {author.email ||
+                            '—'}
+                        </td>
+
+                        <td
+                          style={{
+                            padding:
+                              '14px 16px',
+                            fontWeight: 700,
+                            color:
+                              '#0369a1',
+                          }}
+                        >
+                          {author.story_count ||
+                            0}
+                        </td>
+
+                        <td
+                          style={{
+                            padding:
+                              '14px 16px',
+                          }}
+                        >
+                          <div className="author-action-buttons">
+                            {can(
+                              'manage_authors'
+                            ) && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  openEdit(
+                                    author
+                                  )
+                                }
+                                style={
+                                  editButtonStyle
+                                }
+                              >
+                                ✏️ Edit
+                              </button>
+                            )}
+
+                            {can(
+                              'manage_authors'
+                            ) && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleDelete(
+                                    author.id
+                                  )
+                                }
+                                style={
+                                  dangerButtonStyle
+                                }
+                              >
+                                Delete
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  )}
 
                   {authors.length === 0 && (
                     <tr>
@@ -1043,6 +1363,13 @@ export function Authors() {
               )}
             </tbody>
           </table>
+
+          <Pagination
+            currentPage={currentPage}
+            totalItems={authors.length}
+            itemsPerPage={ITEMS_PER_PAGE}
+            onPageChange={setCurrentPage}
+          />
         </Card>
       </div>
 
@@ -1110,7 +1437,9 @@ export function Authors() {
                   setData={setEditForm}
                   imageRef={editFileRef}
                   openSection={openSection}
-                  setOpenSection={setOpenSection}
+                  setOpenSection={
+                    setOpenSection
+                  }
                 />
 
                 <div
@@ -1136,7 +1465,8 @@ export function Authors() {
                       cursor: saving
                         ? 'not-allowed'
                         : 'pointer',
-                      fontFamily: 'inherit',
+                      fontFamily:
+                        'inherit',
                     }}
                   >
                     Cancel
@@ -1158,7 +1488,8 @@ export function Authors() {
                       cursor: saving
                         ? 'not-allowed'
                         : 'pointer',
-                      fontFamily: 'inherit',
+                      fontFamily:
+                        'inherit',
                     }}
                   >
                     {saving
@@ -1180,11 +1511,23 @@ export function Authors() {
 ============================================================ */
 
 export function Comments() {
-  const [comments, setComments] = useState([]);
-  const [total, setTotal] = useState(0);
-  const [status, setStatus] = useState('pending');
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [comments, setComments] =
+    useState([]);
+
+  const [total, setTotal] =
+    useState(0);
+
+  const [status, setStatus] =
+    useState('pending');
+
+  const [loading, setLoading] =
+    useState(true);
+
+  const [error, setError] =
+    useState('');
+
+  const [currentPage, setCurrentPage] =
+    useState(1);
 
   const { can } = useAuth();
 
@@ -1193,15 +1536,29 @@ export function Comments() {
       setLoading(true);
       setError('');
 
-      const response = await commentsAPI.getAll({
-        status,
-        limit: 30,
-      });
+      const response =
+        await commentsAPI.getAll({
+          status,
+          limit: 1000,
+        });
 
-      setComments(response.data?.comments || []);
-      setTotal(response.data?.total || 0);
+      const data =
+        response.data?.comments || [];
+
+      setComments(data);
+
+      setTotal(
+        response.data?.total ??
+          data.length
+      );
+
+      setCurrentPage(1);
     } catch (err) {
-      console.error('Comments loading error:', err);
+      console.error(
+        'Comments loading error:',
+        err
+      );
+
       setError(
         getErrorMessage(
           err,
@@ -1216,6 +1573,12 @@ export function Comments() {
   useEffect(() => {
     load();
   }, [status]);
+
+  const paginatedComments =
+    comments.slice(
+      (currentPage - 1) * ITEMS_PER_PAGE,
+      currentPage * ITEMS_PER_PAGE
+    );
 
   const approveComment = async (id) => {
     try {
@@ -1232,7 +1595,11 @@ export function Comments() {
   };
 
   const deleteComment = async (id) => {
-    if (!window.confirm('Delete this comment?')) {
+    if (
+      !window.confirm(
+        'Delete this comment?'
+      )
+    ) {
       return;
     }
 
@@ -1257,7 +1624,8 @@ export function Comments() {
         className="admin-flex-wrap"
         style={{
           display: 'flex',
-          justifyContent: 'space-between',
+          justifyContent:
+            'space-between',
           alignItems: 'center',
           marginBottom: 24,
           gap: 12,
@@ -1302,39 +1670,41 @@ export function Comments() {
           marginBottom: 20,
         }}
       >
-        {['pending', 'approved', 'spam'].map(
-          (item) => (
-            <button
-              key={item}
-              type="button"
-              onClick={() =>
-                setStatus(item)
-              }
-              style={{
-                padding: '8px 18px',
-                background:
-                  status === item
-                    ? '#1a472a'
-                    : '#fff',
-                color:
-                  status === item
-                    ? '#fff'
-                    : '#64748b',
-                border:
-                  '1px solid #e2e8f0',
-                borderRadius: 8,
-                cursor: 'pointer',
-                fontWeight: 700,
-                fontSize: 13,
-                textTransform:
-                  'capitalize',
-                fontFamily: 'inherit',
-              }}
-            >
-              {item}
-            </button>
-          )
-        )}
+        {[
+          'pending',
+          'approved',
+          'spam',
+        ].map((item) => (
+          <button
+            key={item}
+            type="button"
+            onClick={() =>
+              setStatus(item)
+            }
+            style={{
+              padding: '8px 18px',
+              background:
+                status === item
+                  ? '#1a472a'
+                  : '#fff',
+              color:
+                status === item
+                  ? '#fff'
+                  : '#64748b',
+              border:
+                '1px solid #e2e8f0',
+              borderRadius: 8,
+              cursor: 'pointer',
+              fontWeight: 700,
+              fontSize: 13,
+              textTransform:
+                'capitalize',
+              fontFamily: 'inherit',
+            }}
+          >
+            {item}
+          </button>
+        ))}
       </div>
 
       <Card
@@ -1349,222 +1719,243 @@ export function Comments() {
             Loading comments...
           </div>
         ) : (
-          <table
-            style={{
-              width: '100%',
-              borderCollapse:
-                'separate',
-              borderSpacing: 0,
-            }}
-          >
-            <thead>
-              <tr>
-                {[
-                  'Author',
-                  'Story',
-                  'Comment',
-                  'Date',
-                  'Actions',
-                ].map((heading) => (
-                  <th
-                    key={heading}
-                    style={{
-                      padding:
-                        '14px 16px',
-                      background:
-                        '#f8fafc',
-                      color: '#64748b',
-                      fontSize: 11,
-                      textTransform:
-                        'uppercase',
-                      fontWeight: 800,
-                      borderBottom:
-                        '1px solid #e2e8f0',
-                      textAlign: 'left',
-                    }}
-                  >
-                    {heading}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-
-            <tbody>
-              {comments.map((comment) => (
-                <tr
-                  key={comment.id}
-                  style={{
-                    borderBottom:
-                      '1px solid #f1f5f9',
-                  }}
-                >
-                  <td
-                    style={{
-                      padding:
-                        '14px 16px',
-                    }}
-                  >
-                    <div
-                      style={{
-                        fontWeight: 700,
-                        fontSize: 14,
-                      }}
-                    >
-                      {comment.name}
-                    </div>
-
-                    <div
-                      style={{
-                        fontSize: 12,
-                        color: '#94a3b8',
-                      }}
-                    >
-                      {comment.email}
-                    </div>
-                  </td>
-
-                  <td
-                    style={{
-                      padding:
-                        '14px 16px',
-                      fontSize: 13,
-                      color: '#475569',
-                      maxWidth: 180,
-                    }}
-                  >
-                    <div
-                      style={{
-                        overflow: 'hidden',
-                        textOverflow:
-                          'ellipsis',
-                        whiteSpace:
-                          'nowrap',
-                      }}
-                    >
-                      {comment.story_title}
-                    </div>
-                  </td>
-
-                  <td
-                    style={{
-                      padding:
-                        '14px 16px',
-                      fontSize: 14,
-                      maxWidth: 300,
-                    }}
-                  >
-                    <div
-                      style={{
-                        overflow: 'hidden',
-                        textOverflow:
-                          'ellipsis',
-                        whiteSpace:
-                          'nowrap',
-                      }}
-                    >
-                      {comment.comment}
-                    </div>
-                  </td>
-
-                  <td
-                    style={{
-                      padding:
-                        '14px 16px',
-                      fontSize: 12,
-                      color: '#94a3b8',
-                      whiteSpace:
-                        'nowrap',
-                    }}
-                  >
-                    {formatDate(
-                      comment.created_at
-                    )}
-                  </td>
-
-                  <td
-                    style={{
-                      padding:
-                        '14px 16px',
-                    }}
-                  >
-                    <div
-                      style={{
-                        display: 'flex',
-                        gap: 6,
-                        flexWrap: 'wrap',
-                      }}
-                    >
-                      {status ===
-                        'pending' &&
-                        can(
-                          'approve_comments'
-                        ) && (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              approveComment(
-                                comment.id
-                              )
-                            }
-                            style={{
-                              padding:
-                                '5px 10px',
-                              background:
-                                '#dcfce7',
-                              color:
-                                '#166534',
-                              border:
-                                '1px solid #86efac',
-                              borderRadius:
-                                6,
-                              cursor:
-                                'pointer',
-                              fontSize:
-                                12,
-                              fontFamily:
-                                'inherit',
-                              whiteSpace:
-                                'nowrap',
-                            }}
-                          >
-                            ✓ Approve
-                          </button>
-                        )}
-
-                      {can(
-                        'delete_content'
-                      ) && (
-                        <button
-                          type="button"
-                          onClick={() =>
-                            deleteComment(
-                              comment.id
-                            )
-                          }
-                          style={
-                            dangerButtonStyle
-                          }
-                        >
-                          Delete
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-
-              {comments.length === 0 && (
+          <>
+            <table
+              style={{
+                width: '100%',
+                borderCollapse:
+                  'separate',
+                borderSpacing: 0,
+              }}
+            >
+              <thead>
                 <tr>
-                  <td
-                    colSpan={5}
-                    className="admin-empty"
-                  >
-                    No {status} comments.
-                  </td>
+                  {[
+                    'Author',
+                    'Story',
+                    'Comment',
+                    'Date',
+                    'Actions',
+                  ].map((heading) => (
+                    <th
+                      key={heading}
+                      style={{
+                        padding:
+                          '14px 16px',
+                        background:
+                          '#f8fafc',
+                        color: '#64748b',
+                        fontSize: 11,
+                        textTransform:
+                          'uppercase',
+                        fontWeight: 800,
+                        borderBottom:
+                          '1px solid #e2e8f0',
+                        textAlign: 'left',
+                      }}
+                    >
+                      {heading}
+                    </th>
+                  ))}
                 </tr>
-              )}
-            </tbody>
-          </table>
+              </thead>
+
+              <tbody>
+                {paginatedComments.map(
+                  (comment) => (
+                    <tr
+                      key={comment.id}
+                      style={{
+                        borderBottom:
+                          '1px solid #f1f5f9',
+                      }}
+                    >
+                      <td
+                        style={{
+                          padding:
+                            '14px 16px',
+                        }}
+                      >
+                        <div
+                          style={{
+                            fontWeight: 700,
+                            fontSize: 14,
+                          }}
+                        >
+                          {comment.name}
+                        </div>
+
+                        <div
+                          style={{
+                            fontSize: 12,
+                            color:
+                              '#94a3b8',
+                          }}
+                        >
+                          {comment.email}
+                        </div>
+                      </td>
+
+                      <td
+                        style={{
+                          padding:
+                            '14px 16px',
+                          fontSize: 13,
+                          color:
+                            '#475569',
+                          maxWidth: 180,
+                        }}
+                      >
+                        <div
+                          style={{
+                            overflow:
+                              'hidden',
+                            textOverflow:
+                              'ellipsis',
+                            whiteSpace:
+                              'nowrap',
+                          }}
+                        >
+                          {
+                            comment.story_title
+                          }
+                        </div>
+                      </td>
+
+                      <td
+                        style={{
+                          padding:
+                            '14px 16px',
+                          fontSize: 14,
+                          maxWidth: 300,
+                        }}
+                      >
+                        <div
+                          style={{
+                            overflow:
+                              'hidden',
+                            textOverflow:
+                              'ellipsis',
+                            whiteSpace:
+                              'nowrap',
+                          }}
+                        >
+                          {
+                            comment.comment
+                          }
+                        </div>
+                      </td>
+
+                      <td
+                        style={{
+                          padding:
+                            '14px 16px',
+                          fontSize: 12,
+                          color:
+                            '#94a3b8',
+                          whiteSpace:
+                            'nowrap',
+                        }}
+                      >
+                        {formatDate(
+                          comment.created_at
+                        )}
+                      </td>
+
+                      <td
+                        style={{
+                          padding:
+                            '14px 16px',
+                        }}
+                      >
+                        <div
+                          style={{
+                            display: 'flex',
+                            gap: 6,
+                            flexWrap:
+                              'wrap',
+                          }}
+                        >
+                          {status ===
+                            'pending' &&
+                            can(
+                              'approve_comments'
+                            ) && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  approveComment(
+                                    comment.id
+                                  )
+                                }
+                                style={{
+                                  padding:
+                                    '5px 10px',
+                                  background:
+                                    '#dcfce7',
+                                  color:
+                                    '#166534',
+                                  border:
+                                    '1px solid #86efac',
+                                  borderRadius:
+                                    6,
+                                  cursor:
+                                    'pointer',
+                                  fontSize:
+                                    12,
+                                  fontFamily:
+                                    'inherit',
+                                  whiteSpace:
+                                    'nowrap',
+                                }}
+                              >
+                                ✓ Approve
+                              </button>
+                            )}
+
+                          {can(
+                            'delete_content'
+                          ) && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                deleteComment(
+                                  comment.id
+                                )
+                              }
+                              style={
+                                dangerButtonStyle
+                              }
+                            >
+                              Delete
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                )}
+
+                {comments.length === 0 && (
+                  <tr>
+                    <td
+                      colSpan={5}
+                      className="admin-empty"
+                    >
+                      No {status} comments.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+
+            <Pagination
+              currentPage={currentPage}
+              totalItems={comments.length}
+              itemsPerPage={ITEMS_PER_PAGE}
+              onPageChange={setCurrentPage}
+            />
+          </>
         )}
       </Card>
     </AdminLayout>
@@ -1576,7 +1967,8 @@ export function Comments() {
 ============================================================ */
 
 export function Videos() {
-  const [videos, setVideos] = useState([]);
+  const [videos, setVideos] =
+    useState([]);
 
   const [form, setForm] = useState({
     title: '',
@@ -1584,10 +1976,20 @@ export function Videos() {
     category: 'Sport',
   });
 
-  const [saving, setSaving] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
+  const [saving, setSaving] =
+    useState(false);
+
+  const [loading, setLoading] =
+    useState(true);
+
+  const [error, setError] =
+    useState('');
+
+  const [success, setSuccess] =
+    useState('');
+
+  const [currentPage, setCurrentPage] =
+    useState(1);
 
   const fileRef = useRef(null);
 
@@ -1596,17 +1998,25 @@ export function Videos() {
       setLoading(true);
       setError('');
 
-      const response = await videosAPI.getAll({
-        limit: 50,
-      });
+      const response =
+        await videosAPI.getAll({
+          limit: 1000,
+        });
 
-      setVideos(
-        Array.isArray(response.data)
-          ? response.data
-          : response.data?.videos || []
-      );
+      const data = Array.isArray(
+        response.data
+      )
+        ? response.data
+        : response.data?.videos || [];
+
+      setVideos(data);
+      setCurrentPage(1);
     } catch (err) {
-      console.error('Videos loading error:', err);
+      console.error(
+        'Videos loading error:',
+        err
+      );
+
       setError(
         getErrorMessage(
           err,
@@ -1622,16 +2032,26 @@ export function Videos() {
     load();
   }, []);
 
+  const paginatedVideos =
+    videos.slice(
+      (currentPage - 1) * ITEMS_PER_PAGE,
+      currentPage * ITEMS_PER_PAGE
+    );
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
     if (!form.title.trim()) {
-      setError('Video title is required.');
+      setError(
+        'Video title is required.'
+      );
       return;
     }
 
     if (!form.youtube_url.trim()) {
-      setError('YouTube URL is required.');
+      setError(
+        'YouTube URL is required.'
+      );
       return;
     }
 
@@ -1642,9 +2062,11 @@ export function Videos() {
 
       const fd = new FormData();
 
-      Object.entries(form).forEach(([key, value]) => {
-        fd.append(key, value);
-      });
+      Object.entries(form).forEach(
+        ([key, value]) => {
+          fd.append(key, value);
+        }
+      );
 
       if (fileRef.current?.files?.[0]) {
         fd.append(
@@ -1665,11 +2087,16 @@ export function Videos() {
         fileRef.current.value = '';
       }
 
-      setSuccess('Video added successfully.');
+      setSuccess(
+        'Video added successfully.'
+      );
 
       await load();
     } catch (err) {
-      console.error('Create video error:', err);
+      console.error(
+        'Create video error:',
+        err
+      );
 
       setError(
         getErrorMessage(
@@ -1683,7 +2110,11 @@ export function Videos() {
   };
 
   const deleteVideo = async (id) => {
-    if (!window.confirm('Delete this video?')) {
+    if (
+      !window.confirm(
+        'Delete this video?'
+      )
+    ) {
       return;
     }
 
@@ -1899,132 +2330,136 @@ export function Videos() {
                 </tr>
               ) : (
                 <>
-                  {videos.map((video) => (
-                    <tr
-                      key={video.id}
-                      style={{
-                        borderBottom:
-                          '1px solid #f1f5f9',
-                      }}
-                    >
-                      <td
+                  {paginatedVideos.map(
+                    (video) => (
+                      <tr
+                        key={video.id}
                         style={{
-                          padding:
-                            '12px 16px',
+                          borderBottom:
+                            '1px solid #f1f5f9',
                         }}
                       >
-                        {video.thumbnail ? (
-                          <img
-                            src={getImgUrl(
-                              video.thumbnail
-                            )}
-                            alt={
-                              video.title ||
-                              'Video'
-                            }
-                            style={{
-                              width: 80,
-                              height: 50,
-                              objectFit:
-                                'cover',
-                              borderRadius: 6,
-                            }}
-                            onError={(e) => {
-                              e.currentTarget.onerror =
-                                null;
-                              e.currentTarget.src =
-                                PLACEHOLDER;
-                            }}
-                          />
-                        ) : (
-                          <div
-                            style={{
-                              width: 80,
-                              height: 50,
-                              background:
-                                '#f1f5f9',
-                              borderRadius: 6,
-                              display:
-                                'flex',
-                              alignItems:
-                                'center',
-                              justifyContent:
-                                'center',
-                              fontSize: 20,
-                            }}
-                          >
-                            🎬
-                          </div>
-                        )}
-                      </td>
-
-                      <td
-                        style={{
-                          padding:
-                            '12px 16px',
-                          fontWeight: 600,
-                          fontSize: 14,
-                        }}
-                      >
-                        {video.title}
-                      </td>
-
-                      <td
-                        style={{
-                          padding:
-                            '12px 16px',
-                        }}
-                      >
-                        <span
+                        <td
                           style={{
-                            background:
-                              '#f1f5f9',
                             padding:
-                              '3px 10px',
-                            borderRadius: 6,
-                            fontSize: 12,
-                            fontWeight: 700,
+                              '12px 16px',
                           }}
                         >
-                          {video.category}
-                        </span>
-                      </td>
+                          {video.thumbnail ? (
+                            <img
+                              src={getImgUrl(
+                                video.thumbnail
+                              )}
+                              alt={
+                                video.title ||
+                                'Video'
+                              }
+                              style={{
+                                width: 80,
+                                height: 50,
+                                objectFit:
+                                  'cover',
+                                borderRadius: 6,
+                              }}
+                              onError={(e) => {
+                                e.currentTarget.onerror =
+                                  null;
 
-                      <td
-                        style={{
-                          padding:
-                            '12px 16px',
-                          fontSize: 12,
-                          color: '#94a3b8',
-                        }}
-                      >
-                        {formatDate(
-                          video.created_at
-                        )}
-                      </td>
+                                e.currentTarget.src =
+                                  PLACEHOLDER;
+                              }}
+                            />
+                          ) : (
+                            <div
+                              style={{
+                                width: 80,
+                                height: 50,
+                                background:
+                                  '#f1f5f9',
+                                borderRadius: 6,
+                                display:
+                                  'flex',
+                                alignItems:
+                                  'center',
+                                justifyContent:
+                                  'center',
+                                fontSize: 20,
+                              }}
+                            >
+                              🎬
+                            </div>
+                          )}
+                        </td>
 
-                      <td
-                        style={{
-                          padding:
-                            '12px 16px',
-                        }}
-                      >
-                        <button
-                          type="button"
-                          onClick={() =>
-                            deleteVideo(
-                              video.id
-                            )
-                          }
-                          style={
-                            dangerButtonStyle
-                          }
+                        <td
+                          style={{
+                            padding:
+                              '12px 16px',
+                            fontWeight: 600,
+                            fontSize: 14,
+                          }}
                         >
-                          Delete
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                          {video.title}
+                        </td>
+
+                        <td
+                          style={{
+                            padding:
+                              '12px 16px',
+                          }}
+                        >
+                          <span
+                            style={{
+                              background:
+                                '#f1f5f9',
+                              padding:
+                                '3px 10px',
+                              borderRadius: 6,
+                              fontSize: 12,
+                              fontWeight: 700,
+                            }}
+                          >
+                            {video.category}
+                          </span>
+                        </td>
+
+                        <td
+                          style={{
+                            padding:
+                              '12px 16px',
+                            fontSize: 12,
+                            color:
+                              '#94a3b8',
+                          }}
+                        >
+                          {formatDate(
+                            video.created_at
+                          )}
+                        </td>
+
+                        <td
+                          style={{
+                            padding:
+                              '12px 16px',
+                          }}
+                        >
+                          <button
+                            type="button"
+                            onClick={() =>
+                              deleteVideo(
+                                video.id
+                              )
+                            }
+                            style={
+                              dangerButtonStyle
+                            }
+                          >
+                            Delete
+                          </button>
+                        </td>
+                      </tr>
+                    )
+                  )}
 
                   {videos.length === 0 && (
                     <tr>
@@ -2040,6 +2475,13 @@ export function Videos() {
               )}
             </tbody>
           </table>
+
+          <Pagination
+            currentPage={currentPage}
+            totalItems={videos.length}
+            itemsPerPage={ITEMS_PER_PAGE}
+            onPageChange={setCurrentPage}
+          />
         </Card>
       </div>
     </AdminLayout>
@@ -2051,7 +2493,8 @@ export function Videos() {
 ============================================================ */
 
 export function Ads() {
-  const [ads, setAds] = useState([]);
+  const [ads, setAds] =
+    useState([]);
 
   const [form, setForm] = useState({
     type: 'image',
@@ -2060,10 +2503,20 @@ export function Ads() {
     text: '',
   });
 
-  const [saving, setSaving] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
+  const [saving, setSaving] =
+    useState(false);
+
+  const [loading, setLoading] =
+    useState(true);
+
+  const [error, setError] =
+    useState('');
+
+  const [success, setSuccess] =
+    useState('');
+
+  const [currentPage, setCurrentPage] =
+    useState(1);
 
   const fileRef = useRef(null);
 
@@ -2072,15 +2525,22 @@ export function Ads() {
       setLoading(true);
       setError('');
 
-      const response = await adsAPI.getAll();
+      const response =
+        await adsAPI.getAll();
 
-      setAds(
-        Array.isArray(response.data)
-          ? response.data
-          : response.data?.ads || []
-      );
+      const data = Array.isArray(
+        response.data
+      )
+        ? response.data
+        : response.data?.ads || [];
+
+      setAds(data);
+      setCurrentPage(1);
     } catch (err) {
-      console.error('Ads loading error:', err);
+      console.error(
+        'Ads loading error:',
+        err
+      );
 
       setError(
         getErrorMessage(
@@ -2096,6 +2556,12 @@ export function Ads() {
   useEffect(() => {
     load();
   }, []);
+
+  const paginatedAds =
+    ads.slice(
+      (currentPage - 1) * ITEMS_PER_PAGE,
+      currentPage * ITEMS_PER_PAGE
+    );
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -2116,9 +2582,14 @@ export function Ads() {
 
       const fd = new FormData();
 
-      Object.entries(form).forEach(([key, value]) => {
-        fd.append(key, value || '');
-      });
+      Object.entries(form).forEach(
+        ([key, value]) => {
+          fd.append(
+            key,
+            value || ''
+          );
+        }
+      );
 
       fd.append(
         'file',
@@ -2144,7 +2615,10 @@ export function Ads() {
 
       await load();
     } catch (err) {
-      console.error('Create ad error:', err);
+      console.error(
+        'Create ad error:',
+        err
+      );
 
       setError(
         getErrorMessage(
@@ -2158,7 +2632,11 @@ export function Ads() {
   };
 
   const deleteAd = async (id) => {
-    if (!window.confirm('Delete this advertisement?')) {
+    if (
+      !window.confirm(
+        'Delete this advertisement?'
+      )
+    ) {
       return;
     }
 
@@ -2400,153 +2878,158 @@ export function Ads() {
                 </tr>
               ) : (
                 <>
-                  {ads.map((ad) => (
-                    <tr
-                      key={ad.id}
-                      style={{
-                        borderBottom:
-                          '1px solid #f1f5f9',
-                      }}
-                    >
-                      <td
+                  {paginatedAds.map(
+                    (ad) => (
+                      <tr
+                        key={ad.id}
                         style={{
-                          padding:
-                            '12px 16px',
+                          borderBottom:
+                            '1px solid #f1f5f9',
                         }}
                       >
-                        {ad.type ===
-                        'video' ? (
-                          <video
-                            src={getImgUrl(
-                              ad.file
-                            )}
-                            style={{
-                              width: 100,
-                              height: 60,
-                              objectFit:
-                                'cover',
-                              borderRadius: 6,
-                              background:
-                                '#f1f5f9',
-                            }}
-                            muted
-                            controls
-                            preload="metadata"
-                          />
-                        ) : (
-                          <img
-                            src={getImgUrl(
-                              ad.file
-                            )}
-                            alt={
-                              ad.text ||
-                              'Advertisement'
-                            }
-                            style={{
-                              width: 100,
-                              height: 60,
-                              objectFit:
-                                'cover',
-                              borderRadius: 6,
-                            }}
-                            onError={(e) => {
-                              e.currentTarget.onerror =
-                                null;
-                              e.currentTarget.src =
-                                PLACEHOLDER;
-                            }}
-                          />
-                        )}
-                      </td>
-
-                      <td
-                        style={{
-                          padding:
-                            '12px 16px',
-                        }}
-                      >
-                        <span
+                        <td
                           style={{
-                            background:
-                              '#e0f2fe',
-                            color:
-                              '#0369a1',
                             padding:
-                              '3px 10px',
-                            borderRadius: 6,
-                            fontSize: 12,
-                            fontWeight: 700,
+                              '12px 16px',
                           }}
                         >
-                          {ad.type}
-                        </span>
-                      </td>
+                          {ad.type ===
+                          'video' ? (
+                            <video
+                              src={getImgUrl(
+                                ad.file
+                              )}
+                              style={{
+                                width: 100,
+                                height: 60,
+                                objectFit:
+                                  'cover',
+                                borderRadius: 6,
+                                background:
+                                  '#f1f5f9',
+                              }}
+                              muted
+                              controls
+                              preload="metadata"
+                            />
+                          ) : (
+                            <img
+                              src={getImgUrl(
+                                ad.file
+                              )}
+                              alt={
+                                ad.text ||
+                                'Advertisement'
+                              }
+                              style={{
+                                width: 100,
+                                height: 60,
+                                objectFit:
+                                  'cover',
+                                borderRadius: 6,
+                              }}
+                              onError={(e) => {
+                                e.currentTarget.onerror =
+                                  null;
 
-                      <td
-                        style={{
-                          padding:
-                            '12px 16px',
-                          fontSize: 13,
-                        }}
-                      >
-                        {ad.position}
-                      </td>
+                                e.currentTarget.src =
+                                  PLACEHOLDER;
+                              }}
+                            />
+                          )}
+                        </td>
 
-                      <td
-                        style={{
-                          padding:
-                            '12px 16px',
-                          fontSize: 12,
-                          color:
-                            '#0369a1',
-                          maxWidth: 220,
-                        }}
-                      >
-                        {ad.link ? (
-                          <a
-                            href={ad.link}
-                            target="_blank"
-                            rel="noopener noreferrer"
+                        <td
+                          style={{
+                            padding:
+                              '12px 16px',
+                          }}
+                        >
+                          <span
                             style={{
+                              background:
+                                '#e0f2fe',
                               color:
                                 '#0369a1',
-                              textDecoration:
-                                'none',
+                              padding:
+                                '3px 10px',
+                              borderRadius: 6,
+                              fontSize: 12,
+                              fontWeight: 700,
                             }}
                           >
-                            {ad.link.length >
-                            35
-                              ? `${ad.link.substring(
-                                  0,
-                                  35
-                                )}...`
-                              : ad.link}
-                          </a>
-                        ) : (
-                          '—'
-                        )}
-                      </td>
+                            {ad.type}
+                          </span>
+                        </td>
 
-                      <td
-                        style={{
-                          padding:
-                            '12px 16px',
-                        }}
-                      >
-                        <button
-                          type="button"
-                          onClick={() =>
-                            deleteAd(ad.id)
-                          }
-                          style={
-                            dangerButtonStyle
-                          }
+                        <td
+                          style={{
+                            padding:
+                              '12px 16px',
+                            fontSize: 13,
+                          }}
                         >
-                          Delete
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                          {ad.position}
+                        </td>
+
+                        <td
+                          style={{
+                            padding:
+                              '12px 16px',
+                            fontSize: 12,
+                            color:
+                              '#0369a1',
+                            maxWidth: 220,
+                          }}
+                        >
+                          {ad.link ? (
+                            <a
+                              href={ad.link}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{
+                                color:
+                                  '#0369a1',
+                                textDecoration:
+                                  'none',
+                              }}
+                            >
+                              {ad.link.length >
+                              35
+                                ? `${ad.link.substring(
+                                    0,
+                                    35
+                                  )}...`
+                                : ad.link}
+                            </a>
+                          ) : (
+                            '—'
+                          )}
+                        </td>
+
+                        <td
+                          style={{
+                            padding:
+                              '12px 16px',
+                          }}
+                        >
+                          <button
+                            type="button"
+                            onClick={() =>
+                              deleteAd(
+                                ad.id
+                              )
+                            }
+                            style={
+                              dangerButtonStyle
+                            }
+                          >
+                            Delete
+                          </button>
+                        </td>
+                      </tr>
+                    )
+                  )}
 
                   {ads.length === 0 && (
                     <tr>
@@ -2562,6 +3045,13 @@ export function Ads() {
               )}
             </tbody>
           </table>
+
+          <Pagination
+            currentPage={currentPage}
+            totalItems={ads.length}
+            itemsPerPage={ITEMS_PER_PAGE}
+            onPageChange={setCurrentPage}
+          />
         </Card>
       </div>
     </AdminLayout>
@@ -2573,9 +3063,17 @@ export function Ads() {
 ============================================================ */
 
 export function Subscribers() {
-  const [subs, setSubs] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [subs, setSubs] =
+    useState([]);
+
+  const [loading, setLoading] =
+    useState(true);
+
+  const [error, setError] =
+    useState('');
+
+  const [currentPage, setCurrentPage] =
+    useState(1);
 
   const load = async () => {
     try {
@@ -2585,11 +3083,14 @@ export function Subscribers() {
       const response =
         await subscribeAPI.getAll();
 
-      setSubs(
-        Array.isArray(response.data)
-          ? response.data
-          : response.data?.subscribers || []
-      );
+      const data = Array.isArray(
+        response.data
+      )
+        ? response.data
+        : response.data?.subscribers || [];
+
+      setSubs(data);
+      setCurrentPage(1);
     } catch (err) {
       console.error(
         'Subscribers loading error:',
@@ -2611,10 +3112,17 @@ export function Subscribers() {
     load();
   }, []);
 
-  const activeCount = subs.filter(
-    (subscriber) =>
-      subscriber.status === 'active'
-  ).length;
+  const paginatedSubs =
+    subs.slice(
+      (currentPage - 1) * ITEMS_PER_PAGE,
+      currentPage * ITEMS_PER_PAGE
+    );
+
+  const activeCount =
+    subs.filter(
+      (subscriber) =>
+        subscriber.status === 'active'
+    ).length;
 
   return (
     <AdminLayout>
@@ -2720,81 +3228,85 @@ export function Subscribers() {
               </tr>
             ) : (
               <>
-                {subs.map((subscriber) => (
-                  <tr
-                    key={subscriber.id}
-                    style={{
-                      borderBottom:
-                        '1px solid #f1f5f9',
-                    }}
-                  >
-                    <td
+                {paginatedSubs.map(
+                  (subscriber) => (
+                    <tr
+                      key={subscriber.id}
                       style={{
-                        padding:
-                          '14px 16px',
-                        fontWeight: 600,
-                        fontSize: 14,
+                        borderBottom:
+                          '1px solid #f1f5f9',
                       }}
                     >
-                      {subscriber.email}
-                    </td>
-
-                    <td
-                      style={{
-                        padding:
-                          '14px 16px',
-                        fontSize: 13,
-                        color: '#475569',
-                      }}
-                    >
-                      {subscriber.name ||
-                        '—'}
-                    </td>
-
-                    <td
-                      style={{
-                        padding:
-                          '14px 16px',
-                        fontSize: 12,
-                        color: '#94a3b8',
-                      }}
-                    >
-                      {formatDate(
-                        subscriber.subscribed_at
-                      )}
-                    </td>
-
-                    <td
-                      style={{
-                        padding:
-                          '14px 16px',
-                      }}
-                    >
-                      <span
+                      <td
                         style={{
                           padding:
-                            '4px 10px',
-                          borderRadius: 6,
-                          fontSize: 11,
-                          fontWeight: 700,
-                          background:
-                            subscriber.status ===
-                            'active'
-                              ? '#dcfce7'
-                              : '#f1f5f9',
-                          color:
-                            subscriber.status ===
-                            'active'
-                              ? '#166534'
-                              : '#475569',
+                            '14px 16px',
+                          fontWeight: 600,
+                          fontSize: 14,
                         }}
                       >
-                        {subscriber.status ||
-                          'unknown'}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
+                        {subscriber.email}
+                      </td>
+
+                      <td
+                        style={{
+                          padding:
+                            '14px 16px',
+                          fontSize: 13,
+                          color:
+                            '#475569',
+                        }}
+                      >
+                        {subscriber.name ||
+                          '—'}
+                      </td>
+
+                      <td
+                        style={{
+                          padding:
+                            '14px 16px',
+                          fontSize: 12,
+                          color:
+                            '#94a3b8',
+                        }}
+                      >
+                        {formatDate(
+                          subscriber.subscribed_at
+                        )}
+                      </td>
+
+                      <td
+                        style={{
+                          padding:
+                            '14px 16px',
+                        }}
+                      >
+                        <span
+                          style={{
+                            padding:
+                              '4px 10px',
+                            borderRadius: 6,
+                            fontSize: 11,
+                            fontWeight: 700,
+                            background:
+                              subscriber.status ===
+                              'active'
+                                ? '#dcfce7'
+                                : '#f1f5f9',
+                            color:
+                              subscriber.status ===
+                              'active'
+                                ? '#166534'
+                                : '#475569',
+                          }}
+                        >
+                          {subscriber.status ||
+                            'unknown'}
+                        </span>
+                      </td>
+                    </tr>
+                  )
+                )}
 
                 {subs.length === 0 && (
                   <tr>
@@ -2810,6 +3322,13 @@ export function Subscribers() {
             )}
           </tbody>
         </table>
+
+        <Pagination
+          currentPage={currentPage}
+          totalItems={subs.length}
+          itemsPerPage={ITEMS_PER_PAGE}
+          onPageChange={setCurrentPage}
+        />
       </Card>
     </AdminLayout>
   );
@@ -2820,9 +3339,17 @@ export function Subscribers() {
 ============================================================ */
 
 export function AuditLogs() {
-  const [logs, setLogs] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [logs, setLogs] =
+    useState([]);
+
+  const [loading, setLoading] =
+    useState(true);
+
+  const [error, setError] =
+    useState('');
+
+  const [currentPage, setCurrentPage] =
+    useState(1);
 
   const load = async () => {
     try {
@@ -2832,11 +3359,14 @@ export function AuditLogs() {
       const response =
         await analyticsAPI.getAuditLogs();
 
-      setLogs(
-        Array.isArray(response.data)
-          ? response.data
-          : response.data?.logs || []
-      );
+      const data = Array.isArray(
+        response.data
+      )
+        ? response.data
+        : response.data?.logs || [];
+
+      setLogs(data);
+      setCurrentPage(1);
     } catch (err) {
       console.error(
         'Audit logs loading error:',
@@ -2857,6 +3387,12 @@ export function AuditLogs() {
   useEffect(() => {
     load();
   }, []);
+
+  const paginatedLogs =
+    logs.slice(
+      (currentPage - 1) * ITEMS_PER_PAGE,
+      currentPage * ITEMS_PER_PAGE
+    );
 
   return (
     <AdminLayout>
@@ -2936,65 +3472,69 @@ export function AuditLogs() {
               </tr>
             ) : (
               <>
-                {logs.map((log) => (
-                  <tr
-                    key={log.id}
-                    style={{
-                      borderBottom:
-                        '1px solid #f1f5f9',
-                    }}
-                  >
-                    <td
+                {paginatedLogs.map(
+                  (log) => (
+                    <tr
+                      key={log.id}
                       style={{
-                        padding:
-                          '14px 16px',
-                        fontWeight: 700,
-                        fontSize: 14,
+                        borderBottom:
+                          '1px solid #f1f5f9',
                       }}
                     >
-                      {log.username ||
-                        log.user_name ||
-                        '—'}
-                    </td>
+                      <td
+                        style={{
+                          padding:
+                            '14px 16px',
+                          fontWeight: 700,
+                          fontSize: 14,
+                        }}
+                      >
+                        {log.username ||
+                          log.user_name ||
+                          '—'}
+                      </td>
 
-                    <td
-                      style={{
-                        padding:
-                          '14px 16px',
-                        fontSize: 14,
-                      }}
-                    >
-                      {log.action || '—'}
-                    </td>
+                      <td
+                        style={{
+                          padding:
+                            '14px 16px',
+                          fontSize: 14,
+                        }}
+                      >
+                        {log.action || '—'}
+                      </td>
 
-                    <td
-                      style={{
-                        padding:
-                          '14px 16px',
-                        fontSize: 12,
-                        color: '#94a3b8',
-                      }}
-                    >
-                      {log.ip_address ||
-                        '—'}
-                    </td>
+                      <td
+                        style={{
+                          padding:
+                            '14px 16px',
+                          fontSize: 12,
+                          color:
+                            '#94a3b8',
+                        }}
+                      >
+                        {log.ip_address ||
+                          '—'}
+                      </td>
 
-                    <td
-                      style={{
-                        padding:
-                          '14px 16px',
-                        fontSize: 12,
-                        color: '#94a3b8',
-                        whiteSpace:
-                          'nowrap',
-                      }}
-                    >
-                      {formatDateTime(
-                        log.created_at
-                      )}
-                    </td>
-                  </tr>
-                ))}
+                      <td
+                        style={{
+                          padding:
+                            '14px 16px',
+                          fontSize: 12,
+                          color:
+                            '#94a3b8',
+                          whiteSpace:
+                            'nowrap',
+                        }}
+                      >
+                        {formatDateTime(
+                          log.created_at
+                        )}
+                      </td>
+                    </tr>
+                  )
+                )}
 
                 {logs.length === 0 && (
                   <tr>
@@ -3010,6 +3550,13 @@ export function AuditLogs() {
             )}
           </tbody>
         </table>
+
+        <Pagination
+          currentPage={currentPage}
+          totalItems={logs.length}
+          itemsPerPage={ITEMS_PER_PAGE}
+          onPageChange={setCurrentPage}
+        />
       </Card>
     </AdminLayout>
   );
