@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+
+import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import PublicLayout from '../../components/layout/PublicLayout';
 import {
@@ -30,6 +31,37 @@ export default function Home() {
   const [latestIndex, setLatestIndex] = useState(0);
   const [latestAnimating, setLatestAnimating] = useState(false);
 
+  const animationTimerRef = useRef(null);
+  const autoPlayRef = useRef(null);
+
+  /*
+  ============================================================
+  HELPERS
+  ============================================================
+  */
+
+  const getStoryDate = story => {
+    const value =
+      story?.created_at ||
+      story?.createdAt ||
+      story?.published_at ||
+      story?.publishedAt ||
+      story?.date ||
+      null;
+
+    if (!value) return 0;
+
+    const timestamp = new Date(value).getTime();
+
+    return Number.isNaN(timestamp) ? 0 : timestamp;
+  };
+
+  const sortNewestFirst = stories => {
+    return [...stories].sort(
+      (a, b) => getStoryDate(b) - getStoryDate(a)
+    );
+  };
+
   /*
   ============================================================
   LOAD HOME DATA
@@ -37,8 +69,12 @@ export default function Home() {
   */
 
   useEffect(() => {
+    let mounted = true;
+
     const load = async () => {
       try {
+        setLoading(true);
+
         const [storiesRes, popRes, adsRes] = await Promise.all([
           storiesAPI.getAll({
             limit: 20,
@@ -52,27 +88,66 @@ export default function Home() {
           adsAPI.getAll()
         ]);
 
-        const all = storiesRes.data?.stories || [];
+        if (!mounted) return;
+
+        const rawStories = storiesRes?.data?.stories || [];
 
         /*
         --------------------------------------------------------
-        IMPORTANT:
-        The API should return stories ordered newest first.
-
-        First 5 stories = Latest News animated carousel.
-        First story = Featured hero.
-        Remaining stories = other sections.
+        ALWAYS SORT NEWEST FIRST
         --------------------------------------------------------
         */
 
-        const fiveLatest = all.slice(0, 5);
+        const allStories = sortNewestFirst(rawStories);
 
-        setFeatured(all[0] || null);
-        setLatestStories(fiveLatest);
-        setRecent(all.slice(5));
+        /*
+        --------------------------------------------------------
+        IMPORTANT STRUCTURE
 
-        setPopular(popRes.data || []);
-        setAds(adsRes.data || []);
+        Story #1 remains Featured.
+
+        Latest News carousel gets the newest 5 stories.
+
+        The remaining stories are used by the other homepage
+        sections.
+
+        --------------------------------------------------------
+        */
+
+        const newestFive = allStories.slice(0, 5);
+
+        setFeatured(allStories[0] || null);
+        setLatestStories(newestFive);
+
+        /*
+        Do not duplicate the five carousel stories in the
+        normal story grid.
+        */
+        setRecent(allStories.slice(5));
+
+        /*
+        --------------------------------------------------------
+        POPULAR
+        --------------------------------------------------------
+        */
+
+        const popularData = Array.isArray(popRes?.data)
+          ? popRes.data
+          : popRes?.data?.stories || [];
+
+        setPopular(popularData);
+
+        /*
+        --------------------------------------------------------
+        ADS
+        --------------------------------------------------------
+        */
+
+        const adsData = Array.isArray(adsRes?.data)
+          ? adsRes.data
+          : adsRes?.data?.ads || [];
+
+        setAds(adsData);
 
         /*
         --------------------------------------------------------
@@ -80,7 +155,7 @@ export default function Home() {
         --------------------------------------------------------
         */
 
-        const cats = [
+        const categories = [
           'Business',
           'Sport',
           'Technology',
@@ -89,48 +164,94 @@ export default function Home() {
           'Environment'
         ];
 
-        const catData = {};
+        const categoryResults = {};
 
         await Promise.all(
-          cats.map(async cat => {
+          categories.map(async category => {
             try {
-              const res = await storiesAPI.getAll({
-                category: cat,
+              const response = await storiesAPI.getAll({
+                category,
                 limit: 4,
                 status: 'published'
               });
 
-              catData[cat] = res.data?.stories || [];
-            } catch {
-              catData[cat] = [];
+              const categoryStories =
+                response?.data?.stories || [];
+
+              categoryResults[category] =
+                sortNewestFirst(categoryStories);
+            } catch (error) {
+              console.error(
+                `Failed to load ${category} stories:`,
+                error
+              );
+
+              categoryResults[category] = [];
             }
           })
         );
 
-        setByCategory(catData);
-      } catch (e) {
-        console.error('Failed to load homepage:', e);
+        if (!mounted) return;
+
+        setByCategory(categoryResults);
+      } catch (error) {
+        console.error(
+          'Failed to load homepage:',
+          error
+        );
       } finally {
-        setLoading(false);
+        if (mounted) {
+          setLoading(false);
+        }
       }
     };
 
     load();
+
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   /*
   ============================================================
-  AUTO CHANGE LATEST NEWS EVERY 10 SECONDS
+  RESET INDEX WHEN LATEST STORIES CHANGE
   ============================================================
   */
 
   useEffect(() => {
-    if (latestStories.length <= 1) return;
+    if (latestIndex >= latestStories.length) {
+      setLatestIndex(0);
+    }
+  }, [latestStories, latestIndex]);
 
-    const interval = setInterval(() => {
+  /*
+  ============================================================
+  AUTO PLAY
+  ============================================================
+  
+  Every 10 seconds:
+  
+  1. Start fade animation
+  2. Change story
+  3. Finish animation
+  
+  ============================================================
+  */
+
+  useEffect(() => {
+    if (latestStories.length <= 1) {
+      return undefined;
+    }
+
+    autoPlayRef.current = setInterval(() => {
       setLatestAnimating(true);
 
-      setTimeout(() => {
+      if (animationTimerRef.current) {
+        clearTimeout(animationTimerRef.current);
+      }
+
+      animationTimerRef.current = setTimeout(() => {
         setLatestIndex(prev => {
           return (prev + 1) % latestStories.length;
         });
@@ -140,22 +261,37 @@ export default function Home() {
     }, 10000);
 
     return () => {
-      clearInterval(interval);
+      if (autoPlayRef.current) {
+        clearInterval(autoPlayRef.current);
+      }
+
+      if (animationTimerRef.current) {
+        clearTimeout(animationTimerRef.current);
+      }
     };
-  }, [latestStories]);
+  }, [latestStories.length]);
 
   /*
   ============================================================
-  MANUAL SLIDE
+  MANUAL STORY CHANGE
   ============================================================
   */
 
   const changeLatestStory = index => {
-    if (index === latestIndex) return;
+    if (
+      index === latestIndex ||
+      !latestStories[index]
+    ) {
+      return;
+    }
 
     setLatestAnimating(true);
 
-    setTimeout(() => {
+    if (animationTimerRef.current) {
+      clearTimeout(animationTimerRef.current);
+    }
+
+    animationTimerRef.current = setTimeout(() => {
       setLatestIndex(index);
       setLatestAnimating(false);
     }, 350);
@@ -181,7 +317,11 @@ export default function Home() {
   ============================================================
   */
 
-  if (!featured && latestStories.length === 0 && recent.length === 0) {
+  if (
+    !featured &&
+    latestStories.length === 0 &&
+    recent.length === 0
+  ) {
     return (
       <PublicLayout>
         <EmptyState
@@ -195,27 +335,31 @@ export default function Home() {
 
   /*
   ============================================================
-  OTHER STORY GROUPS
+  OTHER STORIES
   ============================================================
   */
 
   const gridStories = recent.slice(0, 4);
-  const hotStories = recent.slice(4, 8);
+  const hotStories = recent.slice(4, 10);
 
   const currentLatest =
-    latestStories[latestIndex] || latestStories[0] || null;
+    latestStories[latestIndex] ||
+    latestStories[0] ||
+    null;
+
+  /*
+  ============================================================
+  RENDER
+  ============================================================
+  */
 
   return (
     <>
-      {/* =====================================================
-          HOMEPAGE RESPONSIVE CSS
-      ===================================================== */}
-
       <style>{`
 
-        /* =====================================================
-           TOP ADVERTISEMENT
-        ===================================================== */
+        /* ====================================================
+           TOP AD
+        ==================================================== */
 
         .home-top-ad-section {
           width: 100%;
@@ -262,9 +406,9 @@ export default function Home() {
         }
 
 
-        /* =====================================================
+        /* ====================================================
            HERO
-        ===================================================== */
+        ==================================================== */
 
         .home-hero-grid {
           display: grid;
@@ -281,9 +425,9 @@ export default function Home() {
         }
 
 
-        /* =====================================================
-           MAIN CONTENT
-        ===================================================== */
+        /* ====================================================
+           MAIN
+        ==================================================== */
 
         .home-main-grid {
           display: grid;
@@ -298,9 +442,9 @@ export default function Home() {
         }
 
 
-        /* =====================================================
+        /* ====================================================
            HOT STORIES
-        ===================================================== */
+        ==================================================== */
 
         .home-hot-story {
           display: flex;
@@ -319,9 +463,9 @@ export default function Home() {
         }
 
 
-        /* =====================================================
-           LATEST NEWS CAROUSEL
-        ===================================================== */
+        /* ====================================================
+           LATEST NEWS
+        ==================================================== */
 
         .latest-news-carousel {
           position: relative;
@@ -370,9 +514,9 @@ export default function Home() {
           background:
             linear-gradient(
               to bottom,
-              rgba(0,0,0,0) 15%,
-              rgba(0,0,0,.20) 40%,
-              rgba(0,0,0,.94) 100%
+              rgba(0,0,0,0) 10%,
+              rgba(0,0,0,.18) 38%,
+              rgba(0,0,0,.95) 100%
             );
         }
 
@@ -414,18 +558,19 @@ export default function Home() {
         }
 
 
-        /* =====================================================
-           CAROUSEL ANIMATION
-        ===================================================== */
+        /* ====================================================
+           ANIMATION
+        ==================================================== */
 
         .latest-news-changing {
-          animation: latestNewsFade .45s ease;
+          animation:
+            latestNewsFade .45s ease;
         }
 
         @keyframes latestNewsFade {
           0% {
-            opacity: .15;
-            transform: translateY(8px);
+            opacity: .05;
+            transform: translateY(10px);
           }
 
           100% {
@@ -435,9 +580,9 @@ export default function Home() {
         }
 
 
-        /* =====================================================
-           CAROUSEL DOTS
-        ===================================================== */
+        /* ====================================================
+           DOTS
+        ==================================================== */
 
         .latest-news-dots {
           position: absolute;
@@ -446,7 +591,7 @@ export default function Home() {
           display: flex;
           align-items: center;
           gap: 7px;
-          z-index: 10;
+          z-index: 20;
         }
 
         .latest-news-dots button {
@@ -463,7 +608,7 @@ export default function Home() {
         }
 
         .latest-news-dots button:hover {
-          background: rgba(255,255,255,.8);
+          background: rgba(255,255,255,.85);
         }
 
         .latest-news-dots button.active {
@@ -473,26 +618,27 @@ export default function Home() {
         }
 
 
-        /* =====================================================
-           PROGRESS BAR
-        ===================================================== */
+        /* ====================================================
+           10 SECOND PROGRESS BAR
+        ==================================================== */
 
         .latest-news-progress {
           position: absolute;
           left: 0;
           bottom: 0;
-          height: 3px;
           width: 100%;
+          height: 3px;
           background: rgba(255,255,255,.15);
-          z-index: 11;
+          z-index: 30;
           overflow: hidden;
         }
 
         .latest-news-progress-inner {
-          height: 100%;
           width: 0;
+          height: 100%;
           background: #e8b84b;
-          animation: latestNewsProgress 10s linear infinite;
+          animation:
+            latestNewsProgress 10s linear forwards;
         }
 
         @keyframes latestNewsProgress {
@@ -506,9 +652,9 @@ export default function Home() {
         }
 
 
-        /* =====================================================
+        /* ====================================================
            TABLET
-        ===================================================== */
+        ==================================================== */
 
         @media (max-width: 1024px) {
 
@@ -523,9 +669,9 @@ export default function Home() {
         }
 
 
-        /* =====================================================
+        /* ====================================================
            MOBILE
-        ===================================================== */
+        ==================================================== */
 
         @media (max-width: 768px) {
 
@@ -565,9 +711,9 @@ export default function Home() {
         }
 
 
-        /* =====================================================
+        /* ====================================================
            SMALL MOBILE
-        ===================================================== */
+        ==================================================== */
 
         @media (max-width: 600px) {
 
@@ -619,9 +765,9 @@ export default function Home() {
       `}</style>
 
 
-      {/* =====================================================
+      {/* ====================================================
           TOP ADVERTISEMENT
-      ===================================================== */}
+      ==================================================== */}
 
       {ads.length > 0 && (
         <div className="home-top-ad-section">
@@ -636,7 +782,8 @@ export default function Home() {
 
             <div
               style={{
-                fontFamily: "'Barlow Condensed',sans-serif",
+                fontFamily:
+                  "'Barlow Condensed',sans-serif",
                 fontSize: 8,
                 letterSpacing: 2,
                 textTransform: 'uppercase',
@@ -649,10 +796,12 @@ export default function Home() {
             </div>
 
             <div className="top-ad-wrapper">
+
               <AdBanner
                 ads={ads.slice(0, 2)}
                 height={90}
               />
+
             </div>
 
           </div>
@@ -671,9 +820,8 @@ export default function Home() {
           }}
         >
 
-
           {/* =================================================
-              HERO ZONE
+              HERO
           ================================================= */}
 
           {featured && (
@@ -683,11 +831,17 @@ export default function Home() {
 
               <div className="home-hero-sidebar">
 
-                {recent.slice(0, 2).map(s => (
+                {recent.slice(0, 2).map(story => (
 
                   <Link
-                    key={s._id || s.id}
-                    to={`/story/${s._id || s.id}`}
+                    key={
+                      story._id ||
+                      story.id
+                    }
+                    to={`/story/${
+                      story._id ||
+                      story.id
+                    }`}
                     style={{
                       position: 'relative',
                       overflow: 'hidden',
@@ -701,12 +855,13 @@ export default function Home() {
                   >
 
                     <img
-                      src={imgUrl(s.image)}
+                      src={imgUrl(story.image)}
                       alt=""
                       loading="lazy"
-                      onError={e => {
-                        e.target.onerror = null;
-                        e.target.src = '/placeholder.jpg';
+                      onError={event => {
+                        event.currentTarget.onerror = null;
+                        event.currentTarget.src =
+                          '/placeholder.jpg';
                       }}
                       style={{
                         position: 'absolute',
@@ -730,7 +885,8 @@ export default function Home() {
 
                       <div
                         style={{
-                          fontFamily: "'Barlow Condensed',sans-serif",
+                          fontFamily:
+                            "'Barlow Condensed',sans-serif",
                           fontSize: 9,
                           fontWeight: 800,
                           letterSpacing: 2,
@@ -739,31 +895,36 @@ export default function Home() {
                           marginBottom: 3
                         }}
                       >
-                        {s.category}
+                        {story.category}
                       </div>
 
                       <div
                         style={{
-                          fontFamily: "'Playfair Display',serif",
+                          fontFamily:
+                            "'Playfair Display',serif",
                           fontSize: '.82rem',
                           fontWeight: 700,
                           color: '#fff',
                           lineHeight: 1.25
                         }}
                       >
-                        {(s.title || '').substring(0, 65)}
+                        {(story.title || '')
+                          .substring(0, 65)}
                       </div>
 
                       <div
                         style={{
-                          fontFamily: "'Barlow Condensed',sans-serif",
+                          fontFamily:
+                            "'Barlow Condensed',sans-serif",
                           fontSize: 9,
-                          color: 'rgba(255,255,255,.4)',
+                          color:
+                            'rgba(255,255,255,.4)',
                           marginTop: 3
                         }}
                       >
                         {timeAgo(
-                          s.created_at || s.createdAt
+                          story.created_at ||
+                          story.createdAt
                         )}
                       </div>
 
@@ -790,27 +951,24 @@ export default function Home() {
 
 
           {/* =================================================
-              MAIN CONTENT + SIDEBAR
+              MAIN + SIDEBAR
           ================================================= */}
 
           <div className="home-main-grid">
 
-
-            {/* ===============================================
+            {/* =================================================
                 MAIN COLUMN
-            =============================================== */}
+            ================================================= */}
 
             <div>
 
-
-              {/* =============================================
-                  LATEST NEWS
-              ============================================= */}
+              {/* ===============================================
+                  LATEST NEWS — EXACTLY 5 NEWEST STORIES
+              =============================================== */}
 
               <SectionLabel>
                 Latest News
               </SectionLabel>
-
 
               {currentLatest && (
                 <div
@@ -834,27 +992,31 @@ export default function Home() {
                         currentLatest._id ||
                         currentLatest.id
                       }
-                      src={imgUrl(currentLatest.image)}
-                      alt=""
+                      src={imgUrl(
+                        currentLatest.image
+                      )}
+                      alt={
+                        currentLatest.title ||
+                        'Latest news'
+                      }
                       loading="eager"
-                      onError={e => {
-                        e.target.onerror = null;
-                        e.target.src = '/placeholder.jpg';
+                      onError={event => {
+                        event.currentTarget.onerror = null;
+                        event.currentTarget.src =
+                          '/placeholder.jpg';
                       }}
                     />
-
 
                     <div className="latest-news-overlay">
 
                       <div className="latest-news-category">
-                        {currentLatest.category}
+                        {currentLatest.category ||
+                          'News'}
                       </div>
-
 
                       <h2 className="latest-news-title">
                         {currentLatest.title}
                       </h2>
-
 
                       <p className="latest-news-description">
                         {(currentLatest.description || '')
@@ -862,11 +1024,12 @@ export default function Home() {
                           .substring(0, 180)}
                       </p>
 
-
                       <div className="latest-news-meta">
 
                         <span>
-                          👤 {currentLatest.author || 'Unknown'}
+                          👤{' '}
+                          {currentLatest.author ||
+                            'Unknown'}
                         </span>
 
                         <span>
@@ -892,42 +1055,46 @@ export default function Home() {
 
 
                   {/* =========================================
-                      DOTS
+                      CAROUSEL DOTS
                   ========================================= */}
 
                   {latestStories.length > 1 && (
                     <div className="latest-news-dots">
 
-                      {latestStories.map((story, index) => (
+                      {latestStories.map(
+                        (story, index) => (
 
-                        <button
-                          key={
-                            story._id ||
-                            story.id ||
-                            index
-                          }
-                          type="button"
-                          className={
-                            index === latestIndex
-                              ? 'active'
-                              : ''
-                          }
-                          onClick={() =>
-                            changeLatestStory(index)
-                          }
-                          aria-label={`Show latest story ${
-                            index + 1
-                          }`}
-                        />
+                          <button
+                            key={
+                              story._id ||
+                              story.id ||
+                              index
+                            }
+                            type="button"
+                            className={
+                              index === latestIndex
+                                ? 'active'
+                                : ''
+                            }
+                            onClick={() =>
+                              changeLatestStory(
+                                index
+                              )
+                            }
+                            aria-label={`Show latest story ${
+                              index + 1
+                            }`}
+                          />
 
-                      ))}
+                        )
+                      )}
 
                     </div>
                   )}
 
 
                   {/* =========================================
-                      10 SECOND PROGRESS BAR
+                      10 SECOND TIMER
                   ========================================= */}
 
                   {latestStories.length > 1 && (
@@ -945,9 +1112,9 @@ export default function Home() {
               )}
 
 
-              {/* =============================================
-                  ADDITIONAL LATEST STORIES GRID
-              ============================================= */}
+              {/* =================================================
+                  STORY GRID
+              ================================================= */}
 
               {gridStories.length > 0 && (
                 <div
@@ -960,11 +1127,14 @@ export default function Home() {
                   }}
                 >
 
-                  {gridStories.map(s => (
+                  {gridStories.map(story => (
 
                     <GridCard
-                      key={s._id || s.id}
-                      story={s}
+                      key={
+                        story._id ||
+                        story.id
+                      }
+                      story={story}
                     />
 
                   ))}
@@ -973,9 +1143,9 @@ export default function Home() {
               )}
 
 
-              {/* =============================================
-                  CATEGORY SECTIONS
-              ============================================= */}
+              {/* =================================================
+                  BUSINESS / SPORT / TECHNOLOGY
+              ================================================= */}
 
               <div
                 style={{
@@ -991,51 +1161,55 @@ export default function Home() {
                   'Business',
                   'Sport',
                   'Technology'
-                ].map(cat => (
+                ].map(category => (
 
-                  <div key={cat}>
+                  <div key={category}>
 
                     <SectionLabel>
 
                       <Link
-                        to={`/category/${cat}`}
+                        to={`/category/${category}`}
                         style={{
                           color: '#c0392b',
                           textDecoration: 'none'
                         }}
                       >
-                        {cat}
+                        {category}
                       </Link>
 
                     </SectionLabel>
 
 
-                    {(byCategory[cat] || [])
+                    {(byCategory[category] || [])
                       .slice(0, 3)
-                      .map(s => (
+                      .map(story => (
 
                         <StoryCard
-                          key={s._id || s.id}
-                          story={s}
+                          key={
+                            story._id ||
+                            story.id
+                          }
+                          story={story}
                         />
 
                       ))}
 
 
                     <Link
-                      to={`/category/${cat}`}
+                      to={`/category/${category}`}
                       style={{
                         fontFamily:
                           "'Barlow Condensed',sans-serif",
                         fontSize: 11,
                         fontWeight: 700,
                         letterSpacing: 2,
-                        textTransform: 'uppercase',
+                        textTransform:
+                          'uppercase',
                         color: '#c0392b',
                         textDecoration: 'none'
                       }}
                     >
-                      All {cat} →
+                      All {category} →
                     </Link>
 
                   </div>
@@ -1045,9 +1219,9 @@ export default function Home() {
               </div>
 
 
-              {/* =============================================
-                  ADVERTISEMENT
-              ============================================= */}
+              {/* =================================================
+                  SECOND AD
+              ================================================= */}
 
               <AdBanner
                 ads={ads.slice(3)}
@@ -1055,31 +1229,38 @@ export default function Home() {
               />
 
 
-              {/* =============================================
+              {/* =================================================
                   MORE STORIES
-              ============================================= */}
+              ================================================= */}
 
               <SectionLabel>
                 More Stories
               </SectionLabel>
 
 
-              {hotStories.map(s => (
+              {hotStories.map(story => (
 
                 <Link
-                  key={s._id || s.id}
-                  to={`/story/${s._id || s.id}`}
+                  key={
+                    story._id ||
+                    story.id
+                  }
+                  to={`/story/${
+                    story._id ||
+                    story.id
+                  }`}
                   className="home-hot-story"
                 >
 
                   <img
                     className="home-hot-story-img"
-                    src={imgUrl(s.image)}
+                    src={imgUrl(story.image)}
                     alt=""
                     loading="lazy"
-                    onError={e => {
-                      e.target.onerror = null;
-                      e.target.src = '/placeholder.jpg';
+                    onError={event => {
+                      event.currentTarget.onerror = null;
+                      event.currentTarget.src =
+                        '/placeholder.jpg';
                     }}
                   />
 
@@ -1093,12 +1274,13 @@ export default function Home() {
                         fontSize: 9,
                         fontWeight: 800,
                         letterSpacing: 2,
-                        textTransform: 'uppercase',
+                        textTransform:
+                          'uppercase',
                         color: '#c0392b',
                         marginBottom: 6
                       }}
                     >
-                      {s.category}
+                      {story.category}
                     </div>
 
 
@@ -1111,7 +1293,8 @@ export default function Home() {
                         marginBottom: 6
                       }}
                     >
-                      {(s.title || '').substring(0, 90)}
+                      {(story.title || '')
+                        .substring(0, 90)}
                     </div>
 
 
@@ -1124,7 +1307,7 @@ export default function Home() {
                         marginBottom: 8
                       }}
                     >
-                      {(s.description || '')
+                      {(story.description || '')
                         .replace(/<[^>]+>/g, '')
                         .substring(0, 110)}
                     </p>
@@ -1143,21 +1326,23 @@ export default function Home() {
                     >
 
                       <span>
-                        👤 {s.author || 'Unknown'}
+                        👤{' '}
+                        {story.author ||
+                          'Unknown'}
                       </span>
 
                       <span>
                         🕐{' '}
                         {timeAgo(
-                          s.created_at ||
-                          s.createdAt
+                          story.created_at ||
+                          story.createdAt
                         )}
                       </span>
 
                       <span>
                         👁{' '}
                         {Number(
-                          s.views || 0
+                          story.views || 0
                         ).toLocaleString()}
                       </span>
 
@@ -1170,9 +1355,9 @@ export default function Home() {
               ))}
 
 
-              {/* =============================================
-                  HEALTH & CULTURE
-              ============================================= */}
+              {/* =================================================
+                  HEALTH / CULTURE
+              ================================================= */}
 
               <div
                 style={{
@@ -1187,32 +1372,35 @@ export default function Home() {
                 {[
                   'Health',
                   'Culture'
-                ].map(cat => (
+                ].map(category => (
 
-                  <div key={cat}>
+                  <div key={category}>
 
                     <SectionLabel>
 
                       <Link
-                        to={`/category/${cat}`}
+                        to={`/category/${category}`}
                         style={{
                           color: '#c0392b',
                           textDecoration: 'none'
                         }}
                       >
-                        {cat}
+                        {category}
                       </Link>
 
                     </SectionLabel>
 
 
-                    {(byCategory[cat] || [])
+                    {(byCategory[category] || [])
                       .slice(0, 3)
-                      .map(s => (
+                      .map(story => (
 
                         <StoryCard
-                          key={s._id || s.id}
-                          story={s}
+                          key={
+                            story._id ||
+                            story.id
+                          }
+                          story={story}
                         />
 
                       ))}
@@ -1226,26 +1414,27 @@ export default function Home() {
             </div>
 
 
-            {/* ===============================================
+            {/* =================================================
                 SIDEBAR
-            =============================================== */}
+            ================================================= */}
 
             <aside>
 
               <div className="home-sidebar-sticky">
 
-
-                {/* =========================================
+                {/* =============================================
                     MOST READ
-                ========================================= */}
+                ============================================= */}
 
                 <div
                   style={{
                     background: '#fff',
-                    border: '1px solid #e8e4d8',
+                    border:
+                      '1px solid #e8e4d8',
                     padding: 20,
                     marginBottom: 22,
-                    borderTop: '3px solid #c0392b'
+                    borderTop:
+                      '3px solid #c0392b'
                   }}
                 >
 
@@ -1256,7 +1445,8 @@ export default function Home() {
                       fontWeight: 800,
                       fontSize: 11,
                       letterSpacing: 2.5,
-                      textTransform: 'uppercase',
+                      textTransform:
+                        'uppercase',
                       borderBottom:
                         '3px solid #c0392b',
                       paddingBottom: 10,
@@ -1267,34 +1457,41 @@ export default function Home() {
                   </div>
 
 
-                  {popular.map((p, i) => (
+                  {popular.map(
+                    (story, index) => (
 
-                    <PopularItem
-                      key={p._id || p.id}
-                      story={p}
-                      rank={i + 1}
-                    />
+                      <PopularItem
+                        key={
+                          story._id ||
+                          story.id ||
+                          index
+                        }
+                        story={story}
+                        rank={index + 1}
+                      />
 
-                  ))}
+                    )
+                  )}
 
                 </div>
 
 
-                {/* =========================================
+                {/* =============================================
                     NEWSLETTER
-                ========================================= */}
+                ============================================= */}
 
                 <NewsletterWidget />
 
 
-                {/* =========================================
+                {/* =============================================
                     ENVIRONMENT
-                ========================================= */}
+                ============================================= */}
 
                 <div
                   style={{
                     background: '#fff',
-                    border: '1px solid #e8e4d8',
+                    border:
+                      '1px solid #e8e4d8',
                     padding: 20,
                     marginBottom: 22
                   }}
@@ -1307,11 +1504,14 @@ export default function Home() {
 
                   {(byCategory.Environment || [])
                     .slice(0, 3)
-                    .map(s => (
+                    .map(story => (
 
                       <StoryCard
-                        key={s._id || s.id}
-                        story={s}
+                        key={
+                          story._id ||
+                          story.id
+                        }
+                        story={story}
                       />
 
                     ))}
@@ -1319,21 +1519,22 @@ export default function Home() {
                 </div>
 
 
-                {/* =========================================
+                {/* =============================================
                     WHATSAPP
-                ========================================= */}
+                ============================================= */}
 
                 <WhatsAppCTA />
 
 
-                {/* =========================================
+                {/* =============================================
                     TOPICS
-                ========================================= */}
+                ============================================= */}
 
                 <div
                   style={{
                     background: '#fff',
-                    border: '1px solid #e8e4d8',
+                    border:
+                      '1px solid #e8e4d8',
                     padding: 20
                   }}
                 >
@@ -1345,7 +1546,8 @@ export default function Home() {
                       fontWeight: 800,
                       fontSize: 11,
                       letterSpacing: 2.5,
-                      textTransform: 'uppercase',
+                      textTransform:
+                        'uppercase',
                       borderBottom:
                         '3px solid #0d0d0d',
                       paddingBottom: 10,
@@ -1387,3 +1589,4 @@ export default function Home() {
     </>
   );
 }
+
