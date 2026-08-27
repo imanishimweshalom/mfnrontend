@@ -37,8 +37,6 @@ export default function Home() {
 
   /* ============================================================
      MOST READ
-     5 AT A TIME
-     ROTATE THROUGH 20 STORIES
   ============================================================ */
 
   const [mostReadStart, setMostReadStart] = useState(0);
@@ -73,8 +71,17 @@ export default function Home() {
     );
   };
 
+  const storyId = story =>
+    story?._id || story?.id;
+
+  const cleanText = text =>
+    (text || '')
+      .replace(/<[^>]+>/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+
   /* ============================================================
-     LOAD HOME DATA
+     LOAD DATA
   ============================================================ */
 
   useEffect(() => {
@@ -84,75 +91,65 @@ export default function Home() {
       try {
         setLoading(true);
 
-        const [storiesRes, popRes, adsRes] = await Promise.all([
-          storiesAPI.getAll({
-            limit: 20,
-            status: 'published'
-          }),
+        const [storiesRes, popRes, adsRes] =
+          await Promise.all([
+            storiesAPI.getAll({
+              limit: 20,
+              status: 'published'
+            }),
 
-          storiesAPI.getPopular({
-            limit: 20
-          }),
+            storiesAPI.getPopular({
+              limit: 20
+            }),
 
-          adsAPI.getAll()
-        ]);
+            adsAPI.getAll()
+          ]);
 
         if (!mounted) return;
 
         const rawStories =
           storiesRes?.data?.stories || [];
 
-        /* ======================================================
-           NEWEST FIRST
-        ====================================================== */
+        const allStories =
+          sortNewestFirst(rawStories);
 
-        const allStories = sortNewestFirst(rawStories);
+        /* Featured */
 
-        /* ======================================================
-           FEATURED
-        ====================================================== */
+        setFeatured(
+          allStories[0] || null
+        );
 
-        setFeatured(allStories[0] || null);
+        /* Latest 5 */
 
-        /* ======================================================
-           LATEST NEWS
-           EXACTLY 5 NEWEST STORIES
-        ====================================================== */
+        setLatestStories(
+          allStories.slice(0, 5)
+        );
 
-        const newestFive = allStories.slice(0, 5);
+        /* Remaining */
 
-        setLatestStories(newestFive);
+        setRecent(
+          allStories.slice(5)
+        );
 
-        /* ======================================================
-           REMAINING STORIES
-        ====================================================== */
+        /*
+          Most Read area intentionally uses
+          latest 20 stories as requested.
+        */
 
-        setRecent(allStories.slice(5));
+        setPopular(
+          allStories.slice(0, 20)
+        );
 
-        /* ======================================================
-           MOST READ
-           USE 20 NEWEST STORIES
-           5 DISPLAYED AT ONCE
-        ====================================================== */
+        /* Ads */
 
-        const latestTwenty = allStories.slice(0, 20);
-
-        setPopular(latestTwenty);
-
-        /* ======================================================
-           ADS
-           KEEP DATA AND POSITIONS
-        ====================================================== */
-
-        const adsData = Array.isArray(adsRes?.data)
-          ? adsRes.data
-          : adsRes?.data?.ads || [];
+        const adsData =
+          Array.isArray(adsRes?.data)
+            ? adsRes.data
+            : adsRes?.data?.ads || [];
 
         setAds(adsData);
 
-        /* ======================================================
-           CATEGORY DATA
-        ====================================================== */
+        /* Categories */
 
         const categories = [
           'Business',
@@ -168,17 +165,18 @@ export default function Home() {
         await Promise.all(
           categories.map(async category => {
             try {
-              const response = await storiesAPI.getAll({
-                category,
-                limit: 4,
-                status: 'published'
-              });
+              const response =
+                await storiesAPI.getAll({
+                  category,
+                  limit: 4,
+                  status: 'published'
+                });
 
-              const categoryStories =
+              const stories =
                 response?.data?.stories || [];
 
               categoryResults[category] =
-                sortNewestFirst(categoryStories);
+                sortNewestFirst(stories);
             } catch (error) {
               console.error(
                 `Failed to load ${category} stories:`,
@@ -213,7 +211,7 @@ export default function Home() {
   }, []);
 
   /* ============================================================
-     RESET LATEST INDEX
+     RESET LATEST
   ============================================================ */
 
   useEffect(() => {
@@ -248,37 +246,45 @@ export default function Home() {
       return undefined;
     }
 
-    autoPlayRef.current = setInterval(() => {
-      setLatestAnimating(true);
+    autoPlayRef.current =
+      setInterval(() => {
+        setLatestAnimating(true);
 
-      if (animationTimerRef.current) {
-        clearTimeout(animationTimerRef.current);
-      }
+        if (animationTimerRef.current) {
+          clearTimeout(
+            animationTimerRef.current
+          );
+        }
 
-      animationTimerRef.current = setTimeout(() => {
-        setLatestIndex(prev => (
-          (prev + 1) % latestStories.length
-        ));
+        animationTimerRef.current =
+          setTimeout(() => {
+            setLatestIndex(prev =>
+              (prev + 1) %
+              latestStories.length
+            );
 
-        setLatestAnimating(false);
-      }, 450);
-    }, 10000);
+            setLatestAnimating(false);
+          }, 450);
+      }, 10000);
 
     return () => {
       if (autoPlayRef.current) {
-        clearInterval(autoPlayRef.current);
+        clearInterval(
+          autoPlayRef.current
+        );
       }
 
       if (animationTimerRef.current) {
-        clearTimeout(animationTimerRef.current);
+        clearTimeout(
+          animationTimerRef.current
+        );
       }
     };
   }, [latestStories.length]);
 
   /* ============================================================
-     MOST READ AUTO ROTATION
+     MOST READ
      EVERY 5 SECONDS
-     ONE STORY MOVES UP
   ============================================================ */
 
   useEffect(() => {
@@ -286,21 +292,24 @@ export default function Home() {
       return undefined;
     }
 
-    mostReadTimerRef.current = setInterval(() => {
-      setMostReadStart(prev => (
-        (prev + 1) % popular.length
-      ));
-    }, 5000);
+    mostReadTimerRef.current =
+      setInterval(() => {
+        setMostReadStart(prev =>
+          (prev + 1) % popular.length
+        );
+      }, 5000);
 
     return () => {
       if (mostReadTimerRef.current) {
-        clearInterval(mostReadTimerRef.current);
+        clearInterval(
+          mostReadTimerRef.current
+        );
       }
     };
   }, [popular.length]);
 
   /* ============================================================
-     GET 5 MOST READ STORIES
+     VISIBLE MOST READ
   ============================================================ */
 
   const visibleMostRead = [];
@@ -314,16 +323,18 @@ export default function Home() {
       visibleMostRead.push({
         story:
           popular[
-            (mostReadStart + i) % popular.length
+            (mostReadStart + i) %
+              popular.length
           ],
         originalIndex:
-          (mostReadStart + i) % popular.length
+          (mostReadStart + i) %
+          popular.length
       });
     }
   }
 
   /* ============================================================
-     MANUAL LATEST STORY CHANGE
+     MANUAL LATEST CHANGE
   ============================================================ */
 
   const changeLatestStory = index => {
@@ -337,13 +348,16 @@ export default function Home() {
     setLatestAnimating(true);
 
     if (animationTimerRef.current) {
-      clearTimeout(animationTimerRef.current);
+      clearTimeout(
+        animationTimerRef.current
+      );
     }
 
-    animationTimerRef.current = setTimeout(() => {
-      setLatestIndex(index);
-      setLatestAnimating(false);
-    }, 350);
+    animationTimerRef.current =
+      setTimeout(() => {
+        setLatestIndex(index);
+        setLatestAnimating(false);
+      }, 350);
   };
 
   /* ============================================================
@@ -353,13 +367,15 @@ export default function Home() {
   if (loading) {
     return (
       <PublicLayout>
-        <Spinner />
+        <div className="home-loading">
+          <Spinner />
+        </div>
       </PublicLayout>
     );
   }
 
   /* ============================================================
-     EMPTY STATE
+     EMPTY
   ============================================================ */
 
   if (
@@ -379,307 +395,295 @@ export default function Home() {
   }
 
   /* ============================================================
-     OTHER STORIES
+     STORY GROUPS
   ============================================================ */
 
-  const gridStories = recent.slice(0, 4);
-  const hotStories = recent.slice(4, 10);
+  const gridStories =
+    recent.slice(0, 4);
+
+  const hotStories =
+    recent.slice(4, 10);
 
   const currentLatest =
     latestStories[latestIndex] ||
     latestStories[0] ||
     null;
 
-  /* ============================================================
-     RENDER
-  ============================================================ */
-
   return (
     <>
       <style>{`
 
-        /* ========================================================
-           GLOBAL HOME
-        ======================================================== */
+        /* ======================================================
+           ROOT
+        ====================================================== */
 
-        .home-page {
+        .news-home {
+          --red: #b21f24;
+          --red-dark: #8f171c;
+          --gold: #c9a24d;
+          --ink: #111111;
+          --muted: #737373;
+          --soft: #f5f3ee;
+          --line: #e7e3da;
+          --paper: #ffffff;
+
           width: 100%;
-          background: #f8f6f0;
+          background: #f8f7f3;
+          color: var(--ink);
         }
 
-        /* ========================================================
-           TOP ADVERTISEMENT
-           FULL BLACK
-           LARGE PROFESSIONAL HEIGHT
-        ======================================================== */
-
-        .home-top-ad-section {
-          width: 100%;
-          min-height: 150px;
+        .news-home *,
+        .news-home *::before,
+        .news-home *::after {
           box-sizing: border-box;
-          background: #000;
-          padding: 20px;
-          display: flex;
-          justify-content: center;
-          align-items: center;
-          border-bottom: 1px solid #1c1c1c;
-          position: relative;
-          z-index: 1000;
         }
 
-        .top-ad-container {
+        /* ======================================================
+           TOP AD
+        ====================================================== */
+
+        .news-top-ad {
+          width: 100%;
+          background: #050505;
+          padding: 18px 20px 20px;
+          border-bottom: 1px solid #222;
+        }
+
+        .news-top-ad-inner {
           width: 100%;
           max-width: 1200px;
           margin: 0 auto;
         }
 
-        .top-ad-label {
+        .news-ad-label {
+          text-align: center;
+          color: #555;
           font-family:
             "Barlow Condensed",
             sans-serif;
           font-size: 8px;
-          font-weight: 600;
-          letter-spacing: 2.5px;
+          letter-spacing: 3px;
           text-transform: uppercase;
-          color: #555;
-          text-align: center;
           margin-bottom: 7px;
         }
 
-        .top-ad-wrapper {
+        .news-top-ad-box {
           width: 100%;
           height: 110px;
           overflow: hidden;
-          border: 1px solid #202020;
-          border-radius: 3px;
           background: #000;
-          display: flex;
-          align-items: center;
-          justify-content: center;
+          border: 1px solid #242424;
+          border-radius: 2px;
           box-shadow:
-            0 10px 35px rgba(0, 0, 0, .45);
+            0 15px 40px
+            rgba(0,0,0,.4);
         }
 
-        .top-ad-wrapper > div {
+        .news-top-ad-box > div {
           width: 100% !important;
           height: 100% !important;
           display: flex !important;
           flex-direction: row !important;
         }
 
-        .top-ad-wrapper a {
+        .news-top-ad-box a {
           flex: 1 1 50% !important;
           width: 50% !important;
           height: 100% !important;
-          display: block !important;
         }
 
-        .top-ad-wrapper img {
+        .news-top-ad-box img {
           width: 100% !important;
           height: 110px !important;
           object-fit: cover !important;
           display: block !important;
         }
 
-        /* ========================================================
-           MAIN HOME CONTAINER
-        ======================================================== */
+        /* ======================================================
+           PAGE CONTAINER
+        ====================================================== */
 
-        .home-content {
+        .news-container {
           width: 100%;
-          max-width: 1260px;
+          max-width: 1320px;
           margin: 0 auto;
-          padding: 28px 20px 40px;
-          box-sizing: border-box;
+          padding:
+            30px 24px 70px;
         }
 
-        /* ========================================================
+        /* ======================================================
            HERO
-        ======================================================== */
+        ====================================================== */
 
-        .home-hero-grid {
+        .news-hero {
           display: grid;
           grid-template-columns:
-            minmax(0, 1fr) 340px;
-          gap: 2px;
-          background: #000;
-          margin-bottom: 2px;
-          min-height: 520px;
+            minmax(0, 1fr) 350px;
+          gap: 3px;
+          background: #111;
+          margin-bottom: 26px;
         }
 
-        /* ========================================================
-           LATEST NEWS HERO
-        ======================================================== */
-
-        .hero-latest-news {
+        .news-hero-main {
           position: relative;
-          width: 100%;
-          height: 520px;
-          min-height: 520px;
+          height: 560px;
+          min-width: 0;
           overflow: hidden;
-          background: #000;
+          background: #111;
         }
 
-        .hero-latest-slide {
-          position: relative;
+        .news-hero-link {
+          position: absolute;
+          inset: 0;
           display: block;
-          width: 100%;
-          height: 100%;
-          min-height: 520px;
-          overflow: hidden;
-          text-decoration: none;
           color: #fff;
-          background: #000;
+          text-decoration: none;
+          overflow: hidden;
         }
 
-        .hero-latest-slide img {
+        .news-hero-image {
           position: absolute;
           inset: 0;
           width: 100%;
           height: 100%;
           object-fit: cover;
-          object-position: center;
-          transform: scale(1);
           transition:
-            transform 10s ease,
-            opacity .5s ease;
-          background: #000;
+            transform 12s ease;
         }
 
-        .hero-latest-slide:hover img {
+        .news-hero-main:hover
+        .news-hero-image {
           transform: scale(1.045);
         }
 
-        /* ========================================================
-           PROFESSIONAL BLACK COVER
-        ======================================================== */
-
-        .hero-latest-slide::after {
+        .news-hero-link::after {
           content: "";
           position: absolute;
           inset: 0;
-          z-index: 2;
-          pointer-events: none;
 
           background:
             linear-gradient(
-              to bottom,
-              rgba(0, 0, 0, .03) 0%,
-              rgba(0, 0, 0, .10) 25%,
-              rgba(0, 0, 0, .45) 55%,
-              rgba(0, 0, 0, .97) 100%
+              to top,
+              rgba(0,0,0,.96) 0%,
+              rgba(0,0,0,.75) 27%,
+              rgba(0,0,0,.22) 60%,
+              rgba(0,0,0,.02) 100%
             );
+
+          z-index: 1;
         }
 
-        /* ========================================================
-           HERO OVERLAY
-        ======================================================== */
-
-        .hero-latest-overlay {
+        .news-hero-content {
           position: absolute;
-          inset: 0;
-          z-index: 5;
-
-          display: flex;
-          flex-direction: column;
-          justify-content: flex-end;
+          z-index: 3;
+          left: 0;
+          right: 0;
+          bottom: 0;
 
           padding:
-            55px 55px 50px;
-
-          background:
-            linear-gradient(
-              to right,
-              rgba(0, 0, 0, .20),
-              transparent 65%
-            );
+            50px 58px 58px;
         }
 
-        .hero-latest-category {
-          font-family:
-            "Barlow Condensed",
-            sans-serif;
-          font-size: 12px;
-          font-weight: 800;
-          letter-spacing: 3px;
-          text-transform: uppercase;
-          color: #e8b84b;
-          margin-bottom: 12px;
-        }
-
-        .hero-latest-title {
-          font-family:
-            "Playfair Display",
-            Georgia,
-            serif;
-
-          font-size:
-            clamp(2rem, 4vw, 3.6rem);
-
-          font-weight: 700;
-          line-height: 1.08;
-
-          margin: 0 0 16px;
-
-          max-width: 950px;
-
-          color: #fff;
-
-          text-shadow:
-            0 3px 15px rgba(0, 0, 0, .75);
-        }
-
-        .hero-latest-description {
-          max-width: 760px;
-
-          margin: 0 0 18px;
-
-          font-size: 15px;
-
-          line-height: 1.65;
-
-          color:
-            rgba(255, 255, 255, .82);
-
-          text-shadow:
-            0 2px 8px rgba(0, 0, 0, .65);
-        }
-
-        .hero-latest-meta {
-          display: flex;
-          gap: 18px;
-          flex-wrap: wrap;
+        .news-hero-category {
+          display: inline-flex;
+          align-items: center;
 
           font-family:
             "Barlow Condensed",
             sans-serif;
 
           font-size: 11px;
+          font-weight: 800;
+          letter-spacing: 2.8px;
+          text-transform: uppercase;
 
-          letter-spacing: .5px;
+          color: var(--gold);
+
+          margin-bottom: 13px;
+        }
+
+        .news-hero-category::before {
+          content: "";
+          width: 25px;
+          height: 2px;
+          background: var(--gold);
+          margin-right: 10px;
+        }
+
+        .news-hero-title {
+          max-width: 950px;
+
+          margin: 0 0 15px;
+
+          font-family:
+            "Playfair Display",
+            Georgia,
+            serif;
+
+          font-size:
+            clamp(2.1rem, 4vw, 3.9rem);
+
+          font-weight: 700;
+          line-height: 1.04;
+
+          letter-spacing: -.5px;
+
+          color: #fff;
+
+          text-shadow:
+            0 3px 18px
+            rgba(0,0,0,.5);
+        }
+
+        .news-hero-description {
+          max-width: 750px;
+
+          margin: 0 0 19px;
+
+          font-family:
+            Arial,
+            sans-serif;
+
+          font-size: 14px;
+          line-height: 1.65;
 
           color:
-            rgba(255, 255, 255, .72);
+            rgba(255,255,255,.78);
         }
 
-        /* ========================================================
-           LATEST NEWS ANIMATION
-        ======================================================== */
+        .news-hero-meta {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 16px;
 
-        .hero-latest-changing {
+          font-family:
+            "Barlow Condensed",
+            sans-serif;
+
+          font-size: 10px;
+          letter-spacing: .7px;
+
+          color:
+            rgba(255,255,255,.68);
+        }
+
+        /* ======================================================
+           HERO ANIMATION
+        ====================================================== */
+
+        .news-hero-changing {
           animation:
-            heroLatestProfessional
+            newsHeroChange
             .55s
-            ease;
+            ease both;
         }
 
-        @keyframes heroLatestProfessional {
-
+        @keyframes newsHeroChange {
           0% {
-            opacity: 0;
+            opacity: .1;
             transform:
-              translateY(18px)
-              scale(.99);
+              translateY(15px)
+              scale(.995);
           }
 
           100% {
@@ -688,38 +692,35 @@ export default function Home() {
               translateY(0)
               scale(1);
           }
-
         }
 
-        /* ========================================================
-           DOTS
-        ======================================================== */
+        /* ======================================================
+           HERO DOTS
+        ====================================================== */
 
-        .hero-latest-dots {
+        .news-hero-dots {
           position: absolute;
+          right: 28px;
+          bottom: 27px;
 
-          right: 35px;
-          bottom: 32px;
-
-          z-index: 20;
+          z-index: 8;
 
           display: flex;
+          gap: 7px;
           align-items: center;
-          gap: 8px;
         }
 
-        .hero-latest-dots button {
-          width: 8px;
-          height: 8px;
-
-          padding: 0;
+        .news-hero-dots button {
+          width: 7px;
+          height: 7px;
 
           border: 0;
+          padding: 0;
 
           border-radius: 50%;
 
           background:
-            rgba(255, 255, 255, .35);
+            rgba(255,255,255,.4);
 
           cursor: pointer;
 
@@ -727,55 +728,48 @@ export default function Home() {
             all .3s ease;
         }
 
-        .hero-latest-dots button:hover {
-          background:
-            rgba(255, 255, 255, .85);
+        .news-hero-dots button.active {
+          width: 28px;
+          border-radius: 8px;
+          background: var(--gold);
         }
 
-        .hero-latest-dots button.active {
-          width: 30px;
-
-          border-radius: 6px;
-
-          background: #e8b84b;
+        .news-hero-dots button:hover {
+          background: #fff;
         }
 
-        /* ========================================================
-           PROGRESS BAR
-        ======================================================== */
+        /* ======================================================
+           HERO PROGRESS
+        ====================================================== */
 
-        .hero-latest-progress {
+        .news-progress {
           position: absolute;
+          z-index: 10;
 
           left: 0;
+          right: 0;
           bottom: 0;
 
-          width: 100%;
-          height: 4px;
+          height: 3px;
 
           background:
-            rgba(255, 255, 255, .12);
-
-          z-index: 30;
-
-          overflow: hidden;
+            rgba(255,255,255,.15);
         }
 
-        .hero-latest-progress-inner {
-          width: 0;
+        .news-progress-inner {
           height: 100%;
+          width: 0;
 
-          background: #e8b84b;
+          background: var(--gold);
 
           animation:
-            heroLatestProgress
+            newsProgress
             10s
             linear
             forwards;
         }
 
-        @keyframes heroLatestProgress {
-
+        @keyframes newsProgress {
           from {
             width: 0;
           }
@@ -783,61 +777,75 @@ export default function Home() {
           to {
             width: 100%;
           }
-
         }
 
-        /* ========================================================
-           HERO SIDEBAR
-        ======================================================== */
+        /* ======================================================
+           HERO SIDE STORIES
+        ====================================================== */
 
-        .home-hero-sidebar {
-          display: flex;
-          flex-direction: column;
-          gap: 2px;
-          background: #000;
+        .news-hero-side {
+          display: grid;
+          grid-template-rows: 1fr 1fr;
+          gap: 3px;
+          background: #111;
         }
 
-        .home-hero-sidebar > a {
+        .news-side-story {
           position: relative;
+          min-height: 0;
           overflow: hidden;
-          background: #0d0d0d;
-          flex: 1;
-          min-height: 120px;
-          display: flex;
-          align-items: flex-end;
+          background: #111;
+          color: #fff;
           text-decoration: none;
         }
 
-        .hero-sidebar-image {
+        .news-side-story::after {
+          content: "";
           position: absolute;
           inset: 0;
-          width: 100%;
-          height: 100%;
-          object-fit: cover;
-          opacity: .65;
-          transition:
-            transform .6s ease,
-            opacity .6s ease;
-        }
 
-        .home-hero-sidebar > a:hover
-        .hero-sidebar-image {
-          transform: scale(1.05);
-          opacity: .78;
-        }
-
-        .hero-sidebar-content {
-          position: relative;
-          width: 100%;
-          padding: 14px;
           background:
             linear-gradient(
-              transparent,
-              rgba(0, 0, 0, .92)
+              to top,
+              rgba(0,0,0,.93),
+              rgba(0,0,0,.15) 75%
             );
         }
 
-        .hero-sidebar-category {
+        .news-side-image {
+          position: absolute;
+          inset: 0;
+
+          width: 100%;
+          height: 100%;
+
+          object-fit: cover;
+
+          opacity: .78;
+
+          transition:
+            transform .7s ease,
+            opacity .7s ease;
+        }
+
+        .news-side-story:hover
+        .news-side-image {
+          transform: scale(1.06);
+          opacity: .92;
+        }
+
+        .news-side-content {
+          position: absolute;
+          z-index: 2;
+
+          left: 0;
+          right: 0;
+          bottom: 0;
+
+          padding: 25px 23px;
+        }
+
+        .news-side-category {
           font-family:
             "Barlow Condensed",
             sans-serif;
@@ -847,25 +855,28 @@ export default function Home() {
           letter-spacing: 2px;
           text-transform: uppercase;
 
-          color: #e8b84b;
+          color: var(--gold);
 
-          margin-bottom: 3px;
+          margin-bottom: 7px;
         }
 
-        .hero-sidebar-title {
+        .news-side-title {
           font-family:
             "Playfair Display",
+            Georgia,
             serif;
 
-          font-size: .82rem;
+          font-size: 1.05rem;
           font-weight: 700;
 
-          color: #fff;
+          line-height: 1.22;
 
-          line-height: 1.25;
+          color: #fff;
         }
 
-        .hero-sidebar-time {
+        .news-side-time {
+          margin-top: 8px;
+
           font-family:
             "Barlow Condensed",
             sans-serif;
@@ -873,73 +884,392 @@ export default function Home() {
           font-size: 9px;
 
           color:
-            rgba(255, 255, 255, .42);
-
-          margin-top: 3px;
+            rgba(255,255,255,.5);
         }
 
-        /* ========================================================
-           MAIN + SIDEBAR
-        ======================================================== */
+        /* ======================================================
+           ADVERTISEMENT BELOW HERO
+        ====================================================== */
 
-        .home-main-grid {
+        .news-inline-ad {
+          margin:
+            0 0 34px;
+        }
+
+        /* ======================================================
+           SECTION HEADER
+        ====================================================== */
+
+        .news-section-heading {
+          display: flex;
+          align-items: center;
+          gap: 15px;
+
+          margin-bottom: 20px;
+        }
+
+        .news-section-heading::after {
+          content: "";
+          flex: 1;
+
+          height: 1px;
+
+          background:
+            var(--line);
+        }
+
+        .news-section-title {
+          position: relative;
+
+          margin: 0;
+
+          font-family:
+            "Barlow Condensed",
+            sans-serif;
+
+          font-size: 12px;
+          font-weight: 800;
+
+          letter-spacing: 2.5px;
+          text-transform: uppercase;
+
+          white-space: nowrap;
+
+          color: var(--ink);
+        }
+
+        .news-section-title::before {
+          content: "";
+
+          display: inline-block;
+
+          width: 24px;
+          height: 3px;
+
+          background: var(--red);
+
+          vertical-align: middle;
+
+          margin-right: 9px;
+        }
+
+        /* ======================================================
+           MAIN LAYOUT
+        ====================================================== */
+
+        .news-main-layout {
           display: grid;
+
           grid-template-columns:
-            minmax(0, 1fr) 340px;
-          gap: 36px;
+            minmax(0, 1fr) 350px;
+
+          gap: 46px;
+
           align-items: start;
         }
 
-        .home-sidebar-sticky {
-          position: sticky;
-          top: 72px;
+        /* ======================================================
+           LATEST GRID
+        ====================================================== */
+
+        .news-story-grid {
+          display: grid;
+
+          grid-template-columns:
+            repeat(2, minmax(0, 1fr));
+
+          gap: 24px;
+
+          margin-bottom: 42px;
         }
 
-        /* ========================================================
-           HOT STORIES
-        ======================================================== */
+        .news-grid-item {
+          min-width: 0;
 
-        .home-hot-story {
+          background: #fff;
+
+          border:
+            1px solid var(--line);
+
+          transition:
+            transform .25s ease,
+            box-shadow .25s ease;
+        }
+
+        .news-grid-item:hover {
+          transform:
+            translateY(-3px);
+
+          box-shadow:
+            0 12px 30px
+            rgba(0,0,0,.08);
+        }
+
+        /* ======================================================
+           CATEGORY COLUMNS
+        ====================================================== */
+
+        .news-category-grid {
+          display: grid;
+
+          grid-template-columns:
+            repeat(3, minmax(0, 1fr));
+
+          gap: 30px;
+
+          margin-bottom: 38px;
+        }
+
+        .news-category-column {
+          min-width: 0;
+
+          padding-top: 4px;
+        }
+
+        .news-category-header {
           display: flex;
-          gap: 20px;
+          justify-content: space-between;
+          align-items: center;
 
-          padding: 20px 0;
+          padding-bottom: 10px;
 
           border-bottom:
-            1px solid #e8e4d8;
+            2px solid var(--ink);
+
+          margin-bottom: 16px;
+        }
+
+        .news-category-name {
+          font-family:
+            "Barlow Condensed",
+            sans-serif;
+
+          font-size: 14px;
+          font-weight: 800;
+
+          letter-spacing: 1.8px;
+          text-transform: uppercase;
+
+          color: var(--ink);
 
           text-decoration: none;
+        }
+
+        .news-category-name:hover {
+          color: var(--red);
+        }
+
+        .news-category-more {
+          font-family:
+            "Barlow Condensed",
+            sans-serif;
+
+          font-size: 9px;
+          font-weight: 700;
+
+          letter-spacing: 1.5px;
+          text-transform: uppercase;
+
+          color: var(--red);
+
+          text-decoration: none;
+        }
+
+        /* ======================================================
+           SECOND AD
+        ====================================================== */
+
+        .news-second-ad {
+          margin:
+            10px 0 38px;
+        }
+
+        /* ======================================================
+           MORE STORIES
+        ====================================================== */
+
+        .news-more-stories {
+          margin-bottom: 42px;
+        }
+
+        .news-hot-story {
+          display: grid;
+
+          grid-template-columns:
+            190px minmax(0, 1fr);
+
+          gap: 23px;
+
+          padding:
+            20px 0;
+
+          border-bottom:
+            1px solid var(--line);
+
+          text-decoration: none;
+
           color: inherit;
         }
 
-        .home-hot-story-img {
-          width: 160px;
-          height: 110px;
+        .news-hot-image {
+          width: 190px;
+          height: 125px;
 
           object-fit: cover;
 
-          flex-shrink: 0;
+          display: block;
         }
 
-        /* ========================================================
-           HIDDEN OLD CAROUSEL AREA
-           TITLE REMAINS IN ORIGINAL LOCATION
-        ======================================================== */
+        .news-hot-category {
+          font-family:
+            "Barlow Condensed",
+            sans-serif;
 
-        .latest-news-carousel {
+          font-size: 9px;
+          font-weight: 800;
+
+          letter-spacing: 2px;
+
+          text-transform: uppercase;
+
+          color: var(--red);
+
+          margin-bottom: 7px;
+        }
+
+        .news-hot-title {
+          font-family:
+            "Playfair Display",
+            Georgia,
+            serif;
+
+          font-size: 1.2rem;
+
+          line-height: 1.25;
+
+          margin-bottom: 7px;
+        }
+
+        .news-hot-description {
+          margin: 0 0 10px;
+
+          color: #777;
+
+          font-size: 13px;
+
+          line-height: 1.55;
+
+          font-style: italic;
+        }
+
+        .news-hot-meta {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 12px;
+
+          font-family:
+            "Barlow Condensed",
+            sans-serif;
+
+          font-size: 9px;
+
+          color: #aaa;
+        }
+
+        .news-hot-story:hover
+        .news-hot-title {
+          color: var(--red);
+        }
+
+        /* ======================================================
+           HEALTH / CULTURE
+        ====================================================== */
+
+        .news-bottom-categories {
+          display: grid;
+
+          grid-template-columns:
+            repeat(2, minmax(0, 1fr));
+
+          gap: 30px;
+
+          margin-top: 35px;
+        }
+
+        /* ======================================================
+           SIDEBAR
+        ====================================================== */
+
+        .news-sidebar {
+          min-width: 0;
+        }
+
+        .news-sidebar-sticky {
+          position: sticky;
+          top: 75px;
+        }
+
+        .news-widget {
+          background: #fff;
+
+          border:
+            1px solid var(--line);
+
+          margin-bottom: 24px;
+        }
+
+        .news-widget-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+
+          padding:
+            15px 18px;
+
+          border-bottom:
+            1px solid var(--line);
+
           position: relative;
-          width: 100%;
-          height: 0;
-          overflow: hidden;
-          margin-bottom: 0;
         }
 
-        /* ========================================================
+        .news-widget-header::before {
+          content: "";
+
+          position: absolute;
+
+          left: 0;
+          top: 0;
+          bottom: 0;
+
+          width: 4px;
+
+          background: var(--red);
+        }
+
+        .news-widget-title {
+          margin: 0;
+
+          font-family:
+            "Barlow Condensed",
+            sans-serif;
+
+          font-size: 12px;
+          font-weight: 800;
+
+          letter-spacing: 2px;
+
+          text-transform: uppercase;
+        }
+
+        .news-widget-body {
+          padding: 18px;
+        }
+
+        /* ======================================================
            MOST READ
-        ======================================================== */
+        ====================================================== */
 
         .most-read-list {
-          position: relative;
           overflow: hidden;
         }
 
@@ -950,35 +1280,39 @@ export default function Home() {
 
         .most-read-item {
           animation:
-            mostReadSlideUp
-            .65s
-            ease;
+            mostReadEnter
+            .6s
+            ease both;
         }
 
-        @keyframes mostReadSlideUp {
-
-          0% {
+        @keyframes mostReadEnter {
+          from {
             opacity: 0;
             transform:
-              translateY(35px);
+              translateY(28px);
           }
 
-          100% {
+          to {
             opacity: 1;
             transform:
               translateY(0);
           }
-
         }
 
-        .most-read-item + .most-read-item {
-          margin-top: 2px;
+        .most-read-item
+        + .most-read-item {
+          margin-top: 3px;
         }
 
         .most-read-counter {
           display: flex;
           justify-content: space-between;
-          align-items: center;
+
+          padding-top: 13px;
+          margin-top: 12px;
+
+          border-top:
+            1px solid var(--line);
 
           font-family:
             "Barlow Condensed",
@@ -986,317 +1320,421 @@ export default function Home() {
 
           font-size: 9px;
 
-          letter-spacing: 1.5px;
+          letter-spacing: 1.2px;
 
           text-transform: uppercase;
 
           color: #999;
-
-          margin-top: 12px;
-
-          padding-top: 10px;
-
-          border-top:
-            1px solid #eee;
         }
 
-        /* ========================================================
+        /* ======================================================
+           ENVIRONMENT
+        ====================================================== */
+
+        .news-environment {
+          background: #fff;
+
+          border:
+            1px solid var(--line);
+
+          padding: 20px;
+
+          margin-bottom: 24px;
+        }
+
+        /* ======================================================
+           TOPICS
+        ====================================================== */
+
+        .news-topics {
+          background: #fff;
+
+          border:
+            1px solid var(--line);
+
+          padding: 20px;
+        }
+
+        .news-topics-title {
+          font-family:
+            "Barlow Condensed",
+            sans-serif;
+
+          font-size: 11px;
+          font-weight: 800;
+
+          letter-spacing: 2.2px;
+
+          text-transform: uppercase;
+
+          padding-bottom: 10px;
+
+          border-bottom:
+            2px solid var(--ink);
+
+          margin-bottom: 15px;
+        }
+
+        /* ======================================================
+           LOADING
+        ====================================================== */
+
+        .home-loading {
+          min-height: 400px;
+
+          display: flex;
+
+          align-items: center;
+          justify-content: center;
+        }
+
+        /* ======================================================
            TABLET
-        ======================================================== */
+        ====================================================== */
 
         @media (max-width: 1100px) {
 
-          .home-hero-grid {
-            grid-template-columns:
-              minmax(0, 1fr) 300px;
-          }
-
-          .home-main-grid {
-            grid-template-columns:
-              minmax(0, 1fr) 300px;
-            gap: 24px;
-          }
-
-          .hero-latest-overlay {
+          .news-container {
             padding:
-              42px 40px 40px;
+              25px 18px 60px;
           }
 
-          .hero-latest-title {
-            font-size:
-              clamp(1.8rem, 4vw, 3rem);
-          }
-
-        }
-
-        /* ========================================================
-           TABLET / SMALL LAPTOP
-        ======================================================== */
-
-        @media (max-width: 1024px) {
-
-          .home-main-grid {
+          .news-hero {
             grid-template-columns:
-              1fr !important;
+              minmax(0, 1fr) 300px;
           }
 
-          .home-sidebar-sticky {
-            position: static !important;
+          .news-hero-main {
+            height: 500px;
           }
 
-          .hero-latest-news {
-            height: 460px;
-            min-height: 460px;
+          .news-hero-content {
+            padding:
+              40px 40px 48px;
           }
 
-          .hero-latest-slide {
-            min-height: 460px;
+          .news-main-layout {
+            grid-template-columns:
+              minmax(0, 1fr) 300px;
+
+            gap: 28px;
+          }
+
+          .news-category-grid {
+            gap: 20px;
           }
 
         }
 
-        /* ========================================================
+        /* ======================================================
+           TABLET PORTRAIT
+        ====================================================== */
+
+        @media (max-width: 900px) {
+
+          .news-hero {
+            grid-template-columns: 1fr;
+          }
+
+          .news-hero-main {
+            height: 480px;
+          }
+
+          .news-hero-side {
+            grid-template-columns:
+              1fr 1fr;
+
+            grid-template-rows:
+              220px;
+          }
+
+          .news-main-layout {
+            grid-template-columns: 1fr;
+          }
+
+          .news-sidebar-sticky {
+            position: static;
+          }
+
+        }
+
+        /* ======================================================
            MOBILE
-        ======================================================== */
+        ====================================================== */
 
-        @media (max-width: 768px) {
+        @media (max-width: 700px) {
 
-          .home-top-ad-section {
-            min-height: 125px;
-            padding: 12px;
+          .news-top-ad {
+            padding:
+              10px 10px 12px;
           }
 
-          .top-ad-wrapper {
-            height: 95px;
+          .news-top-ad-box {
+            height: 82px;
           }
 
-          .top-ad-wrapper img {
-            height: 95px !important;
-          }
-
-          .top-ad-wrapper > div {
+          .news-top-ad-box > div {
             flex-direction:
               column !important;
           }
 
-          .top-ad-wrapper a {
+          .news-top-ad-box a {
             width: 100% !important;
             height: 100% !important;
-            flex: 1 1 100% !important;
-          }
-
-          .home-content {
-            padding:
-              18px 12px 32px;
-          }
-
-          .home-hero-grid {
-            grid-template-columns:
-              1fr !important;
-            min-height: auto;
-          }
-
-          .hero-latest-news {
-            height: 390px;
-            min-height: 390px;
-          }
-
-          .hero-latest-slide {
-            min-height: 390px;
-          }
-
-          .hero-latest-overlay {
-            padding:
-              28px 25px 34px;
-          }
-
-          .hero-latest-title {
-            font-size:
-              clamp(1.55rem, 6vw, 2.2rem);
-
-            line-height: 1.1;
-          }
-
-          .hero-latest-description {
-            font-size: 13px;
-            line-height: 1.5;
-          }
-
-          .hero-latest-dots {
-            right: 20px;
-            bottom: 24px;
-          }
-
-          .home-hero-sidebar {
-            flex-direction:
-              row !important;
-          }
-
-          .home-hero-sidebar > a {
             flex:
-              1 1 50% !important;
+              1 1 100% !important;
+          }
 
-            min-height:
-              160px !important;
+          .news-top-ad-box img {
+            height: 82px !important;
+          }
+
+          .news-container {
+            padding:
+              15px 12px 45px;
+          }
+
+          .news-hero {
+            margin-bottom: 20px;
+          }
+
+          .news-hero-main {
+            height: 420px;
+          }
+
+          .news-hero-content {
+            padding:
+              30px 23px 38px;
+          }
+
+          .news-hero-title {
+            font-size:
+              clamp(
+                1.65rem,
+                7vw,
+                2.35rem
+              );
+
+            line-height: 1.08;
+          }
+
+          .news-hero-description {
+            font-size: 12px;
+
+            line-height: 1.5;
+
+            max-width: 100%;
+          }
+
+          .news-hero-meta {
+            gap: 10px;
+            font-size: 9px;
+          }
+
+          .news-hero-dots {
+            right: 18px;
+            bottom: 20px;
+          }
+
+          .news-hero-side {
+            grid-template-columns:
+              1fr 1fr;
+
+            grid-template-rows:
+              180px;
+          }
+
+          .news-side-content {
+            padding:
+              18px 15px;
+          }
+
+          .news-side-title {
+            font-size: .9rem;
+          }
+
+          .news-story-grid {
+            grid-template-columns:
+              1fr;
+
+            gap: 18px;
+          }
+
+          .news-category-grid {
+            grid-template-columns:
+              1fr;
+
+            gap: 30px;
+          }
+
+          .news-bottom-categories {
+            grid-template-columns:
+              1fr;
+          }
+
+          .news-hot-story {
+            grid-template-columns:
+              120px minmax(0, 1fr);
+
+            gap: 14px;
+          }
+
+          .news-hot-image {
+            width: 120px;
+            height: 105px;
+          }
+
+          .news-hot-title {
+            font-size:
+              1rem;
+          }
+
+          .news-hot-description {
+            display: none;
           }
 
         }
 
-        /* ========================================================
-           SMALL MOBILE
-        ======================================================== */
+        /* ======================================================
+           SMALL PHONE
+        ====================================================== */
 
-        @media (max-width: 600px) {
+        @media (max-width: 480px) {
 
-          .home-top-ad-section {
-            min-height: 105px;
-            padding: 8px;
+          .news-hero-main {
+            height: 365px;
           }
 
-          .top-ad-wrapper {
-            height: 80px;
-          }
-
-          .top-ad-wrapper img {
-            height: 80px !important;
-          }
-
-          .hero-latest-news {
-            height: 350px;
-            min-height: 350px;
-          }
-
-          .hero-latest-slide {
-            min-height: 350px;
-          }
-
-          .hero-latest-overlay {
+          .news-hero-content {
             padding:
-              22px 20px 28px;
+              22px 18px 30px;
           }
 
-          .hero-latest-category {
+          .news-hero-category {
+            font-size: 9px;
+            letter-spacing: 2px;
+          }
+
+          .news-hero-title {
+            font-size:
+              1.45rem;
+          }
+
+          .news-hero-description {
+            display: none;
+          }
+
+          .news-hero-dots {
+            bottom: 15px;
+            right: 14px;
+          }
+
+          .news-hero-side {
+            grid-template-columns: 1fr;
+            grid-template-rows:
+              150px 150px;
+          }
+
+          .news-section-heading {
+            margin-bottom: 15px;
+          }
+
+          .news-section-title {
             font-size: 10px;
             letter-spacing: 2px;
           }
 
-          .hero-latest-title {
-            font-size: 1.45rem;
+          .news-hot-story {
+            grid-template-columns:
+              1fr;
+
+            gap: 11px;
           }
 
-          .hero-latest-description {
-            display: none;
+          .news-hot-image {
+            width: 100%;
+            height: 190px;
           }
 
-          .hero-latest-meta {
-            font-size: 9px;
-            gap: 10px;
+          .news-hot-title {
+            font-size:
+              1.05rem;
           }
 
-          .hero-latest-dots {
-            right: 15px;
-            bottom: 18px;
-          }
-
-          .home-hero-sidebar {
-            flex-direction:
-              column !important;
-          }
-
-          .home-hero-sidebar > a {
-            flex:
-              1 1 100% !important;
-
-            min-height:
-              145px !important;
-          }
-
-          .home-hot-story {
-            flex-direction:
-              column !important;
-
-            gap: 12px !important;
-          }
-
-          .home-hot-story-img {
-            width: 100% !important;
-            height: 200px !important;
+          .news-hot-meta {
+            font-size: 8px;
           }
 
         }
 
       `}</style>
 
-      {/* =========================================================
-          TOP ADVERTISEMENT
-          SAME POSITION
-      ========================================================= */}
+      <div className="news-home">
 
-      {ads.length > 0 && (
-        <div className="home-top-ad-section">
+        {/* ========================================================
+            TOP ADVERTISEMENT
+        ======================================================== */}
 
-          <div className="top-ad-container">
+        {ads.length > 0 && (
+          <div className="news-top-ad">
 
-            <div className="top-ad-label">
-              Advertisement
-            </div>
+            <div className="news-top-ad-inner">
 
-            <div className="top-ad-wrapper">
+              <div className="news-ad-label">
+                Advertisement
+              </div>
 
-              <AdBanner
-                ads={ads.slice(0, 2)}
-                height={110}
-              />
+              <div className="news-top-ad-box">
+
+                <AdBanner
+                  ads={ads.slice(0, 2)}
+                  height={110}
+                />
+
+              </div>
 
             </div>
 
           </div>
+        )}
 
-        </div>
-      )}
+        <PublicLayout>
 
-      <PublicLayout>
+          <main className="news-container">
 
-        <div className="home-page">
-
-          <div className="home-content">
-
-            {/* =====================================================
-                HERO STRUCTURE
-            ===================================================== */}
+            {/* ==================================================
+                HERO
+            ================================================== */}
 
             {featured && (
-              <div className="home-hero-grid">
+              <section className="news-hero">
 
-                {/* =================================================
-                    LATEST NEWS ANIMATION
-                ================================================= */}
+                {/* MAIN HERO */}
 
                 {currentLatest && (
                   <div
                     className={`
-                      hero-latest-news
+                      news-hero-main
                       ${
                         latestAnimating
-                          ? 'hero-latest-changing'
+                          ? 'news-hero-changing'
                           : ''
                       }
                     `}
                   >
 
                     <Link
-                      to={`/story/${
-                        currentLatest._id ||
-                        currentLatest.id
-                      }`}
-                      className="hero-latest-slide"
+                      to={`/story/${storyId(
+                        currentLatest
+                      )}`}
+                      className="news-hero-link"
                     >
 
                       <img
-                        key={
-                          currentLatest._id ||
-                          currentLatest.id
-                        }
+                        key={storyId(
+                          currentLatest
+                        )}
+                        className="news-hero-image"
                         src={imgUrl(
                           currentLatest.image
                         )}
@@ -1314,24 +1752,24 @@ export default function Home() {
                         }}
                       />
 
-                      <div className="hero-latest-overlay">
+                      <div className="news-hero-content">
 
-                        <div className="hero-latest-category">
+                        <div className="news-hero-category">
                           {currentLatest.category ||
                             'News'}
                         </div>
 
-                        <h2 className="hero-latest-title">
+                        <h1 className="news-hero-title">
                           {currentLatest.title}
-                        </h2>
+                        </h1>
 
-                        <p className="hero-latest-description">
-                          {(currentLatest.description || '')
-                            .replace(/<[^>]+>/g, '')
-                            .substring(0, 180)}
+                        <p className="news-hero-description">
+                          {cleanText(
+                            currentLatest.description
+                          ).substring(0, 200)}
                         </p>
 
-                        <div className="hero-latest-meta">
+                        <div className="news-hero-meta">
 
                           <span>
                             👤{' '}
@@ -1340,7 +1778,7 @@ export default function Home() {
                           </span>
 
                           <span>
-                            🕐{' '}
+                            ◷{' '}
                             {timeAgo(
                               currentLatest.created_at ||
                               currentLatest.createdAt
@@ -1363,20 +1801,20 @@ export default function Home() {
                     {/* DOTS */}
 
                     {latestStories.length > 1 && (
-                      <div className="hero-latest-dots">
+                      <div className="news-hero-dots">
 
                         {latestStories.map(
                           (story, index) => (
 
                             <button
                               key={
-                                story._id ||
-                                story.id ||
+                                storyId(story) ||
                                 index
                               }
                               type="button"
                               className={
-                                index === latestIndex
+                                index ===
+                                latestIndex
                                   ? 'active'
                                   : ''
                               }
@@ -1385,9 +1823,11 @@ export default function Home() {
                                   index
                                 )
                               }
-                              aria-label={`Show latest story ${
-                                index + 1
-                              }`}
+                              aria-label={
+                                `Show latest story ${
+                                  index + 1
+                                }`
+                              }
                             />
 
                           )
@@ -1399,11 +1839,11 @@ export default function Home() {
                     {/* PROGRESS */}
 
                     {latestStories.length > 1 && (
-                      <div className="hero-latest-progress">
+                      <div className="news-progress">
 
                         <div
                           key={latestIndex}
-                          className="hero-latest-progress-inner"
+                          className="news-progress-inner"
                         />
 
                       </div>
@@ -1412,142 +1852,142 @@ export default function Home() {
                   </div>
                 )}
 
-                {/* =================================================
-                    HERO SIDEBAR
-                ================================================= */}
+                {/* SIDE STORIES */}
 
-                <div className="home-hero-sidebar">
+                <div className="news-hero-side">
 
-                  {recent.slice(0, 2).map(story => (
+                  {recent
+                    .slice(0, 2)
+                    .map(story => (
 
-                    <Link
-                      key={
-                        story._id ||
-                        story.id
-                      }
-                      to={`/story/${
-                        story._id ||
-                        story.id
-                      }`}
-                    >
+                      <Link
+                        key={storyId(story)}
+                        to={`/story/${storyId(
+                          story
+                        )}`}
+                        className="news-side-story"
+                      >
 
-                      <img
-                        className="hero-sidebar-image"
-                        src={imgUrl(story.image)}
-                        alt=""
-                        loading="lazy"
-                        onError={event => {
-                          event.currentTarget.onerror =
-                            null;
-
-                          event.currentTarget.src =
-                            '/placeholder.jpg';
-                        }}
-                      />
-
-                      <div className="hero-sidebar-content">
-
-                        <div className="hero-sidebar-category">
-                          {story.category}
-                        </div>
-
-                        <div className="hero-sidebar-title">
-                          {(story.title || '')
-                            .substring(0, 65)}
-                        </div>
-
-                        <div className="hero-sidebar-time">
-                          {timeAgo(
-                            story.created_at ||
-                            story.createdAt
+                        <img
+                          className="news-side-image"
+                          src={imgUrl(
+                            story.image
                           )}
+                          alt=""
+                          loading="lazy"
+                          onError={event => {
+                            event.currentTarget.onerror =
+                              null;
+
+                            event.currentTarget.src =
+                              '/placeholder.jpg';
+                          }}
+                        />
+
+                        <div className="news-side-content">
+
+                          <div className="news-side-category">
+                            {story.category ||
+                              'News'}
+                          </div>
+
+                          <div className="news-side-title">
+                            {cleanText(
+                              story.title
+                            ).substring(
+                              0,
+                              90
+                            )}
+                          </div>
+
+                          <div className="news-side-time">
+                            {timeAgo(
+                              story.created_at ||
+                              story.createdAt
+                            )}
+                          </div>
+
                         </div>
 
-                      </div>
+                      </Link>
 
-                    </Link>
-
-                  ))}
+                    ))}
 
                 </div>
 
-              </div>
+              </section>
             )}
 
-            {/* =====================================================
-                ADVERTISEMENT
-                SAME POSITION
-            ===================================================== */}
+            {/* ==================================================
+                AD BELOW HERO
+            ================================================== */}
 
-            <AdBanner
-              ads={ads.slice(0, 3)}
-              height={210}
-            />
+            <div className="news-inline-ad">
 
-            {/* =====================================================
-                MAIN + SIDEBAR
-            ===================================================== */}
+              <AdBanner
+                ads={ads.slice(0, 3)}
+                height={210}
+              />
 
-            <div className="home-main-grid">
+            </div>
 
-              {/* ===================================================
-                  MAIN COLUMN
-              =================================================== */}
+            {/* ==================================================
+                MAIN LAYOUT
+            ================================================== */}
+
+            <div className="news-main-layout">
+
+              {/* =================================================
+                  MAIN CONTENT
+              ================================================= */}
 
               <div>
 
-                {/* ===============================================
+                {/* =================================================
                     LATEST NEWS TITLE
-                    STAYS HERE
-                =============================================== */}
+                    REMAINS HERE
+                ================================================= */}
 
-                <SectionLabel>
-                  Latest News
-                </SectionLabel>
+                <div className="news-section-heading">
 
-                {/* ===============================================
-                    STORY GRID
-                =============================================== */}
+                  <h2 className="news-section-title">
+                    Latest News
+                  </h2>
+
+                </div>
+
+                {/* =================================================
+                    LATEST STORY GRID
+                ================================================= */}
 
                 {gridStories.length > 0 && (
-                  <div
-                    style={{
-                      display: 'grid',
-                      gridTemplateColumns:
-                        'repeat(auto-fill,minmax(230px,1fr))',
-                      gap: 20,
-                      marginBottom: 28
-                    }}
-                  >
+                  <div className="news-story-grid">
 
-                    {gridStories.map(story => (
+                    {gridStories.map(
+                      story => (
 
-                      <GridCard
-                        key={
-                          story._id ||
-                          story.id
-                        }
-                        story={story}
-                      />
+                        <div
+                          key={storyId(story)}
+                          className="news-grid-item"
+                        >
 
-                    ))}
+                          <GridCard
+                            story={story}
+                          />
+
+                        </div>
+
+                      )
+                    )}
 
                   </div>
                 )}
 
-                {/* ===============================================
+                {/* =================================================
                     BUSINESS / SPORT / TECHNOLOGY
-                =============================================== */}
+                ================================================= */}
 
-                <div
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns:
-                      'repeat(auto-fill,minmax(200px,1fr))',
-                    gap: 28,
-                    marginBottom: 28
-                  }}
-                >
+                <div className="news-category-grid">
 
                   {[
                     'Business',
@@ -1555,54 +1995,43 @@ export default function Home() {
                     'Technology'
                   ].map(category => (
 
-                    <div key={category}>
+                    <section
+                      key={category}
+                      className="news-category-column"
+                    >
 
-                      <SectionLabel>
+                      <div className="news-category-header">
 
                         <Link
                           to={`/category/${category}`}
-                          style={{
-                            color: '#c0392b',
-                            textDecoration: 'none'
-                          }}
+                          className="news-category-name"
                         >
                           {category}
                         </Link>
 
-                      </SectionLabel>
+                        <Link
+                          to={`/category/${category}`}
+                          className="news-category-more"
+                        >
+                          View all →
+                        </Link>
 
-                      {(byCategory[category] || [])
+                      </div>
+
+                      {(byCategory[
+                        category
+                      ] || [])
                         .slice(0, 3)
                         .map(story => (
 
                           <StoryCard
-                            key={
-                              story._id ||
-                              story.id
-                            }
+                            key={storyId(story)}
                             story={story}
                           />
 
                         ))}
 
-                      <Link
-                        to={`/category/${category}`}
-                        style={{
-                          fontFamily:
-                            "'Barlow Condensed',sans-serif",
-                          fontSize: 11,
-                          fontWeight: 700,
-                          letterSpacing: 2,
-                          textTransform:
-                            'uppercase',
-                          color: '#c0392b',
-                          textDecoration: 'none'
-                        }}
-                      >
-                        All {category} →
-                      </Link>
-
-                    </div>
+                    </section>
 
                   ))}
 
@@ -1610,186 +2039,165 @@ export default function Home() {
 
                 {/* =================================================
                     SECOND AD
-                    SAME POSITION
                 ================================================= */}
 
-                <AdBanner
-                  ads={ads.slice(3)}
-                  height={210}
-                />
+                <div className="news-second-ad">
+
+                  <AdBanner
+                    ads={ads.slice(3)}
+                    height={210}
+                  />
+
+                </div>
 
                 {/* =================================================
                     MORE STORIES
                 ================================================= */}
 
-                <SectionLabel>
-                  More Stories
-                </SectionLabel>
+                <section className="news-more-stories">
 
-                {hotStories.map(story => (
+                  <div className="news-section-heading">
 
-                  <Link
-                    key={
-                      story._id ||
-                      story.id
-                    }
-                    to={`/story/${
-                      story._id ||
-                      story.id
-                    }`}
-                    className="home-hot-story"
-                  >
+                    <h2 className="news-section-title">
+                      More Stories
+                    </h2>
 
-                    <img
-                      className="home-hot-story-img"
-                      src={imgUrl(story.image)}
-                      alt=""
-                      loading="lazy"
-                      onError={event => {
-                        event.currentTarget.onerror =
-                          null;
+                  </div>
 
-                        event.currentTarget.src =
-                          '/placeholder.jpg';
-                      }}
-                    />
+                  {hotStories.map(
+                    story => (
 
-                    <div>
-
-                      <div
-                        style={{
-                          fontFamily:
-                            "'Barlow Condensed',sans-serif",
-                          fontSize: 9,
-                          fontWeight: 800,
-                          letterSpacing: 2,
-                          textTransform:
-                            'uppercase',
-                          color: '#c0392b',
-                          marginBottom: 6
-                        }}
-                      >
-                        {story.category}
-                      </div>
-
-                      <div
-                        style={{
-                          fontFamily:
-                            "'Playfair Display',serif",
-                          fontSize: '1.1rem',
-                          lineHeight: 1.3,
-                          marginBottom: 6
-                        }}
-                      >
-                        {(story.title || '')
-                          .substring(0, 90)}
-                      </div>
-
-                      <p
-                        style={{
-                          fontSize: 13,
-                          color: '#5a5a5a',
-                          fontStyle: 'italic',
-                          lineHeight: 1.5,
-                          marginBottom: 8
-                        }}
-                      >
-                        {(story.description || '')
-                          .replace(/<[^>]+>/g, '')
-                          .substring(0, 110)}
-                      </p>
-
-                      <div
-                        style={{
-                          fontFamily:
-                            "'Barlow Condensed',sans-serif",
-                          fontSize: 10,
-                          color: '#aaa',
-                          display: 'flex',
-                          gap: 12,
-                          flexWrap: 'wrap'
-                        }}
+                      <Link
+                        key={storyId(story)}
+                        to={`/story/${storyId(
+                          story
+                        )}`}
+                        className="news-hot-story"
                       >
 
-                        <span>
-                          👤{' '}
-                          {story.author ||
-                            'Unknown'}
-                        </span>
-
-                        <span>
-                          🕐{' '}
-                          {timeAgo(
-                            story.created_at ||
-                            story.createdAt
+                        <img
+                          className="news-hot-image"
+                          src={imgUrl(
+                            story.image
                           )}
-                        </span>
+                          alt=""
+                          loading="lazy"
+                          onError={event => {
+                            event.currentTarget.onerror =
+                              null;
 
-                        <span>
-                          👁{' '}
-                          {Number(
-                            story.views || 0
-                          ).toLocaleString()}
-                        </span>
+                            event.currentTarget.src =
+                              '/placeholder.jpg';
+                          }}
+                        />
 
-                      </div>
+                        <div>
 
-                    </div>
+                          <div className="news-hot-category">
+                            {story.category ||
+                              'News'}
+                          </div>
 
-                  </Link>
+                          <div className="news-hot-title">
+                            {cleanText(
+                              story.title
+                            ).substring(
+                              0,
+                              110
+                            )}
+                          </div>
 
-                ))}
+                          <p className="news-hot-description">
+                            {cleanText(
+                              story.description
+                            ).substring(
+                              0,
+                              130
+                            )}
+                          </p>
+
+                          <div className="news-hot-meta">
+
+                            <span>
+                              👤{' '}
+                              {story.author ||
+                                'Unknown'}
+                            </span>
+
+                            <span>
+                              ◷{' '}
+                              {timeAgo(
+                                story.created_at ||
+                                story.createdAt
+                              )}
+                            </span>
+
+                            <span>
+                              👁{' '}
+                              {Number(
+                                story.views || 0
+                              ).toLocaleString()}
+                            </span>
+
+                          </div>
+
+                        </div>
+
+                      </Link>
+
+                    )
+                  )}
+
+                </section>
 
                 {/* =================================================
                     HEALTH / CULTURE
                 ================================================= */}
 
-                <div
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns:
-                      'repeat(auto-fill,minmax(200px,1fr))',
-                    gap: 28,
-                    marginTop: 28
-                  }}
-                >
+                <div className="news-bottom-categories">
 
                   {[
                     'Health',
                     'Culture'
                   ].map(category => (
 
-                    <div key={category}>
+                    <section
+                      key={category}
+                      className="news-category-column"
+                    >
 
-                      <SectionLabel>
+                      <div className="news-category-header">
 
                         <Link
                           to={`/category/${category}`}
-                          style={{
-                            color: '#c0392b',
-                            textDecoration: 'none'
-                          }}
+                          className="news-category-name"
                         >
                           {category}
                         </Link>
 
-                      </SectionLabel>
+                        <Link
+                          to={`/category/${category}`}
+                          className="news-category-more"
+                        >
+                          View all →
+                        </Link>
 
-                      {(byCategory[category] || [])
+                      </div>
+
+                      {(byCategory[
+                        category
+                      ] || [])
                         .slice(0, 3)
                         .map(story => (
 
                           <StoryCard
-                            key={
-                              story._id ||
-                              story.id
-                            }
+                            key={storyId(story)}
                             story={story}
                           />
 
                         ))}
 
-                    </div>
+                    </section>
 
                   ))}
 
@@ -1797,113 +2205,99 @@ export default function Home() {
 
               </div>
 
-              {/* ===================================================
+              {/* =================================================
                   SIDEBAR
-              =================================================== */}
+              ================================================= */}
 
-              <aside>
+              <aside className="news-sidebar">
 
-                <div className="home-sidebar-sticky">
+                <div className="news-sidebar-sticky">
 
                   {/* =============================================
                       MOST READ
-                      5 AT ONCE
-                      ROTATES EVERY 5 SECONDS
                   ============================================= */}
 
-                  <div
-                    style={{
-                      background: '#fff',
-                      border:
-                        '1px solid #e8e4d8',
-                      padding: 20,
-                      marginBottom: 22,
-                      borderTop:
-                        '3px solid #c0392b'
-                    }}
-                  >
+                  <div className="news-widget">
 
-                    <div
-                      style={{
-                        fontFamily:
-                          "'Barlow Condensed',sans-serif",
-                        fontWeight: 800,
-                        fontSize: 11,
-                        letterSpacing: 2.5,
-                        textTransform:
-                          'uppercase',
-                        borderBottom:
-                          '3px solid #c0392b',
-                        paddingBottom: 10,
-                        marginBottom: 16
-                      }}
-                    >
-                      🔥 Most Read
+                    <div className="news-widget-header">
+
+                      <h3 className="news-widget-title">
+                        🔥 Most Read
+                      </h3>
+
                     </div>
 
-                    {popular.length > 0 && (
+                    <div className="news-widget-body">
 
-                      <div className="most-read-list">
+                      {popular.length > 0 && (
 
-                        <div
-                          key={mostReadStart}
-                          className="most-read-track"
-                        >
+                        <div className="most-read-list">
 
-                          {visibleMostRead.map(
-                            ({
-                              story,
-                              originalIndex
-                            }) => (
+                          <div
+                            key={mostReadStart}
+                            className="most-read-track"
+                          >
 
-                              <div
-                                key={
-                                  story?._id ||
-                                  story?.id ||
-                                  `${mostReadStart}-${originalIndex}`
-                                }
-                                className="most-read-item"
-                              >
+                            {visibleMostRead.map(
+                              ({
+                                story,
+                                originalIndex
+                              }) => (
 
-                                <PopularItem
-                                  story={story}
-                                  rank={
-                                    originalIndex + 1
+                                <div
+                                  key={
+                                    storyId(
+                                      story
+                                    ) ||
+                                    `${mostReadStart}-${originalIndex}`
                                   }
-                                />
+                                  className="most-read-item"
+                                >
 
-                              </div>
+                                  <PopularItem
+                                    story={story}
+                                    rank={
+                                      originalIndex +
+                                      1
+                                    }
+                                  />
 
-                            )
-                          )}
+                                </div>
+
+                              )
+                            )}
+
+                          </div>
+
+                          <div className="most-read-counter">
+
+                            <span>
+                              Latest 20
+                            </span>
+
+                            <span>
+                              {Math.min(
+                                mostReadStart +
+                                  1,
+                                popular.length
+                              )}
+                              {' – '}
+                              {Math.min(
+                                mostReadStart +
+                                  5,
+                                popular.length
+                              )}
+                              {' / '}
+                              {popular.length}
+                            </span>
+
+                          </div>
 
                         </div>
 
-                        <div className="most-read-counter">
+                      )}
 
-                          <span>
-                            Latest 20
-                          </span>
-
-                          <span>
-                            {Math.min(
-                              mostReadStart + 1,
-                              popular.length
-                            )}
-                            {' - '}
-                            {Math.min(
-                              mostReadStart + 5,
-                              popular.length
-                            )}
-                            {' / '}
-                            {popular.length}
-                          </span>
-
-                        </div>
-
-                      </div>
-
-                    )}
+                    </div>
 
                   </div>
 
@@ -1917,29 +2311,23 @@ export default function Home() {
                       ENVIRONMENT
                   ============================================= */}
 
-                  <div
-                    style={{
-                      background: '#fff',
-                      border:
-                        '1px solid #e8e4d8',
-                      padding: 20,
-                      marginBottom: 22
-                    }}
-                  >
+                  <div className="news-environment">
 
-                    <SectionLabel>
-                      Environment
-                    </SectionLabel>
+                    <div className="news-section-heading">
 
-                    {(byCategory.Environment || [])
+                      <h3 className="news-section-title">
+                        Environment
+                      </h3>
+
+                    </div>
+
+                    {(byCategory.Environment ||
+                      [])
                       .slice(0, 3)
                       .map(story => (
 
                         <StoryCard
-                          key={
-                            story._id ||
-                            story.id
-                          }
+                          key={storyId(story)}
                           story={story}
                         />
 
@@ -1957,30 +2345,9 @@ export default function Home() {
                       TOPICS
                   ============================================= */}
 
-                  <div
-                    style={{
-                      background: '#fff',
-                      border:
-                        '1px solid #e8e4d8',
-                      padding: 20
-                    }}
-                  >
+                  <div className="news-topics">
 
-                    <div
-                      style={{
-                        fontFamily:
-                          "'Barlow Condensed',sans-serif",
-                        fontWeight: 800,
-                        fontSize: 11,
-                        letterSpacing: 2.5,
-                        textTransform:
-                          'uppercase',
-                        borderBottom:
-                          '3px solid #0d0d0d',
-                        paddingBottom: 10,
-                        marginBottom: 16
-                      }}
-                    >
+                    <div className="news-topics-title">
                       🏷 Topics
                     </div>
 
@@ -2009,11 +2376,11 @@ export default function Home() {
 
             </div>
 
-          </div>
+          </main>
 
-        </div>
+        </PublicLayout>
 
-      </PublicLayout>
+      </div>
     </>
   );
 }
