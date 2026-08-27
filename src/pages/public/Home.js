@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import PublicLayout from '../../components/layout/PublicLayout';
+
 import {
   HeroCard,
   GridCard,
@@ -17,6 +18,7 @@ import {
   imgUrl,
   timeAgo
 } from '../../components/ui';
+
 import { storiesAPI, adsAPI } from '../../utils/api';
 
 export default function Home() {
@@ -28,17 +30,26 @@ export default function Home() {
   const [ads, setAds] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  /* ============================================================
+     LATEST NEWS
+  ============================================================ */
+
   const [latestIndex, setLatestIndex] = useState(0);
   const [latestAnimating, setLatestAnimating] = useState(false);
 
+  /* ============================================================
+     MOST READ / LATEST 20
+  ============================================================ */
+
+  const [mostReadIndex, setMostReadIndex] = useState(0);
+
   const animationTimerRef = useRef(null);
   const autoPlayRef = useRef(null);
+  const mostReadTimerRef = useRef(null);
 
-  /*
-  ============================================================
-  HELPERS
-  ============================================================
-  */
+  /* ============================================================
+     HELPERS
+  ============================================================ */
 
   const getStoryDate = story => {
     const value =
@@ -62,11 +73,9 @@ export default function Home() {
     );
   };
 
-  /*
-  ============================================================
-  LOAD HOME DATA
-  ============================================================
-  */
+  /* ============================================================
+     LOAD HOME DATA
+  ============================================================ */
 
   useEffect(() => {
     let mounted = true;
@@ -90,58 +99,51 @@ export default function Home() {
 
         if (!mounted) return;
 
-        const rawStories = storiesRes?.data?.stories || [];
+        const rawStories =
+          storiesRes?.data?.stories || [];
 
-        /*
-        --------------------------------------------------------
-        ALWAYS SORT NEWEST FIRST
-        --------------------------------------------------------
-        */
+        /* ======================================================
+           ALWAYS SORT NEWEST FIRST
+        ====================================================== */
 
         const allStories = sortNewestFirst(rawStories);
 
-        /*
-        --------------------------------------------------------
-        IMPORTANT STRUCTURE
+        /* ======================================================
+           FEATURED
+        ====================================================== */
 
-        Story #1 remains Featured.
+        setFeatured(allStories[0] || null);
 
-        Latest News carousel gets the newest 5 stories.
-
-        The remaining stories are used by the other homepage
-        sections.
-
-        --------------------------------------------------------
-        */
+        /* ======================================================
+           LATEST NEWS
+           NEWEST 5 STORIES
+        ====================================================== */
 
         const newestFive = allStories.slice(0, 5);
 
-        setFeatured(allStories[0] || null);
         setLatestStories(newestFive);
 
-        /*
-        Do not duplicate the five carousel stories in the
-        normal story grid.
-        */
+        /* ======================================================
+           REMAINING STORIES
+        ====================================================== */
+
         setRecent(allStories.slice(5));
 
-        /*
-        --------------------------------------------------------
-        POPULAR
-        --------------------------------------------------------
-        */
+        /* ======================================================
+           MOST READ AREA
 
-        const popularData = Array.isArray(popRes?.data)
-          ? popRes.data
-          : popRes?.data?.stories || [];
+           We keep the backend popular request untouched,
+           but Most Read visually uses the latest 20 stories.
+        ====================================================== */
 
-        setPopular(popularData);
+        const latestTwenty = allStories.slice(0, 20);
 
-        /*
-        --------------------------------------------------------
-        ADS
-        --------------------------------------------------------
-        */
+        setPopular(latestTwenty);
+
+        /* ======================================================
+           ADS
+           KEEP ALL ADS EXACTLY WHERE THEY WERE
+        ====================================================== */
 
         const adsData = Array.isArray(adsRes?.data)
           ? adsRes.data
@@ -149,11 +151,9 @@ export default function Home() {
 
         setAds(adsData);
 
-        /*
-        --------------------------------------------------------
-        CATEGORY DATA
-        --------------------------------------------------------
-        */
+        /* ======================================================
+           CATEGORY DATA
+        ====================================================== */
 
         const categories = [
           'Business',
@@ -213,31 +213,32 @@ export default function Home() {
     };
   }, []);
 
-  /*
-  ============================================================
-  RESET INDEX WHEN LATEST STORIES CHANGE
-  ============================================================
-  */
+  /* ============================================================
+     RESET LATEST INDEX
+  ============================================================ */
 
   useEffect(() => {
-    if (latestIndex >= latestStories.length) {
+    if (
+      latestIndex >= latestStories.length
+    ) {
       setLatestIndex(0);
     }
   }, [latestStories, latestIndex]);
 
-  /*
-  ============================================================
-  AUTO PLAY
-  ============================================================
-  
-  Every 10 seconds:
-  
-  1. Start fade animation
-  2. Change story
-  3. Finish animation
-  
-  ============================================================
-  */
+  /* ============================================================
+     RESET MOST READ INDEX
+  ============================================================ */
+
+  useEffect(() => {
+    if (mostReadIndex >= popular.length) {
+      setMostReadIndex(0);
+    }
+  }, [popular, mostReadIndex]);
+
+  /* ============================================================
+     LATEST NEWS AUTO PLAY
+     EVERY 10 SECONDS
+  ============================================================ */
 
   useEffect(() => {
     if (latestStories.length <= 1) {
@@ -253,7 +254,10 @@ export default function Home() {
 
       animationTimerRef.current = setTimeout(() => {
         setLatestIndex(prev => {
-          return (prev + 1) % latestStories.length;
+          return (
+            (prev + 1) %
+            latestStories.length
+          );
         });
 
         setLatestAnimating(false);
@@ -271,11 +275,37 @@ export default function Home() {
     };
   }, [latestStories.length]);
 
-  /*
-  ============================================================
-  MANUAL STORY CHANGE
-  ============================================================
-  */
+  /* ============================================================
+     MOST READ / LATEST 20
+     VERTICAL UPWARD ANIMATION
+  ============================================================ */
+
+  useEffect(() => {
+    if (popular.length <= 1) {
+      return undefined;
+    }
+
+    mostReadTimerRef.current = setInterval(() => {
+      setMostReadIndex(prev => {
+        return (
+          (prev + 1) %
+          popular.length
+        );
+      });
+    }, 5000);
+
+    return () => {
+      if (mostReadTimerRef.current) {
+        clearInterval(
+          mostReadTimerRef.current
+        );
+      }
+    };
+  }, [popular.length]);
+
+  /* ============================================================
+     MANUAL LATEST STORY CHANGE
+  ============================================================ */
 
   const changeLatestStory = index => {
     if (
@@ -297,11 +327,9 @@ export default function Home() {
     }, 350);
   };
 
-  /*
-  ============================================================
-  LOADING
-  ============================================================
-  */
+  /* ============================================================
+     LOADING
+  ============================================================ */
 
   if (loading) {
     return (
@@ -311,11 +339,9 @@ export default function Home() {
     );
   }
 
-  /*
-  ============================================================
-  EMPTY STATE
-  ============================================================
-  */
+  /* ============================================================
+     EMPTY STATE
+  ============================================================ */
 
   if (
     !featured &&
@@ -333,11 +359,9 @@ export default function Home() {
     );
   }
 
-  /*
-  ============================================================
-  OTHER STORIES
-  ============================================================
-  */
+  /* ============================================================
+     OTHER STORIES
+  ============================================================ */
 
   const gridStories = recent.slice(0, 4);
   const hotStories = recent.slice(4, 10);
@@ -347,11 +371,9 @@ export default function Home() {
     latestStories[0] ||
     null;
 
-  /*
-  ============================================================
-  RENDER
-  ============================================================
-  */
+  /* ============================================================
+     RENDER
+  ============================================================ */
 
   return (
     <>
@@ -359,6 +381,7 @@ export default function Home() {
 
         /* ====================================================
            TOP AD
+           KEEP EXACTLY AS IT WAS
         ==================================================== */
 
         .home-top-ad-section {
@@ -405,7 +428,6 @@ export default function Home() {
           display: block !important;
         }
 
-
         /* ====================================================
            HERO
         ==================================================== */
@@ -424,7 +446,6 @@ export default function Home() {
           gap: 2px;
         }
 
-
         /* ====================================================
            MAIN
         ==================================================== */
@@ -440,7 +461,6 @@ export default function Home() {
           position: sticky;
           top: 72px;
         }
-
 
         /* ====================================================
            HOT STORIES
@@ -461,7 +481,6 @@ export default function Home() {
           object-fit: cover;
           flex-shrink: 0;
         }
-
 
         /* ====================================================
            LATEST NEWS
@@ -557,9 +576,8 @@ export default function Home() {
           color: rgba(255,255,255,.68);
         }
 
-
         /* ====================================================
-           ANIMATION
+           LATEST NEWS ANIMATION
         ==================================================== */
 
         .latest-news-changing {
@@ -578,7 +596,6 @@ export default function Home() {
             transform: translateY(0);
           }
         }
-
 
         /* ====================================================
            DOTS
@@ -617,7 +634,6 @@ export default function Home() {
           background: #e8b84b;
         }
 
-
         /* ====================================================
            10 SECOND PROGRESS BAR
         ==================================================== */
@@ -651,6 +667,45 @@ export default function Home() {
           }
         }
 
+        /* ====================================================
+           MOST READ — VERTICAL ANIMATION
+        ==================================================== */
+
+        .most-read-animation-wrapper {
+          position: relative;
+          overflow: hidden;
+        }
+
+        .most-read-animated-item {
+          animation:
+            mostReadUp .65s ease;
+        }
+
+        @keyframes mostReadUp {
+          0% {
+            opacity: 0;
+            transform: translateY(35px);
+          }
+
+          100% {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+
+        .most-read-counter {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          font-family: "Barlow Condensed", sans-serif;
+          font-size: 9px;
+          letter-spacing: 1.5px;
+          text-transform: uppercase;
+          color: #999;
+          margin-top: 12px;
+          padding-top: 10px;
+          border-top: 1px solid #eee;
+        }
 
         /* ====================================================
            TABLET
@@ -667,7 +722,6 @@ export default function Home() {
           }
 
         }
-
 
         /* ====================================================
            MOBILE
@@ -709,7 +763,6 @@ export default function Home() {
           }
 
         }
-
 
         /* ====================================================
            SMALL MOBILE
@@ -764,9 +817,9 @@ export default function Home() {
 
       `}</style>
 
-
       {/* ====================================================
           TOP ADVERTISEMENT
+          UNCHANGED
       ==================================================== */}
 
       {ads.length > 0 && (
@@ -808,7 +861,6 @@ export default function Home() {
 
         </div>
       )}
-
 
       <PublicLayout>
 
@@ -939,16 +991,159 @@ export default function Home() {
             </div>
           )}
 
+          {/* =================================================
+              LATEST NEWS
+              MOVED ABOVE THE MIDDLE AD
+          ================================================= */}
+
+          <SectionLabel>
+            Latest News
+          </SectionLabel>
+
+          {currentLatest && (
+            <div
+              className={`latest-news-carousel ${
+                latestAnimating
+                  ? 'latest-news-changing'
+                  : ''
+              }`}
+            >
+
+              <Link
+                to={`/story/${
+                  currentLatest._id ||
+                  currentLatest.id
+                }`}
+                className="latest-news-slide"
+              >
+
+                <img
+                  key={
+                    currentLatest._id ||
+                    currentLatest.id
+                  }
+                  src={imgUrl(
+                    currentLatest.image
+                  )}
+                  alt={
+                    currentLatest.title ||
+                    'Latest news'
+                  }
+                  loading="eager"
+                  onError={event => {
+                    event.currentTarget.onerror = null;
+                    event.currentTarget.src =
+                      '/placeholder.jpg';
+                  }}
+                />
+
+                <div className="latest-news-overlay">
+
+                  <div className="latest-news-category">
+                    {currentLatest.category ||
+                      'News'}
+                  </div>
+
+                  <h2 className="latest-news-title">
+                    {currentLatest.title}
+                  </h2>
+
+                  <p className="latest-news-description">
+                    {(currentLatest.description || '')
+                      .replace(/<[^>]+>/g, '')
+                      .substring(0, 180)}
+                  </p>
+
+                  <div className="latest-news-meta">
+
+                    <span>
+                      👤{' '}
+                      {currentLatest.author ||
+                        'Unknown'}
+                    </span>
+
+                    <span>
+                      🕐{' '}
+                      {timeAgo(
+                        currentLatest.created_at ||
+                        currentLatest.createdAt
+                      )}
+                    </span>
+
+                    <span>
+                      👁{' '}
+                      {Number(
+                        currentLatest.views || 0
+                      ).toLocaleString()}
+                    </span>
+
+                  </div>
+
+                </div>
+
+              </Link>
+
+              {/* DOTS */}
+
+              {latestStories.length > 1 && (
+                <div className="latest-news-dots">
+
+                  {latestStories.map(
+                    (story, index) => (
+
+                      <button
+                        key={
+                          story._id ||
+                          story.id ||
+                          index
+                        }
+                        type="button"
+                        className={
+                          index === latestIndex
+                            ? 'active'
+                            : ''
+                        }
+                        onClick={() =>
+                          changeLatestStory(
+                            index
+                          )
+                        }
+                        aria-label={`Show latest story ${
+                          index + 1
+                        }`}
+                      />
+
+                    )
+                  )}
+
+                </div>
+              )}
+
+              {/* PROGRESS */}
+
+              {latestStories.length > 1 && (
+                <div className="latest-news-progress">
+
+                  <div
+                    key={latestIndex}
+                    className="latest-news-progress-inner"
+                  />
+
+                </div>
+              )}
+
+            </div>
+          )}
 
           {/* =================================================
               ADVERTISEMENT
+              KEEP EXACTLY HERE
           ================================================= */}
 
           <AdBanner
             ads={ads.slice(0, 3)}
             height={210}
           />
-
 
           {/* =================================================
               MAIN + SIDEBAR
@@ -961,156 +1156,6 @@ export default function Home() {
             ================================================= */}
 
             <div>
-
-              {/* ===============================================
-                  LATEST NEWS — EXACTLY 5 NEWEST STORIES
-              =============================================== */}
-
-              <SectionLabel>
-                Latest News
-              </SectionLabel>
-
-              {currentLatest && (
-                <div
-                  className={`latest-news-carousel ${
-                    latestAnimating
-                      ? 'latest-news-changing'
-                      : ''
-                  }`}
-                >
-
-                  <Link
-                    to={`/story/${
-                      currentLatest._id ||
-                      currentLatest.id
-                    }`}
-                    className="latest-news-slide"
-                  >
-
-                    <img
-                      key={
-                        currentLatest._id ||
-                        currentLatest.id
-                      }
-                      src={imgUrl(
-                        currentLatest.image
-                      )}
-                      alt={
-                        currentLatest.title ||
-                        'Latest news'
-                      }
-                      loading="eager"
-                      onError={event => {
-                        event.currentTarget.onerror = null;
-                        event.currentTarget.src =
-                          '/placeholder.jpg';
-                      }}
-                    />
-
-                    <div className="latest-news-overlay">
-
-                      <div className="latest-news-category">
-                        {currentLatest.category ||
-                          'News'}
-                      </div>
-
-                      <h2 className="latest-news-title">
-                        {currentLatest.title}
-                      </h2>
-
-                      <p className="latest-news-description">
-                        {(currentLatest.description || '')
-                          .replace(/<[^>]+>/g, '')
-                          .substring(0, 180)}
-                      </p>
-
-                      <div className="latest-news-meta">
-
-                        <span>
-                          👤{' '}
-                          {currentLatest.author ||
-                            'Unknown'}
-                        </span>
-
-                        <span>
-                          🕐{' '}
-                          {timeAgo(
-                            currentLatest.created_at ||
-                            currentLatest.createdAt
-                          )}
-                        </span>
-
-                        <span>
-                          👁{' '}
-                          {Number(
-                            currentLatest.views || 0
-                          ).toLocaleString()}
-                        </span>
-
-                      </div>
-
-                    </div>
-
-                  </Link>
-
-
-                  {/* =========================================
-                      CAROUSEL DOTS
-                  ========================================= */}
-
-                  {latestStories.length > 1 && (
-                    <div className="latest-news-dots">
-
-                      {latestStories.map(
-                        (story, index) => (
-
-                          <button
-                            key={
-                              story._id ||
-                              story.id ||
-                              index
-                            }
-                            type="button"
-                            className={
-                              index === latestIndex
-                                ? 'active'
-                                : ''
-                            }
-                            onClick={() =>
-                              changeLatestStory(
-                                index
-                              )
-                            }
-                            aria-label={`Show latest story ${
-                              index + 1
-                            }`}
-                          />
-
-                        )
-                      )}
-
-                    </div>
-                  )}
-
-
-                  {/* =========================================
-                      10 SECOND TIMER
-                  ========================================= */}
-
-                  {latestStories.length > 1 && (
-                    <div className="latest-news-progress">
-
-                      <div
-                        key={latestIndex}
-                        className="latest-news-progress-inner"
-                      />
-
-                    </div>
-                  )}
-
-                </div>
-              )}
-
 
               {/* =================================================
                   STORY GRID
@@ -1141,7 +1186,6 @@ export default function Home() {
 
                 </div>
               )}
-
 
               {/* =================================================
                   BUSINESS / SPORT / TECHNOLOGY
@@ -1179,7 +1223,6 @@ export default function Home() {
 
                     </SectionLabel>
 
-
                     {(byCategory[category] || [])
                       .slice(0, 3)
                       .map(story => (
@@ -1193,7 +1236,6 @@ export default function Home() {
                         />
 
                       ))}
-
 
                     <Link
                       to={`/category/${category}`}
@@ -1218,16 +1260,15 @@ export default function Home() {
 
               </div>
 
-
               {/* =================================================
                   SECOND AD
+                  KEEP EXACTLY HERE
               ================================================= */}
 
               <AdBanner
                 ads={ads.slice(3)}
                 height={210}
               />
-
 
               {/* =================================================
                   MORE STORIES
@@ -1236,7 +1277,6 @@ export default function Home() {
               <SectionLabel>
                 More Stories
               </SectionLabel>
-
 
               {hotStories.map(story => (
 
@@ -1264,7 +1304,6 @@ export default function Home() {
                     }}
                   />
 
-
                   <div>
 
                     <div
@@ -1283,7 +1322,6 @@ export default function Home() {
                       {story.category}
                     </div>
 
-
                     <div
                       style={{
                         fontFamily:
@@ -1296,7 +1334,6 @@ export default function Home() {
                       {(story.title || '')
                         .substring(0, 90)}
                     </div>
-
 
                     <p
                       style={{
@@ -1311,7 +1348,6 @@ export default function Home() {
                         .replace(/<[^>]+>/g, '')
                         .substring(0, 110)}
                     </p>
-
 
                     <div
                       style={{
@@ -1354,7 +1390,6 @@ export default function Home() {
 
               ))}
 
-
               {/* =================================================
                   HEALTH / CULTURE
               ================================================= */}
@@ -1390,7 +1425,6 @@ export default function Home() {
 
                     </SectionLabel>
 
-
                     {(byCategory[category] || [])
                       .slice(0, 3)
                       .map(story => (
@@ -1413,7 +1447,6 @@ export default function Home() {
 
             </div>
 
-
             {/* =================================================
                 SIDEBAR
             ================================================= */}
@@ -1424,6 +1457,7 @@ export default function Home() {
 
                 {/* =============================================
                     MOST READ
+                    LATEST 20 STORIES + UPWARD ANIMATION
                 ============================================= */}
 
                 <div
@@ -1456,32 +1490,59 @@ export default function Home() {
                     🔥 Most Read
                   </div>
 
+                  {popular.length > 0 && (
+                    <div className="most-read-animation-wrapper">
 
-                  {popular.map(
-                    (story, index) => (
-
-                      <PopularItem
+                      <div
                         key={
-                          story._id ||
-                          story.id ||
-                          index
+                          popular[
+                            mostReadIndex
+                          ]?._id ||
+                          popular[
+                            mostReadIndex
+                          ]?.id ||
+                          mostReadIndex
                         }
-                        story={story}
-                        rank={index + 1}
-                      />
+                        className="most-read-animated-item"
+                      >
 
-                    )
+                        <PopularItem
+                          story={
+                            popular[
+                              mostReadIndex
+                            ]
+                          }
+                          rank={
+                            mostReadIndex + 1
+                          }
+                        />
+
+                      </div>
+
+                      <div className="most-read-counter">
+
+                        <span>
+                          Latest 20 Stories
+                        </span>
+
+                        <span>
+                          {mostReadIndex + 1}
+                          {' / '}
+                          {popular.length}
+                        </span>
+
+                      </div>
+
+                    </div>
                   )}
 
                 </div>
-
 
                 {/* =============================================
                     NEWSLETTER
                 ============================================= */}
 
                 <NewsletterWidget />
-
 
                 {/* =============================================
                     ENVIRONMENT
@@ -1501,7 +1562,6 @@ export default function Home() {
                     Environment
                   </SectionLabel>
 
-
                   {(byCategory.Environment || [])
                     .slice(0, 3)
                     .map(story => (
@@ -1518,13 +1578,11 @@ export default function Home() {
 
                 </div>
 
-
                 {/* =============================================
                     WHATSAPP
                 ============================================= */}
 
                 <WhatsAppCTA />
-
 
                 {/* =============================================
                     TOPICS
@@ -1556,7 +1614,6 @@ export default function Home() {
                   >
                     🏷 Topics
                   </div>
-
 
                   <TagCloud
                     tags={[
