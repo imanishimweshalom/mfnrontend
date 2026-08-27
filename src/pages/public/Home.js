@@ -38,10 +38,12 @@ export default function Home() {
   const [latestAnimating, setLatestAnimating] = useState(false);
 
   /* ============================================================
-     MOST READ / LATEST 20
+     MOST READ
+     SHOW 5 AT A TIME
+     ROTATE THROUGH 20 LATEST STORIES
   ============================================================ */
 
-  const [mostReadIndex, setMostReadIndex] = useState(0);
+  const [mostReadStart, setMostReadStart] = useState(0);
 
   const animationTimerRef = useRef(null);
   const autoPlayRef = useRef(null);
@@ -103,20 +105,22 @@ export default function Home() {
           storiesRes?.data?.stories || [];
 
         /* ======================================================
-           ALWAYS SORT NEWEST FIRST
+           NEWEST FIRST
         ====================================================== */
 
         const allStories = sortNewestFirst(rawStories);
 
         /* ======================================================
            FEATURED
+
+           Keep the original featured story/data structure.
         ====================================================== */
 
         setFeatured(allStories[0] || null);
 
         /* ======================================================
            LATEST NEWS
-           NEWEST 5 STORIES
+           EXACTLY 5 NEWEST STORIES
         ====================================================== */
 
         const newestFive = allStories.slice(0, 5);
@@ -130,10 +134,10 @@ export default function Home() {
         setRecent(allStories.slice(5));
 
         /* ======================================================
-           MOST READ AREA
+           MOST READ
 
-           We keep the backend popular request untouched,
-           but Most Read visually uses the latest 20 stories.
+           We use the 20 newest stories.
+           Five are displayed at once.
         ====================================================== */
 
         const latestTwenty = allStories.slice(0, 20);
@@ -142,7 +146,8 @@ export default function Home() {
 
         /* ======================================================
            ADS
-           KEEP ALL ADS EXACTLY WHERE THEY WERE
+
+           DO NOT CHANGE ADS DATA OR POSITIONS
         ====================================================== */
 
         const adsData = Array.isArray(adsRes?.data)
@@ -218,22 +223,20 @@ export default function Home() {
   ============================================================ */
 
   useEffect(() => {
-    if (
-      latestIndex >= latestStories.length
-    ) {
+    if (latestIndex >= latestStories.length) {
       setLatestIndex(0);
     }
   }, [latestStories, latestIndex]);
 
   /* ============================================================
-     RESET MOST READ INDEX
+     RESET MOST READ START
   ============================================================ */
 
   useEffect(() => {
-    if (mostReadIndex >= popular.length) {
-      setMostReadIndex(0);
+    if (mostReadStart >= popular.length) {
+      setMostReadStart(0);
     }
-  }, [popular, mostReadIndex]);
+  }, [popular, mostReadStart]);
 
   /* ============================================================
      LATEST NEWS AUTO PLAY
@@ -276,17 +279,19 @@ export default function Home() {
   }, [latestStories.length]);
 
   /* ============================================================
-     MOST READ / LATEST 20
-     VERTICAL UPWARD ANIMATION
+     MOST READ VERTICAL ANIMATION
+
+     5 STORIES VISIBLE AT ONCE.
+     EVERY 5 SECONDS THE LIST MOVES UP ONE STORY.
   ============================================================ */
 
   useEffect(() => {
-    if (popular.length <= 1) {
+    if (popular.length <= 5) {
       return undefined;
     }
 
     mostReadTimerRef.current = setInterval(() => {
-      setMostReadIndex(prev => {
+      setMostReadStart(prev => {
         return (
           (prev + 1) %
           popular.length
@@ -302,6 +307,27 @@ export default function Home() {
       }
     };
   }, [popular.length]);
+
+  /* ============================================================
+     GET 5 MOST READ STORIES TO DISPLAY
+  ============================================================ */
+
+  const visibleMostRead = [];
+
+  if (popular.length > 0) {
+    for (let i = 0; i < Math.min(5, popular.length); i++) {
+      visibleMostRead.push({
+        story:
+          popular[
+            (mostReadStart + i) %
+            popular.length
+          ],
+        originalIndex:
+          (mostReadStart + i) %
+          popular.length
+      });
+    }
+  }
 
   /* ============================================================
      MANUAL LATEST STORY CHANGE
@@ -381,7 +407,7 @@ export default function Home() {
 
         /* ====================================================
            TOP AD
-           KEEP EXACTLY AS IT WAS
+           UNCHANGED
         ==================================================== */
 
         .home-top-ad-section {
@@ -429,7 +455,8 @@ export default function Home() {
         }
 
         /* ====================================================
-           HERO
+           HERO STRUCTURE
+           KEEP SAME STRUCTURE
         ==================================================== */
 
         .home-hero-grid {
@@ -444,6 +471,191 @@ export default function Home() {
           display: flex;
           flex-direction: column;
           gap: 2px;
+        }
+
+        /* ====================================================
+           LATEST NEWS ANIMATION INSIDE HERO MAIN AREA
+        ==================================================== */
+
+        .hero-latest-news {
+          position: relative;
+          width: 100%;
+          min-height: 380px;
+          height: 100%;
+          overflow: hidden;
+          background: #0d0d0d;
+        }
+
+        .hero-latest-slide {
+          position: relative;
+          display: block;
+          width: 100%;
+          height: 100%;
+          min-height: 380px;
+          overflow: hidden;
+          text-decoration: none;
+          color: #fff;
+        }
+
+        .hero-latest-slide img {
+          position: absolute;
+          inset: 0;
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          transform: scale(1);
+          transition:
+            transform 10s ease,
+            opacity .45s ease;
+        }
+
+        .hero-latest-slide:hover img {
+          transform: scale(1.04);
+        }
+
+        .hero-latest-overlay {
+          position: absolute;
+          inset: 0;
+          display: flex;
+          flex-direction: column;
+          justify-content: flex-end;
+          padding: 36px;
+          background:
+            linear-gradient(
+              to bottom,
+              rgba(0,0,0,0) 10%,
+              rgba(0,0,0,.18) 38%,
+              rgba(0,0,0,.95) 100%
+            );
+        }
+
+        .hero-latest-category {
+          font-family:
+            "Barlow Condensed",
+            sans-serif;
+          font-size: 11px;
+          font-weight: 800;
+          letter-spacing: 2.5px;
+          text-transform: uppercase;
+          color: #e8b84b;
+          margin-bottom: 8px;
+        }
+
+        .hero-latest-title {
+          font-family:
+            "Playfair Display",
+            serif;
+          font-size:
+            clamp(1.5rem, 3vw, 2.6rem);
+          font-weight: 700;
+          line-height: 1.12;
+          margin: 0 0 12px;
+          max-width: 900px;
+          text-shadow:
+            0 2px 8px rgba(0,0,0,.45);
+        }
+
+        .hero-latest-description {
+          max-width: 780px;
+          margin: 0 0 14px;
+          font-size: 14px;
+          line-height: 1.55;
+          color:
+            rgba(255,255,255,.82);
+        }
+
+        .hero-latest-meta {
+          display: flex;
+          gap: 15px;
+          flex-wrap: wrap;
+          font-family:
+            "Barlow Condensed",
+            sans-serif;
+          font-size: 10px;
+          color:
+            rgba(255,255,255,.68);
+        }
+
+        .hero-latest-changing {
+          animation:
+            heroLatestFade .45s ease;
+        }
+
+        @keyframes heroLatestFade {
+          0% {
+            opacity: .05;
+            transform: translateY(10px);
+          }
+
+          100% {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+
+        .hero-latest-dots {
+          position: absolute;
+          right: 24px;
+          bottom: 22px;
+          display: flex;
+          align-items: center;
+          gap: 7px;
+          z-index: 20;
+        }
+
+        .hero-latest-dots button {
+          width: 8px;
+          height: 8px;
+          padding: 0;
+          border: 0;
+          border-radius: 50%;
+          background:
+            rgba(255,255,255,.45);
+          cursor: pointer;
+          transition:
+            width .25s ease,
+            background .25s ease;
+        }
+
+        .hero-latest-dots button:hover {
+          background:
+            rgba(255,255,255,.85);
+        }
+
+        .hero-latest-dots button.active {
+          width: 26px;
+          border-radius: 5px;
+          background: #e8b84b;
+        }
+
+        .hero-latest-progress {
+          position: absolute;
+          left: 0;
+          bottom: 0;
+          width: 100%;
+          height: 3px;
+          background:
+            rgba(255,255,255,.15);
+          z-index: 30;
+          overflow: hidden;
+        }
+
+        .hero-latest-progress-inner {
+          width: 0;
+          height: 100%;
+          background: #e8b84b;
+          animation:
+            heroLatestProgress 10s linear forwards;
+        }
+
+        @keyframes heroLatestProgress {
+          from {
+            width: 0;
+          }
+
+          to {
+            width: 100%;
+          }
         }
 
         /* ====================================================
@@ -470,7 +682,8 @@ export default function Home() {
           display: flex;
           gap: 20px;
           padding: 20px 0;
-          border-bottom: 1px solid #e8e4d8;
+          border-bottom:
+            1px solid #e8e4d8;
           text-decoration: none;
           color: inherit;
         }
@@ -483,228 +696,70 @@ export default function Home() {
         }
 
         /* ====================================================
-           LATEST NEWS
+           ORIGINAL LATEST NEWS SECTION
+           KEEP ITS TITLE LOCATION
         ==================================================== */
 
         .latest-news-carousel {
           position: relative;
           width: 100%;
-          height: 380px;
+          height: 0;
           overflow: hidden;
-          background: #0d0d0d;
-          margin-bottom: 30px;
-          border: 1px solid #e8e4d8;
-          box-shadow: 0 8px 25px rgba(0,0,0,.08);
+          margin-bottom: 0;
         }
 
-        .latest-news-slide {
+        /* ====================================================
+           MOST READ
+        ==================================================== */
+
+        .most-read-list {
           position: relative;
-          display: block;
-          width: 100%;
-          height: 100%;
           overflow: hidden;
-          text-decoration: none;
-          color: #fff;
         }
 
-        .latest-news-slide img {
-          position: absolute;
-          inset: 0;
-          width: 100%;
-          height: 100%;
-          object-fit: cover;
-          transform: scale(1);
-          transition:
-            transform 10s ease,
-            opacity .45s ease;
-        }
-
-        .latest-news-slide:hover img {
-          transform: scale(1.04);
-        }
-
-        .latest-news-overlay {
-          position: absolute;
-          inset: 0;
+        .most-read-track {
           display: flex;
           flex-direction: column;
-          justify-content: flex-end;
-          padding: 36px;
-          background:
-            linear-gradient(
-              to bottom,
-              rgba(0,0,0,0) 10%,
-              rgba(0,0,0,.18) 38%,
-              rgba(0,0,0,.95) 100%
-            );
         }
 
-        .latest-news-category {
-          font-family: "Barlow Condensed", sans-serif;
-          font-size: 11px;
-          font-weight: 800;
-          letter-spacing: 2.5px;
-          text-transform: uppercase;
-          color: #e8b84b;
-          margin-bottom: 8px;
-        }
-
-        .latest-news-title {
-          font-family: "Playfair Display", serif;
-          font-size: clamp(1.5rem, 3vw, 2.6rem);
-          font-weight: 700;
-          line-height: 1.12;
-          margin: 0 0 12px;
-          max-width: 900px;
-          text-shadow: 0 2px 8px rgba(0,0,0,.45);
-        }
-
-        .latest-news-description {
-          max-width: 780px;
-          margin: 0 0 14px;
-          font-size: 14px;
-          line-height: 1.55;
-          color: rgba(255,255,255,.82);
-        }
-
-        .latest-news-meta {
-          display: flex;
-          gap: 15px;
-          flex-wrap: wrap;
-          font-family: "Barlow Condensed", sans-serif;
-          font-size: 10px;
-          color: rgba(255,255,255,.68);
-        }
-
-        /* ====================================================
-           LATEST NEWS ANIMATION
-        ==================================================== */
-
-        .latest-news-changing {
+        .most-read-item {
           animation:
-            latestNewsFade .45s ease;
+            mostReadSlideUp .65s ease;
         }
 
-        @keyframes latestNewsFade {
-          0% {
-            opacity: .05;
-            transform: translateY(10px);
-          }
-
-          100% {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-
-        /* ====================================================
-           DOTS
-        ==================================================== */
-
-        .latest-news-dots {
-          position: absolute;
-          right: 24px;
-          bottom: 22px;
-          display: flex;
-          align-items: center;
-          gap: 7px;
-          z-index: 20;
-        }
-
-        .latest-news-dots button {
-          width: 8px;
-          height: 8px;
-          padding: 0;
-          border: 0;
-          border-radius: 50%;
-          background: rgba(255,255,255,.45);
-          cursor: pointer;
-          transition:
-            width .25s ease,
-            background .25s ease;
-        }
-
-        .latest-news-dots button:hover {
-          background: rgba(255,255,255,.85);
-        }
-
-        .latest-news-dots button.active {
-          width: 26px;
-          border-radius: 5px;
-          background: #e8b84b;
-        }
-
-        /* ====================================================
-           10 SECOND PROGRESS BAR
-        ==================================================== */
-
-        .latest-news-progress {
-          position: absolute;
-          left: 0;
-          bottom: 0;
-          width: 100%;
-          height: 3px;
-          background: rgba(255,255,255,.15);
-          z-index: 30;
-          overflow: hidden;
-        }
-
-        .latest-news-progress-inner {
-          width: 0;
-          height: 100%;
-          background: #e8b84b;
-          animation:
-            latestNewsProgress 10s linear forwards;
-        }
-
-        @keyframes latestNewsProgress {
-          from {
-            width: 0;
-          }
-
-          to {
-            width: 100%;
-          }
-        }
-
-        /* ====================================================
-           MOST READ — VERTICAL ANIMATION
-        ==================================================== */
-
-        .most-read-animation-wrapper {
-          position: relative;
-          overflow: hidden;
-        }
-
-        .most-read-animated-item {
-          animation:
-            mostReadUp .65s ease;
-        }
-
-        @keyframes mostReadUp {
+        @keyframes mostReadSlideUp {
           0% {
             opacity: 0;
-            transform: translateY(35px);
+            transform:
+              translateY(35px);
           }
 
           100% {
             opacity: 1;
-            transform: translateY(0);
+            transform:
+              translateY(0);
           }
+        }
+
+        .most-read-item + .most-read-item {
+          margin-top: 2px;
         }
 
         .most-read-counter {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          font-family: "Barlow Condensed", sans-serif;
+          font-family:
+            "Barlow Condensed",
+            sans-serif;
           font-size: 9px;
           letter-spacing: 1.5px;
           text-transform: uppercase;
           color: #999;
           margin-top: 12px;
           padding-top: 10px;
-          border-top: 1px solid #eee;
+          border-top:
+            1px solid #eee;
         }
 
         /* ====================================================
@@ -714,7 +769,8 @@ export default function Home() {
         @media (max-width: 1024px) {
 
           .home-main-grid {
-            grid-template-columns: 1fr !important;
+            grid-template-columns:
+              1fr !important;
           }
 
           .home-sidebar-sticky {
@@ -730,35 +786,44 @@ export default function Home() {
         @media (max-width: 768px) {
 
           .home-hero-grid {
-            grid-template-columns: 1fr !important;
+            grid-template-columns:
+              1fr !important;
           }
 
           .home-hero-sidebar {
-            flex-direction: row !important;
+            flex-direction:
+              row !important;
           }
 
           .home-hero-sidebar > * {
-            flex: 1 1 45% !important;
-            min-height: 140px !important;
+            flex:
+              1 1 45% !important;
+            min-height:
+              140px !important;
           }
 
           .top-ad-wrapper > div {
-            flex-direction: column !important;
+            flex-direction:
+              column !important;
           }
 
-          .latest-news-carousel {
-            height: 350px;
+          .hero-latest-news {
+            min-height: 350px;
           }
 
-          .latest-news-overlay {
+          .hero-latest-slide {
+            min-height: 350px;
+          }
+
+          .hero-latest-overlay {
             padding: 24px;
           }
 
-          .latest-news-title {
+          .hero-latest-title {
             font-size: 1.55rem;
           }
 
-          .latest-news-description {
+          .hero-latest-description {
             font-size: 12px;
           }
 
@@ -771,15 +836,18 @@ export default function Home() {
         @media (max-width: 600px) {
 
           .home-hero-sidebar {
-            flex-direction: column !important;
+            flex-direction:
+              column !important;
           }
 
           .home-hero-sidebar > * {
-            flex: 1 1 100% !important;
+            flex:
+              1 1 100% !important;
           }
 
           .home-hot-story {
-            flex-direction: column !important;
+            flex-direction:
+              column !important;
             gap: 12px !important;
           }
 
@@ -788,27 +856,31 @@ export default function Home() {
             height: 200px !important;
           }
 
-          .latest-news-carousel {
-            height: 330px;
+          .hero-latest-news {
+            min-height: 330px;
           }
 
-          .latest-news-overlay {
+          .hero-latest-slide {
+            min-height: 330px;
+          }
+
+          .hero-latest-overlay {
             padding: 20px;
           }
 
-          .latest-news-title {
+          .hero-latest-title {
             font-size: 1.35rem;
           }
 
-          .latest-news-description {
+          .hero-latest-description {
             display: none;
           }
 
-          .latest-news-meta {
+          .hero-latest-meta {
             gap: 8px;
           }
 
-          .latest-news-dots {
+          .hero-latest-dots {
             right: 15px;
             bottom: 17px;
           }
@@ -819,7 +891,7 @@ export default function Home() {
 
       {/* ====================================================
           TOP ADVERTISEMENT
-          UNCHANGED
+          EXACTLY WHERE IT WAS
       ==================================================== */}
 
       {ads.length > 0 && (
@@ -873,13 +945,161 @@ export default function Home() {
         >
 
           {/* =================================================
-              HERO
+              HERO STRUCTURE
+
+              THE STRUCTURE STAYS THE SAME.
+              THE MAIN HERO CONTENT IS NOW THE ANIMATION.
           ================================================= */}
 
           {featured && (
             <div className="home-hero-grid">
 
-              <HeroCard story={featured} />
+              {/* =================================================
+                  LATEST NEWS ANIMATION
+                  REPLACES THE ORIGINAL HERO CARD
+              ================================================= */}
+
+              {currentLatest && (
+                <div
+                  className={`hero-latest-news ${
+                    latestAnimating
+                      ? 'hero-latest-changing'
+                      : ''
+                  }`}
+                >
+
+                  <Link
+                    to={`/story/${
+                      currentLatest._id ||
+                      currentLatest.id
+                    }`}
+                    className="hero-latest-slide"
+                  >
+
+                    <img
+                      key={
+                        currentLatest._id ||
+                        currentLatest.id
+                      }
+                      src={imgUrl(
+                        currentLatest.image
+                      )}
+                      alt={
+                        currentLatest.title ||
+                        'Latest news'
+                      }
+                      loading="eager"
+                      onError={event => {
+                        event.currentTarget.onerror =
+                          null;
+
+                        event.currentTarget.src =
+                          '/placeholder.jpg';
+                      }}
+                    />
+
+                    <div className="hero-latest-overlay">
+
+                      <div className="hero-latest-category">
+                        {currentLatest.category ||
+                          'News'}
+                      </div>
+
+                      <h2 className="hero-latest-title">
+                        {currentLatest.title}
+                      </h2>
+
+                      <p className="hero-latest-description">
+                        {(currentLatest.description || '')
+                          .replace(/<[^>]+>/g, '')
+                          .substring(0, 180)}
+                      </p>
+
+                      <div className="hero-latest-meta">
+
+                        <span>
+                          👤{' '}
+                          {currentLatest.author ||
+                            'Unknown'}
+                        </span>
+
+                        <span>
+                          🕐{' '}
+                          {timeAgo(
+                            currentLatest.created_at ||
+                            currentLatest.createdAt
+                          )}
+                        </span>
+
+                        <span>
+                          👁{' '}
+                          {Number(
+                            currentLatest.views || 0
+                          ).toLocaleString()}
+                        </span>
+
+                      </div>
+
+                    </div>
+
+                  </Link>
+
+                  {/* DOTS */}
+
+                  {latestStories.length > 1 && (
+                    <div className="hero-latest-dots">
+
+                      {latestStories.map(
+                        (story, index) => (
+
+                          <button
+                            key={
+                              story._id ||
+                              story.id ||
+                              index
+                            }
+                            type="button"
+                            className={
+                              index === latestIndex
+                                ? 'active'
+                                : ''
+                            }
+                            onClick={() =>
+                              changeLatestStory(
+                                index
+                              )
+                            }
+                            aria-label={`Show latest story ${
+                              index + 1
+                            }`}
+                          />
+
+                        )
+                      )}
+
+                    </div>
+                  )}
+
+                  {/* PROGRESS */}
+
+                  {latestStories.length > 1 && (
+                    <div className="hero-latest-progress">
+
+                      <div
+                        key={latestIndex}
+                        className="hero-latest-progress-inner"
+                      />
+
+                    </div>
+                  )}
+
+                </div>
+              )}
+
+              {/* =================================================
+                  HERO SIDEBAR
+                  SAME STRUCTURE
+              ================================================= */}
 
               <div className="home-hero-sidebar">
 
@@ -911,7 +1131,9 @@ export default function Home() {
                       alt=""
                       loading="lazy"
                       onError={event => {
-                        event.currentTarget.onerror = null;
+                        event.currentTarget.onerror =
+                          null;
+
                         event.currentTarget.src =
                           '/placeholder.jpg';
                       }}
@@ -942,7 +1164,8 @@ export default function Home() {
                           fontSize: 9,
                           fontWeight: 800,
                           letterSpacing: 2,
-                          textTransform: 'uppercase',
+                          textTransform:
+                            'uppercase',
                           color: '#e8b84b',
                           marginBottom: 3
                         }}
@@ -992,152 +1215,8 @@ export default function Home() {
           )}
 
           {/* =================================================
-              LATEST NEWS
-              MOVED ABOVE THE MIDDLE AD
-          ================================================= */}
-
-          <SectionLabel>
-            Latest News
-          </SectionLabel>
-
-          {currentLatest && (
-            <div
-              className={`latest-news-carousel ${
-                latestAnimating
-                  ? 'latest-news-changing'
-                  : ''
-              }`}
-            >
-
-              <Link
-                to={`/story/${
-                  currentLatest._id ||
-                  currentLatest.id
-                }`}
-                className="latest-news-slide"
-              >
-
-                <img
-                  key={
-                    currentLatest._id ||
-                    currentLatest.id
-                  }
-                  src={imgUrl(
-                    currentLatest.image
-                  )}
-                  alt={
-                    currentLatest.title ||
-                    'Latest news'
-                  }
-                  loading="eager"
-                  onError={event => {
-                    event.currentTarget.onerror = null;
-                    event.currentTarget.src =
-                      '/placeholder.jpg';
-                  }}
-                />
-
-                <div className="latest-news-overlay">
-
-                  <div className="latest-news-category">
-                    {currentLatest.category ||
-                      'News'}
-                  </div>
-
-                  <h2 className="latest-news-title">
-                    {currentLatest.title}
-                  </h2>
-
-                  <p className="latest-news-description">
-                    {(currentLatest.description || '')
-                      .replace(/<[^>]+>/g, '')
-                      .substring(0, 180)}
-                  </p>
-
-                  <div className="latest-news-meta">
-
-                    <span>
-                      👤{' '}
-                      {currentLatest.author ||
-                        'Unknown'}
-                    </span>
-
-                    <span>
-                      🕐{' '}
-                      {timeAgo(
-                        currentLatest.created_at ||
-                        currentLatest.createdAt
-                      )}
-                    </span>
-
-                    <span>
-                      👁{' '}
-                      {Number(
-                        currentLatest.views || 0
-                      ).toLocaleString()}
-                    </span>
-
-                  </div>
-
-                </div>
-
-              </Link>
-
-              {/* DOTS */}
-
-              {latestStories.length > 1 && (
-                <div className="latest-news-dots">
-
-                  {latestStories.map(
-                    (story, index) => (
-
-                      <button
-                        key={
-                          story._id ||
-                          story.id ||
-                          index
-                        }
-                        type="button"
-                        className={
-                          index === latestIndex
-                            ? 'active'
-                            : ''
-                        }
-                        onClick={() =>
-                          changeLatestStory(
-                            index
-                          )
-                        }
-                        aria-label={`Show latest story ${
-                          index + 1
-                        }`}
-                      />
-
-                    )
-                  )}
-
-                </div>
-              )}
-
-              {/* PROGRESS */}
-
-              {latestStories.length > 1 && (
-                <div className="latest-news-progress">
-
-                  <div
-                    key={latestIndex}
-                    className="latest-news-progress-inner"
-                  />
-
-                </div>
-              )}
-
-            </div>
-          )}
-
-          {/* =================================================
               ADVERTISEMENT
-              KEEP EXACTLY HERE
+              KEEP EXACTLY WHERE IT WAS
           ================================================= */}
 
           <AdBanner
@@ -1156,6 +1235,22 @@ export default function Home() {
             ================================================= */}
 
             <div>
+
+              {/* ===============================================
+                  LATEST NEWS TITLE
+                  
+                  TITLE REMAINS IN ITS ORIGINAL LOCATION
+              =============================================== */}
+
+              <SectionLabel>
+                Latest News
+              </SectionLabel>
+
+              {/* 
+                The animated Latest News is already displayed
+                in the original hero structure above.
+                This title remains here exactly as requested.
+              */}
 
               {/* =================================================
                   STORY GRID
@@ -1262,7 +1357,7 @@ export default function Home() {
 
               {/* =================================================
                   SECOND AD
-                  KEEP EXACTLY HERE
+                  KEEP EXACTLY WHERE IT WAS
               ================================================= */}
 
               <AdBanner
@@ -1298,7 +1393,9 @@ export default function Home() {
                     alt=""
                     loading="lazy"
                     onError={event => {
-                      event.currentTarget.onerror = null;
+                      event.currentTarget.onerror =
+                        null;
+
                       event.currentTarget.src =
                         '/placeholder.jpg';
                     }}
@@ -1457,7 +1554,9 @@ export default function Home() {
 
                 {/* =============================================
                     MOST READ
-                    LATEST 20 STORIES + UPWARD ANIMATION
+
+                    SHOW 5 AT ONCE
+                    ROTATE THROUGH 20
                 ============================================= */}
 
                 <div
@@ -1491,42 +1590,59 @@ export default function Home() {
                   </div>
 
                   {popular.length > 0 && (
-                    <div className="most-read-animation-wrapper">
+
+                    <div className="most-read-list">
 
                       <div
-                        key={
-                          popular[
-                            mostReadIndex
-                          ]?._id ||
-                          popular[
-                            mostReadIndex
-                          ]?.id ||
-                          mostReadIndex
-                        }
-                        className="most-read-animated-item"
+                        key={mostReadStart}
+                        className="most-read-track"
                       >
 
-                        <PopularItem
-                          story={
-                            popular[
-                              mostReadIndex
-                            ]
-                          }
-                          rank={
-                            mostReadIndex + 1
-                          }
-                        />
+                        {visibleMostRead.map(
+                          ({
+                            story,
+                            originalIndex
+                          }) => (
+
+                            <div
+                              key={
+                                story?._id ||
+                                story?.id ||
+                                `${mostReadStart}-${originalIndex}`
+                              }
+                              className="most-read-item"
+                            >
+
+                              <PopularItem
+                                story={story}
+                                rank={
+                                  originalIndex + 1
+                                }
+                              />
+
+                            </div>
+
+                          )
+                        )}
 
                       </div>
 
                       <div className="most-read-counter">
 
                         <span>
-                          Latest 20 Stories
+                          Latest 20
                         </span>
 
                         <span>
-                          {mostReadIndex + 1}
+                          {Math.min(
+                            mostReadStart + 1,
+                            popular.length
+                          )}
+                          {' - '}
+                          {Math.min(
+                            mostReadStart + 5,
+                            popular.length
+                          )}
                           {' / '}
                           {popular.length}
                         </span>
@@ -1534,6 +1650,7 @@ export default function Home() {
                       </div>
 
                     </div>
+
                   )}
 
                 </div>
