@@ -16,7 +16,7 @@ import {
   imgUrl
 } from '../../components/ui';
 
-import {
+import api, {
   storiesAPI,
   adsAPI
 } from '../../utils/api';
@@ -81,7 +81,7 @@ const SPORTS_LEAGUES = [
 ];
 
 /* =========================================================
-   LOCAL STORAGE CONFIG
+   SPORTS LOCAL STORAGE
 ========================================================= */
 
 const SPORTS_STORAGE_KEY =
@@ -98,43 +98,33 @@ const SPORTS_CACHE_DURATION =
 ========================================================= */
 
 const getToday = () => {
-  return new Date()
-    .toISOString()
-    .split('T')[0];
+  const date = new Date();
+
+  return date.toISOString().split('T')[0];
 };
 
 const getYesterday = () => {
   const date = new Date();
 
-  date.setDate(
-    date.getDate() - 1
-  );
+  date.setDate(date.getDate() - 1);
 
-  return date
-    .toISOString()
-    .split('T')[0];
+  return date.toISOString().split('T')[0];
 };
 
 /* =========================================================
-   FORMAT TIME
+   FORMAT MATCH TIME
 ========================================================= */
 
-const formatMatchTime = (date) => {
-
+const formatMatchTime = date => {
   if (!date) {
     return '';
   }
 
   try {
-
-    return new Date(date).toLocaleTimeString(
-      [],
-      {
-        hour: '2-digit',
-        minute: '2-digit'
-      }
-    );
-
+    return new Date(date).toLocaleTimeString([], {
+      hour: '2-digit',
+      minute: '2-digit'
+    });
   } catch {
     return '';
   }
@@ -144,10 +134,8 @@ const formatMatchTime = (date) => {
    MATCH STATUS
 ========================================================= */
 
-const getMatchStatus = (fixture) => {
-
-  const status =
-    fixture?.fixture?.status;
+const getMatchStatus = fixture => {
+  const status = fixture?.fixture?.status;
 
   if (!status) {
     return '';
@@ -165,7 +153,9 @@ const getMatchStatus = (fixture) => {
     status.short === 'LIVE' ||
     status.short === '1H' ||
     status.short === '2H' ||
-    status.short === 'ET'
+    status.short === 'ET' ||
+    status.short === 'BT' ||
+    status.short === 'P'
   ) {
     return 'LIVE';
   }
@@ -182,67 +172,61 @@ const getMatchStatus = (fixture) => {
 
 /* =========================================================
    SPORTS API
+   IMPORTANT:
+   Uses the axios instance from utils/api.js.
+   Therefore requests go to:
+
+   https://mahokofridaynewsbackend.onrender.com/api
 ========================================================= */
 
 const fetchSportsFixtures = async (
   leagueId,
   date
 ) => {
+  const season = new Date().getFullYear();
 
-  const url =
-    `/api/sports/fixtures?league=${leagueId}&season=${new Date().getFullYear()}&date=${date}`;
+  const response = await api.get(
+    '/sports/fixtures',
+    {
+      params: {
+        league: leagueId,
+        season,
+        date
+      }
+    }
+  );
 
-  const response =
-    await fetch(url);
-
-  if (!response.ok) {
-    throw new Error(
-      'Sports API request failed'
-    );
-  }
-
-  const data =
-    await response.json();
-
-  return data.response || [];
+  return response?.data?.response || [];
 };
 
 /* =========================================================
-   SPORTS CARD
+   SPORTS MATCH CARD
 ========================================================= */
 
 function SportMatchCard({
   fixture,
   league
 }) {
+  const home = fixture?.teams?.home;
+  const away = fixture?.teams?.away;
+  const goals = fixture?.goals;
 
-  const home =
-    fixture?.teams?.home;
+  const status = getMatchStatus(fixture);
 
-  const away =
-    fixture?.teams?.away;
-
-  const goals =
-    fixture?.goals;
-
-  const status =
-    getMatchStatus(fixture);
-
-  const isLive =
-    status === 'LIVE';
+  const isLive = status === 'LIVE';
 
   const isFinished =
     status === 'FULL TIME';
 
   return (
-    <div
-      className="sports-match-card"
-    >
+    <div className="sports-match-card">
+
+      {/* TOP */}
 
       <div className="sports-match-top">
 
         <div className="sports-league-name">
-          {league.short}
+          {league?.short || 'Football'}
         </div>
 
         <div
@@ -257,15 +241,24 @@ function SportMatchCard({
 
       </div>
 
+      {/* TEAMS */}
+
       <div className="sports-teams">
+
+        {/* HOME */}
 
         <div className="sports-team">
 
-          {home?.logo && (
+          {home?.logo ? (
             <img
               src={home.logo}
-              alt=""
+              alt={home?.name || 'Home team'}
+              loading="lazy"
             />
+          ) : (
+            <div className="sports-team-placeholder">
+              ⚽
+            </div>
           )}
 
           <span>
@@ -273,6 +266,8 @@ function SportMatchCard({
           </span>
 
         </div>
+
+        {/* SCORE */}
 
         <div className="sports-score">
 
@@ -298,13 +293,20 @@ function SportMatchCard({
 
         </div>
 
+        {/* AWAY */}
+
         <div className="sports-team">
 
-          {away?.logo && (
+          {away?.logo ? (
             <img
               src={away.logo}
-              alt=""
+              alt={away?.name || 'Away team'}
+              loading="lazy"
             />
+          ) : (
+            <div className="sports-team-placeholder">
+              ⚽
+            </div>
           )}
 
           <span>
@@ -314,6 +316,8 @@ function SportMatchCard({
         </div>
 
       </div>
+
+      {/* FOOTER */}
 
       <div className="sports-match-footer">
 
@@ -337,13 +341,13 @@ function SportMatchCard({
 }
 
 /* =========================================================
-   SPORTS UPDATE SECTION
+   SPORTS UPDATES
+   ONLY RENDERED FOR SPORT CATEGORY
 ========================================================= */
 
 function SportsUpdates() {
 
-  const [sports, setSports] =
-    useState([]);
+  const [sports, setSports] = useState([]);
 
   const [sportsLoading, setSportsLoading] =
     useState(true);
@@ -355,14 +359,23 @@ function SportsUpdates() {
     useState('ALL');
 
   /* =======================================================
-     LOAD FROM LOCAL STORAGE
+     LOAD SPORTS
   ======================================================= */
 
   useEffect(() => {
 
+    let cancelled = false;
+
     const loadSports = async () => {
 
+      setSportsLoading(true);
+      setSportsError('');
+
       try {
+
+        /* -------------------------------------------------
+           CHECK CACHE
+        ------------------------------------------------- */
 
         const stored =
           localStorage.getItem(
@@ -374,12 +387,14 @@ function SportsUpdates() {
             SPORTS_STORAGE_TIME_KEY
           );
 
-        const now =
-          Date.now();
+        const now = Date.now();
 
         const cacheValid =
           stored &&
           storedTime &&
+          Number.isFinite(
+            Number(storedTime)
+          ) &&
           now -
             Number(storedTime) <
             SPORTS_CACHE_DURATION;
@@ -390,18 +405,36 @@ function SportsUpdates() {
 
         if (cacheValid) {
 
-          const parsed =
-            JSON.parse(stored);
+          try {
 
-          setSports(parsed);
+            const parsed =
+              JSON.parse(stored);
 
-          setSportsLoading(false);
+            if (
+              Array.isArray(parsed)
+            ) {
 
-          return;
+              if (!cancelled) {
+                setSports(parsed);
+                setSportsLoading(false);
+              }
+
+              return;
+            }
+
+          } catch (cacheError) {
+
+            console.warn(
+              'Invalid sports cache. Refreshing...',
+              cacheError
+            );
+
+          }
+
         }
 
         /* -------------------------------------------------
-           CACHE EXPIRED
+           CLEAR OLD CACHE
         ------------------------------------------------- */
 
         localStorage.removeItem(
@@ -413,7 +446,7 @@ function SportsUpdates() {
         );
 
         /* -------------------------------------------------
-           FETCH TODAY + YESTERDAY
+           DATES
         ------------------------------------------------- */
 
         const dates = [
@@ -423,6 +456,10 @@ function SportsUpdates() {
 
         const allFixtures = [];
 
+        /* -------------------------------------------------
+           LOAD EACH LEAGUE
+        ------------------------------------------------- */
+
         for (
           const league of SPORTS_LEAGUES
         ) {
@@ -430,6 +467,10 @@ function SportsUpdates() {
           for (
             const date of dates
           ) {
+
+            if (cancelled) {
+              return;
+            }
 
             try {
 
@@ -439,31 +480,39 @@ function SportsUpdates() {
                   date
                 );
 
-              fixtures.forEach(
-                fixture => {
+              if (
+                Array.isArray(
+                  fixtures
+                )
+              ) {
 
-                  allFixtures.push({
+                fixtures.forEach(
+                  fixture => {
 
-                    ...fixture,
+                    allFixtures.push({
 
-                    mfnLeagueKey:
-                      league.key,
+                      ...fixture,
 
-                    mfnLeagueName:
-                      league.name,
+                      mfnLeagueKey:
+                        league.key,
 
-                    mfnLeagueShort:
-                      league.short
+                      mfnLeagueName:
+                        league.name,
 
-                  });
+                      mfnLeagueShort:
+                        league.short
 
-                }
-              );
+                    });
+
+                  }
+                );
+
+              }
 
             } catch (error) {
 
               console.error(
-                `Failed loading ${league.name}`,
+                `Failed loading ${league.name} (${date})`,
                 error
               );
 
@@ -474,10 +523,30 @@ function SportsUpdates() {
         }
 
         /* -------------------------------------------------
-           SORT BY DATE
+           REMOVE DUPLICATES
         ------------------------------------------------- */
 
-        allFixtures.sort(
+        const uniqueFixtures =
+          Array.from(
+            new Map(
+              allFixtures.map(
+                fixture => [
+
+                  fixture?.fixture?.id ||
+                    `${fixture?.mfnLeagueKey}-${fixture?.fixture?.date}-${fixture?.teams?.home?.id}-${fixture?.teams?.away?.id}`,
+
+                  fixture
+
+                ]
+              )
+            ).values()
+          );
+
+        /* -------------------------------------------------
+           SORT
+        ------------------------------------------------- */
+
+        uniqueFixtures.sort(
           (a, b) => {
 
             return (
@@ -493,13 +562,13 @@ function SportsUpdates() {
         );
 
         /* -------------------------------------------------
-           SAVE LOCAL STORAGE
+           SAVE CACHE
         ------------------------------------------------- */
 
         localStorage.setItem(
           SPORTS_STORAGE_KEY,
           JSON.stringify(
-            allFixtures
+            uniqueFixtures
           )
         );
 
@@ -508,9 +577,15 @@ function SportsUpdates() {
           String(Date.now())
         );
 
-        setSports(
-          allFixtures
-        );
+        if (!cancelled) {
+
+          setSports(
+            uniqueFixtures
+          );
+
+          setSportsError('');
+
+        }
 
       } catch (error) {
 
@@ -519,19 +594,29 @@ function SportsUpdates() {
           error
         );
 
-        setSportsError(
-          'Unable to load sports updates.'
-        );
+        if (!cancelled) {
+
+          setSportsError(
+            'Unable to load sports updates.'
+          );
+
+        }
 
       } finally {
 
-        setSportsLoading(false);
+        if (!cancelled) {
+          setSportsLoading(false);
+        }
 
       }
 
     };
 
     loadSports();
+
+    return () => {
+      cancelled = true;
+    };
 
   }, []);
 
@@ -560,16 +645,24 @@ function SportsUpdates() {
         <div className="sports-heading">
 
           <div>
+
             <span className="sports-kicker">
-              SPORT UPDATE
+              ⚽ SPORT UPDATE
             </span>
 
             <h2>
               Latest Football
             </h2>
+
+            <p>
+              Loading the latest football
+              matches...
+            </p>
+
           </div>
 
-          <div className="sports-live-dot">
+          <div className="sports-live-badge">
+            <span />
             UPDATING
           </div>
 
@@ -599,19 +692,39 @@ function SportsUpdates() {
         <div className="sports-heading">
 
           <div>
+
             <span className="sports-kicker">
-              SPORT UPDATE
+              ⚽ SPORT UPDATE
             </span>
 
             <h2>
               Latest Football
             </h2>
+
+            <p>
+              Scores and match updates from
+              Europe's biggest leagues and
+              Rwanda's BK Pro League.
+            </p>
+
           </div>
 
         </div>
 
         <div className="sports-empty">
-          {sportsError}
+
+          <div className="sports-empty-icon">
+            ⚠️
+          </div>
+
+          <strong>
+            Sports data unavailable
+          </strong>
+
+          <span>
+            {sportsError}
+          </span>
+
         </div>
 
       </section>
@@ -622,9 +735,9 @@ function SportsUpdates() {
   return (
     <section className="sports-section">
 
-      {/* ===================================================
+      {/* =================================================
           HEADER
-      =================================================== */}
+      ================================================= */}
 
       <div className="sports-heading">
 
@@ -653,13 +766,14 @@ function SportsUpdates() {
 
       </div>
 
-      {/* ===================================================
-          LEAGUE NAVIGATION
-      =================================================== */}
+      {/* =================================================
+          LEAGUES
+      ================================================= */}
 
       <div className="sports-leagues">
 
         <button
+          type="button"
           className={
             activeLeague === 'ALL'
               ? 'active'
@@ -676,6 +790,7 @@ function SportsUpdates() {
           league => (
 
             <button
+              type="button"
               key={league.key}
               className={
                 activeLeague ===
@@ -697,9 +812,9 @@ function SportsUpdates() {
 
       </div>
 
-      {/* ===================================================
+      {/* =================================================
           MATCHES
-      =================================================== */}
+      ================================================= */}
 
       {filteredSports.length === 0 ? (
 
@@ -732,7 +847,7 @@ function SportsUpdates() {
                 <SportMatchCard
                   key={
                     fixture?.fixture?.id ||
-                    index
+                    `${fixture?.mfnLeagueKey}-${index}`
                   }
                   fixture={fixture}
                   league={{
@@ -748,9 +863,9 @@ function SportsUpdates() {
 
       )}
 
-      {/* ===================================================
-          CACHE NOTICE
-      =================================================== */}
+      {/* =================================================
+          CACHE INFO
+      ================================================= */}
 
       <div className="sports-cache-info">
 
@@ -758,8 +873,8 @@ function SportsUpdates() {
           ●
         </span>
 
-        Updates refresh automatically
-        every 24 hours.
+        Sports updates refresh
+        automatically every 24 hours.
 
       </div>
 
@@ -773,8 +888,27 @@ function SportsUpdates() {
 
 export default function CategoryPage() {
 
-  const { category } =
-    useParams();
+  const { category } = useParams();
+
+  /* -------------------------------------------------------
+     NORMALIZE CATEGORY
+  ------------------------------------------------------- */
+
+  const decodedCategory = (() => {
+
+    try {
+
+      return decodeURIComponent(
+        category || ''
+      );
+
+    } catch {
+
+      return category || '';
+
+    }
+
+  })();
 
   const [
     stories,
@@ -811,19 +945,32 @@ export default function CategoryPage() {
     setLoading
   ] = useState(true);
 
+  const [
+    error,
+    setError
+  ] = useState('');
+
   const accent =
-    CAT_COLORS[category] ||
+    CAT_COLORS[decodedCategory] ||
     '#c0392b';
 
   /* =======================================================
-     RESET PAGE
+     SPORT CHECK
+  ======================================================= */
+
+  const isSport =
+    decodedCategory.toLowerCase() ===
+    'sport';
+
+  /* =======================================================
+     RESET PAGE WHEN CATEGORY CHANGES
   ======================================================= */
 
   useEffect(() => {
 
     setPage(1);
 
-  }, [category]);
+  }, [decodedCategory]);
 
   /* =======================================================
      LOAD CATEGORY DATA
@@ -831,9 +978,12 @@ export default function CategoryPage() {
 
   useEffect(() => {
 
+    let cancelled = false;
+
     const load = async () => {
 
       setLoading(true);
+      setError('');
 
       try {
 
@@ -844,14 +994,16 @@ export default function CategoryPage() {
         ] = await Promise.all([
 
           storiesAPI.getAll({
-            category,
+            category:
+              decodedCategory,
             page,
             limit: 12,
             status: 'published'
           }),
 
           storiesAPI.getPopular({
-            category,
+            category:
+              decodedCategory,
             limit: 5
           }),
 
@@ -859,35 +1011,100 @@ export default function CategoryPage() {
 
         ]);
 
+        if (cancelled) {
+          return;
+        }
+
+        /* -------------------------------------------------
+           STORIES
+        ------------------------------------------------- */
+
+        const storiesData =
+          sRes?.data;
+
         setStories(
-          sRes.data.stories || []
+          Array.isArray(
+            storiesData?.stories
+          )
+            ? storiesData.stories
+            : []
         );
 
         setTotalPages(
-          sRes.data.pages || 1
+          Number(
+            storiesData?.pages
+          ) || 1
         );
 
         setTotal(
-          sRes.data.total || 0
+          Number(
+            storiesData?.total
+          ) || 0
         );
+
+        /* -------------------------------------------------
+           POPULAR
+        ------------------------------------------------- */
+
+        const popularData =
+          pRes?.data;
 
         setPopular(
-          pRes.data || []
+          Array.isArray(
+            popularData
+          )
+            ? popularData
+            : Array.isArray(
+                popularData?.stories
+              )
+              ? popularData.stories
+              : []
         );
+
+        /* -------------------------------------------------
+           ADS
+        ------------------------------------------------- */
+
+        const adsData =
+          aRes?.data;
 
         setAds(
-          aRes.data || []
+          Array.isArray(adsData)
+            ? adsData
+            : Array.isArray(
+                adsData?.ads
+              )
+              ? adsData.ads
+              : []
         );
 
-      } catch (e) {
+      } catch (err) {
 
         console.error(
-          e
+          'Category loading error:',
+          err
         );
+
+        if (!cancelled) {
+
+          setStories([]);
+          setPopular([]);
+          setAds([]);
+
+          setTotal(0);
+          setTotalPages(1);
+
+          setError(
+            'Unable to load this category right now.'
+          );
+
+        }
 
       } finally {
 
-        setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
 
       }
 
@@ -895,7 +1112,15 @@ export default function CategoryPage() {
 
     load();
 
-  }, [category, page]);
+    return () => {
+      cancelled = true;
+    };
+
+  }, [decodedCategory, page]);
+
+  /* =======================================================
+     RENDER
+  ======================================================= */
 
   return (
 
@@ -911,7 +1136,12 @@ export default function CategoryPage() {
           box-sizing: border-box;
         }
 
+        /* =================================================
+           CATEGORY HEADER
+        ================================================= */
+
         .cat-header-wrap {
+
           background:
             linear-gradient(
               135deg,
@@ -931,10 +1161,13 @@ export default function CategoryPage() {
           box-shadow:
             0 8px 30px
             rgba(0,0,0,.12);
+
         }
 
         .cat-header-wrap::after {
-          content: '';
+
+          content:
+            '';
 
           position:
             absolute;
@@ -957,9 +1190,14 @@ export default function CategoryPage() {
           border:
             1px solid
             rgba(255,255,255,.12);
+
+          pointer-events:
+            none;
+
         }
 
         .cat-watermark {
+
           position:
             absolute;
 
@@ -996,9 +1234,11 @@ export default function CategoryPage() {
 
           user-select:
             none;
+
         }
 
         .cat-content-wrap {
+
           max-width:
             1260px;
 
@@ -1007,9 +1247,15 @@ export default function CategoryPage() {
 
           padding:
             32px 20px 60px;
+
         }
 
+        /* =================================================
+           MAIN GRID
+        ================================================= */
+
         .cat-main-grid {
+
           display:
             grid;
 
@@ -1021,9 +1267,15 @@ export default function CategoryPage() {
 
           align-items:
             start;
+
         }
 
+        /* =================================================
+           FEATURED STORY
+        ================================================= */
+
         .cat-featured-story {
+
           display:
             block;
 
@@ -1054,23 +1306,33 @@ export default function CategoryPage() {
 
           transform:
             translateZ(0);
+
         }
 
         .cat-featured-story img {
+
           transition:
             transform .6s ease,
             opacity .6s ease;
+
         }
 
         .cat-featured-story:hover img {
+
           transform:
             scale(1.04);
 
           opacity:
             .62 !important;
+
         }
 
+        /* =================================================
+           STORY GRID
+        ================================================= */
+
         .cat-card-grid {
+
           display:
             grid;
 
@@ -1085,18 +1347,25 @@ export default function CategoryPage() {
 
           margin-bottom:
             28px;
+
         }
 
+        /* =================================================
+           SIDEBAR
+        ================================================= */
+
         .cat-sidebar-sticky {
+
           position:
             sticky;
 
           top:
             72px;
+
         }
 
         /* =================================================
-           SPORTS SECTION
+           SPORTS
         ================================================= */
 
         .sports-section {
@@ -1318,7 +1587,6 @@ export default function CategoryPage() {
           0% {
             transform:
               scale(1);
-
             opacity:
               1;
           }
@@ -1326,7 +1594,6 @@ export default function CategoryPage() {
           50% {
             transform:
               scale(1.5);
-
             opacity:
               .45;
           }
@@ -1334,12 +1601,15 @@ export default function CategoryPage() {
           100% {
             transform:
               scale(1);
-
             opacity:
               1;
           }
 
         }
+
+        /* =================================================
+           LEAGUE NAV
+        ================================================= */
 
         .sports-leagues {
 
@@ -1424,6 +1694,10 @@ export default function CategoryPage() {
 
         }
 
+        /* =================================================
+           SPORTS GRID
+        ================================================= */
+
         .sports-grid {
 
           display:
@@ -1439,6 +1713,10 @@ export default function CategoryPage() {
             13px;
 
         }
+
+        /* =================================================
+           SPORTS CARD
+        ================================================= */
 
         .sports-match-card {
 
@@ -1546,6 +1824,10 @@ export default function CategoryPage() {
 
         }
 
+        /* =================================================
+           TEAMS
+        ================================================= */
+
         .sports-teams {
 
           display:
@@ -1584,7 +1866,8 @@ export default function CategoryPage() {
 
         }
 
-        .sports-team img {
+        .sports-team img,
+        .sports-team-placeholder {
 
           width:
             30px;
@@ -1594,6 +1877,22 @@ export default function CategoryPage() {
 
           object-fit:
             contain;
+
+        }
+
+        .sports-team-placeholder {
+
+          display:
+            flex;
+
+          align-items:
+            center;
+
+          justify-content:
+            center;
+
+          font-size:
+            22px;
 
         }
 
@@ -1615,7 +1914,26 @@ export default function CategoryPage() {
           line-height:
             1.15;
 
+          overflow:
+            hidden;
+
+          text-overflow:
+            ellipsis;
+
+          display:
+            -webkit-box;
+
+          -webkit-line-clamp:
+            2;
+
+          -webkit-box-orient:
+            vertical;
+
         }
+
+        /* =================================================
+           SCORE
+        ================================================= */
 
         .sports-score {
 
@@ -1656,6 +1974,10 @@ export default function CategoryPage() {
 
         }
 
+        /* =================================================
+           SPORTS FOOTER
+        ================================================= */
+
         .sports-match-footer {
 
           border-top:
@@ -1688,35 +2010,9 @@ export default function CategoryPage() {
 
         }
 
-        .sports-cache-info {
-
-          margin-top:
-            16px;
-
-          color:
-            #8a929b;
-
-          font-size:
-            10px;
-
-          font-family:
-            'Barlow Condensed',
-            sans-serif;
-
-          letter-spacing:
-            .6px;
-
-        }
-
-        .sports-cache-info span {
-
-          color:
-            #2e7d32;
-
-          margin-right:
-            5px;
-
-        }
+        /* =================================================
+           SPORTS EMPTY
+        ================================================= */
 
         .sports-empty {
 
@@ -1767,27 +2063,90 @@ export default function CategoryPage() {
         }
 
         /* =================================================
+           CACHE
+        ================================================= */
+
+        .sports-cache-info {
+
+          margin-top:
+            16px;
+
+          color:
+            #8a929b;
+
+          font-size:
+            10px;
+
+          font-family:
+            'Barlow Condensed',
+            sans-serif;
+
+          letter-spacing:
+            .6px;
+
+        }
+
+        .sports-cache-info span {
+
+          color:
+            #2e7d32;
+
+          margin-right:
+            5px;
+
+        }
+
+        /* =================================================
+           ERROR
+        ================================================= */
+
+        .category-error {
+
+          padding:
+            25px;
+
+          background:
+            #fff5f5;
+
+          border:
+            1px solid #f1d1d1;
+
+          color:
+            #9b2c2c;
+
+          margin-bottom:
+            25px;
+
+        }
+
+        /* =================================================
            RESPONSIVE
         ================================================= */
 
         @media (max-width: 1100px) {
 
           .cat-main-grid {
+
             grid-template-columns:
               1fr;
+
           }
 
           .cat-sidebar-sticky {
+
             position:
               static;
+
           }
 
           .sports-grid {
+
             grid-template-columns:
               repeat(
                 2,
                 minmax(0,1fr)
               );
+
           }
 
         }
@@ -1795,16 +2154,21 @@ export default function CategoryPage() {
         @media (max-width: 768px) {
 
           .cat-content-wrap {
+
             padding:
               24px 16px 40px;
+
           }
 
           .cat-featured-story {
+
             height:
               300px;
+
           }
 
           .cat-watermark {
+
             font-size:
               90px;
 
@@ -1813,31 +2177,42 @@ export default function CategoryPage() {
 
             top:
               -10px;
+
           }
 
           .cat-header-wrap {
+
             padding:
               18px 0 0;
+
           }
 
           .sports-section {
+
             padding:
               20px 15px;
+
           }
 
           .sports-heading {
+
             flex-direction:
               column;
+
           }
 
           .sports-grid {
+
             grid-template-columns:
               1fr;
+
           }
 
           .sports-live-badge {
+
             align-self:
               flex-start;
+
           }
 
         }
@@ -1845,39 +2220,51 @@ export default function CategoryPage() {
         @media (max-width: 560px) {
 
           .cat-featured-story {
+
             height:
               230px;
+
           }
 
           .cat-featured-overlay {
+
             padding:
               30px 16px 16px !important;
+
           }
 
           .cat-featured-title {
+
             font-size:
               1.2rem !important;
 
             line-height:
               1.2 !important;
+
           }
 
           .cat-card-grid {
+
             grid-template-columns:
               1fr !important;
 
             gap:
               16px !important;
+
           }
 
           .sports-section {
+
             margin:
               25px -2px 30px;
+
           }
 
           .sports-heading h2 {
+
             font-size:
               1.7rem;
+
           }
 
         }
@@ -1891,7 +2278,7 @@ export default function CategoryPage() {
       <div className="cat-header-wrap">
 
         <div className="cat-watermark">
-          {(category || '')
+          {decodedCategory
             .substring(0, 8)}
         </div>
 
@@ -1902,6 +2289,8 @@ export default function CategoryPage() {
             padding: '0 20px'
           }}
         >
+
+          {/* BREADCRUMB */}
 
           <div
             style={{
@@ -1939,10 +2328,12 @@ export default function CategoryPage() {
                   'rgba(255,255,255,.8)'
               }}
             >
-              {category}
+              {decodedCategory}
             </span>
 
           </div>
+
+          {/* TITLE */}
 
           <h1
             style={{
@@ -1958,7 +2349,7 @@ export default function CategoryPage() {
             }}
           >
 
-            {category}
+            {decodedCategory}
 
             <span
               style={{
@@ -1972,6 +2363,8 @@ export default function CategoryPage() {
             </span>
 
           </h1>
+
+          {/* CATEGORY NAV */}
 
           <div
             style={{
@@ -2000,10 +2393,11 @@ export default function CategoryPage() {
                   'rgba(255,255,255,.1)'
               }}
             >
-              {category}
+              {decodedCategory}
             </span>
 
-            <span
+            <Link
+              to="/"
               style={{
                 fontFamily:
                   "'Barlow Condensed',sans-serif",
@@ -2013,11 +2407,12 @@ export default function CategoryPage() {
                 textTransform: 'uppercase',
                 color:
                   'rgba(255,255,255,.55)',
-                padding: '12px 18px'
+                padding: '12px 18px',
+                textDecoration: 'none'
               }}
             >
               All Stories
-            </span>
+            </Link>
 
           </div>
 
@@ -2031,7 +2426,9 @@ export default function CategoryPage() {
 
       <div className="cat-content-wrap">
 
-        {/* ADVERTISEMENT */}
+        {/* =================================================
+            ADS
+        ================================================= */}
 
         <AdBanner
           ads={ads}
@@ -2039,11 +2436,34 @@ export default function CategoryPage() {
         />
 
         {/* =================================================
-            SPORT ONLY
+            SPORTS ONLY
+
+            IMPORTANT:
+            This component does NOT appear on:
+            Business
+            Technology
+            Health
+            Culture
+            Environment
+            Le Phare
+            Music
+            Transport
+
+            It appears ONLY on Sport.
         ================================================= */}
 
-        {category === 'Sport' && (
+        {isSport && (
           <SportsUpdates />
+        )}
+
+        {/* =================================================
+            CATEGORY ERROR
+        ================================================= */}
+
+        {error && (
+          <div className="category-error">
+            {error}
+          </div>
         )}
 
         {/* =================================================
@@ -2051,6 +2471,10 @@ export default function CategoryPage() {
         ================================================= */}
 
         <div className="cat-main-grid">
+
+          {/* =================================================
+              STORIES
+          ================================================= */}
 
           <div>
 
@@ -2062,36 +2486,45 @@ export default function CategoryPage() {
 
               <EmptyState
                 icon="📰"
-                title={`No ${category} stories yet`}
-                message="Check back soon for the latest updates."
+                title={
+                  `No ${decodedCategory} stories yet`
+                }
+                message={
+                  "Check back soon for the latest updates."
+                }
               />
 
             ) : (
 
               <>
 
-                {/* FEATURED */}
+                {/* =========================================
+                    FEATURED STORY
+                ========================================= */}
 
                 <Link
                   to={`/story/${
-                    stories[0]._id ||
-                    stories[0].id
+                    stories[0]?._id ||
+                    stories[0]?.id
                   }`}
                   className="cat-featured-story"
                 >
 
                   <img
                     src={imgUrl(
-                      stories[0].image
+                      stories[0]?.image
                     )}
-                    alt=""
+                    alt={
+                      stories[0]?.title ||
+                      'Featured story'
+                    }
                     loading="eager"
                     onError={e => {
 
-                      e.target.onerror =
+                      e.currentTarget.onerror =
                         null;
 
-                      e.target.src =
+                      e.currentTarget.src =
                         '/placeholder.jpg';
 
                     }}
@@ -2135,7 +2568,8 @@ export default function CategoryPage() {
                         marginBottom: 10
                       }}
                     >
-                      {stories[0].category}
+                      {stories[0]?.category ||
+                        decodedCategory}
                     </div>
 
                     <h2
@@ -2151,45 +2585,43 @@ export default function CategoryPage() {
                         margin: 0
                       }}
                     >
-                      {stories[0].title}
+                      {stories[0]?.title}
                     </h2>
 
                   </div>
 
                 </Link>
 
-                {/* STORY GRID */}
+                {/* =========================================
+                    STORY GRID
+                ========================================= */}
 
                 <div className="cat-card-grid">
 
                   {stories
                     .slice(1)
-                    .map(
-                      story => (
+                    .map(story => (
 
-                        <GridCard
-                          key={
-                            story._id ||
-                            story.id
-                          }
-                          story={story}
-                        />
+                      <GridCard
+                        key={
+                          story?._id ||
+                          story?.id
+                        }
+                        story={story}
+                      />
 
-                      )
-                    )}
+                    ))}
 
                 </div>
 
-                {/* PAGINATION */}
+                {/* =========================================
+                    PAGINATION
+                ========================================= */}
 
                 <Pagination
                   page={page}
-                  totalPages={
-                    totalPages
-                  }
-                  onChange={
-                    setPage
-                  }
+                  totalPages={totalPages}
+                  onChange={setPage}
                 />
 
               </>
@@ -2204,10 +2636,9 @@ export default function CategoryPage() {
 
           <aside>
 
-            <div
-              className=
-                "cat-sidebar-sticky"
-            >
+            <div className="cat-sidebar-sticky">
+
+              {/* MOST READ */}
 
               <div
                 style={{
@@ -2231,8 +2662,9 @@ export default function CategoryPage() {
 
                     <PopularItem
                       key={
-                        p._id ||
-                        p.id
+                        p?._id ||
+                        p?.id ||
+                        i
                       }
                       story={p}
                       rank={i + 1}
@@ -2252,15 +2684,18 @@ export default function CategoryPage() {
                       fontSize: 13
                     }}
                   >
-                    No popular
-                    stories yet.
+                    No popular stories yet.
                   </p>
 
                 )}
 
               </div>
 
+              {/* NEWSLETTER */}
+
               <NewsletterWidget />
+
+              {/* WHATSAPP */}
 
               <WhatsAppCTA />
 
