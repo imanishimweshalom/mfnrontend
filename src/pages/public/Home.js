@@ -440,7 +440,548 @@ export default function Home() {
           display: flex !important;
           flex-direction: row !important;
         }
+/* ============================================================
+   PROFESSIONAL TOP AD
+   FULL BLACK COVER
+============================================================ */
 
+.home-top-ad-section {
+  width: 100%;
+  min-height: 145px;
+  box-sizing: border-box;
+  background: #000;
+  padding: 18px 20px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  border-bottom: 1px solid #1b1b1b;
+  position: relative;
+  z-index: 1000;
+}
+
+.top-ad-wrapper {
+  width: 100%;
+  max-width: 1200px;
+  height: 110px;
+  overflow: hidden;
+  border: 1px solid #222;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #000;
+  box-shadow:
+    0 8px 30px rgba(0, 0, 0, .35);
+}
+
+.top-ad-wrapper > div {
+  width: 100% !important;
+  height: 100% !important;
+  display: flex !important;
+  flex-direction: row !important;
+}
+
+.top-ad-wrapper a {
+  flex: 1 1 50% !important;
+  height: 100% !important;
+  display: block !important;
+}
+
+.top-ad-wrapper img {
+  width: 100% !important;
+  height: 110px !important;
+  object-fit: cover !important;
+  display: block !important;
+}
+
+
+/* ============================================================
+   HERO / LATEST NEWS AREA
+   PROFESSIONAL LARGE HEIGHT
+============================================================ */
+
+.home-hero-grid {
+  display: grid;
+  grid-template-columns: 1fr 340px;
+  gap: 2px;
+  background: #000;
+  margin-bottom: 2px;
+}
+
+
+/* ============================================================
+   MAIN LATEST NEWS ANIMATION
+============================================================ */
+
+.hero-latest-news {
+  position: relative;
+  width: 100%;
+  height: 520px;
+  min-height: 520px;
+  overflow: hidden;
+  background: #000;
+}
+
+
+/* ============================================================
+   IMAGE
+============================================================ */
+
+.hero-latest-slide {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 520px;
+  overflow: hidden;
+  text-decoration: none;
+  color: #fff;
+  background: #000;
+}
+
+.hero-latest-slide img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  transform: scale(1);
+  transition:
+    transform 10s ease,
+    opacity .5s ease;
+  background: #000;
+}
+
+
+/* ============================================================
+   PROFESSIONAL BLACK COVER
+============================================================ */
+
+.hero-latest-slide::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+
+  background:
+    linear-gradient(
+      to bottom,
+      rgba(0, 0, 0, .05) 0%,
+      rgba(0, 0, 0, .18) 28%,
+      rgba(0, 0, 0, .55) 58%,
+      rgba(0, 0, 0, .96) 100%
+    );
+}
+
+
+/* ============================================================
+   SUBTLE IMAGE ZOOM
+============================================================ */
+
+.hero-latest-slide:hover img {
+  transform: scale(1.045);
+}
+
+
+/* ============================================================
+   CONTENT OVER IMAGE
+============================================================ */
+
+.hero-latest-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+
+  padding:
+    55px 55px 48px;
+
+  background:
+    linear-gradient(
+      to right,
+      rgba(0, 0, 0, .18),
+      transparent 60%
+    );
+}
+
+
+/* ============================================================
+   CATEGORY
+============================================================ */
+
+.hero-latest-category {
+  font-family:
+    "Barlow Condensed",
+    sans-serif;
+
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+
+  color: #e8b84b;
+
+  margin-bottom: 12px;
+}
+
+
+/* ============================================================
+   TITLE
+============================================================ */
+
+.hero-latest-title {
+  font-family:
+    "Playfair Display",
+    Georgia,
+    serif;
+
+  font-size:
+    clamp(2rem, 4vw, 3.6rem);
+
+  font-weight: 700;
+
+  line-height: 1.08;
+
+  margin: 0 0 16px;
+
+  max-width: 950px;
+
+  color: #fff;
+
+  text-shadow:
+    0 3px 15px rgba(0, 0, 0, .7);
+}
+
+
+/* ============================================================
+   DESCRIPTION
+============================================================ */
+
+.hero-latest-description {
+  max-width: 760px;
+
+  margin: 0 0 18px;
+
+  font-size: 15px;
+
+  line-height: 1.65;
+
+  color:
+    rgba(255, 255, 255, .82);
+
+  text-shadow:
+    0 2px 8px rgba(0, 0, 0, .6);
+}
+
+
+/* ============================================================
+   META
+============================================================ */
+
+.hero-latest-meta {
+  display: flex;
+  gap: 18px;
+  flex-wrap: wrap;
+
+  font-family:
+    "Barlow Condensed",
+    sans-serif;
+
+  font-size: 11px;
+
+  letter-spacing: .5px;
+
+  color:
+    rgba(255, 255, 255, .7);
+}
+
+
+/* ============================================================
+   ANIMATION
+============================================================ */
+
+.hero-latest-changing {
+  animation:
+    heroLatestProfessional
+    .55s
+    ease;
+}
+
+@keyframes heroLatestProfessional {
+
+  0% {
+    opacity: 0;
+    transform:
+      translateY(18px)
+      scale(.99);
+  }
+
+  100% {
+    opacity: 1;
+    transform:
+      translateY(0)
+      scale(1);
+  }
+
+}
+
+
+/* ============================================================
+   DOTS
+============================================================ */
+
+.hero-latest-dots {
+  position: absolute;
+
+  right: 35px;
+  bottom: 32px;
+
+  z-index: 20;
+
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hero-latest-dots button {
+  width: 8px;
+  height: 8px;
+
+  padding: 0;
+
+  border: 0;
+
+  border-radius: 50%;
+
+  background:
+    rgba(255, 255, 255, .35);
+
+  cursor: pointer;
+
+  transition:
+    all .3s ease;
+}
+
+.hero-latest-dots button:hover {
+  background:
+    rgba(255, 255, 255, .85);
+}
+
+.hero-latest-dots button.active {
+  width: 30px;
+
+  border-radius: 6px;
+
+  background: #e8b84b;
+}
+
+
+/* ============================================================
+   PROGRESS BAR
+============================================================ */
+
+.hero-latest-progress {
+  position: absolute;
+
+  left: 0;
+  bottom: 0;
+
+  width: 100%;
+  height: 4px;
+
+  background:
+    rgba(255, 255, 255, .12);
+
+  z-index: 30;
+
+  overflow: hidden;
+}
+
+.hero-latest-progress-inner {
+  width: 0;
+  height: 100%;
+
+  background: #e8b84b;
+
+  animation:
+    heroLatestProgress
+    10s
+    linear
+    forwards;
+}
+
+@keyframes heroLatestProgress {
+
+  from {
+    width: 0;
+  }
+
+  to {
+    width: 100%;
+  }
+
+}
+
+
+/* ============================================================
+   HERO SIDEBAR
+============================================================ */
+
+.home-hero-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: #000;
+}
+
+.home-hero-sidebar > * {
+  background: #000;
+}
+
+
+/* ============================================================
+   TABLET
+============================================================ */
+
+@media (max-width: 1024px) {
+
+  .hero-latest-news {
+    height: 460px;
+    min-height: 460px;
+  }
+
+  .hero-latest-slide {
+    min-height: 460px;
+  }
+
+  .hero-latest-overlay {
+    padding:
+      42px 40px 40px;
+  }
+
+  .hero-latest-title {
+    font-size:
+      clamp(1.8rem, 4vw, 3rem);
+  }
+
+}
+
+
+/* ============================================================
+   MOBILE
+============================================================ */
+
+@media (max-width: 768px) {
+
+  .home-top-ad-section {
+    min-height: 125px;
+    padding: 12px;
+  }
+
+  .top-ad-wrapper {
+    height: 95px;
+  }
+
+  .top-ad-wrapper img {
+    height: 95px !important;
+  }
+
+  .hero-latest-news {
+    height: 390px;
+    min-height: 390px;
+  }
+
+  .hero-latest-slide {
+    min-height: 390px;
+  }
+
+  .hero-latest-overlay {
+    padding:
+      28px 25px 34px;
+  }
+
+  .hero-latest-title {
+    font-size:
+      clamp(1.55rem, 6vw, 2.2rem);
+
+    line-height: 1.1;
+  }
+
+  .hero-latest-description {
+    font-size: 13px;
+    line-height: 1.5;
+  }
+
+  .hero-latest-dots {
+    right: 20px;
+    bottom: 24px;
+  }
+
+}
+
+
+/* ============================================================
+   SMALL PHONES
+============================================================ */
+
+@media (max-width: 600px) {
+
+  .home-top-ad-section {
+    min-height: 105px;
+    padding: 8px;
+  }
+
+  .top-ad-wrapper {
+    height: 80px;
+  }
+
+  .top-ad-wrapper img {
+    height: 80px !important;
+  }
+
+  .hero-latest-news {
+    height: 350px;
+    min-height: 350px;
+  }
+
+  .hero-latest-slide {
+    min-height: 350px;
+  }
+
+  .hero-latest-overlay {
+    padding:
+      22px 20px 28px;
+  }
+
+  .hero-latest-category {
+    font-size: 10px;
+    letter-spacing: 2px;
+  }
+
+  .hero-latest-title {
+    font-size: 1.45rem;
+  }
+
+  .hero-latest-description {
+    display: none;
+  }
+
+  .hero-latest-meta {
+    font-size: 9px;
+    gap: 10px;
+  }
+
+  .hero-latest-dots {
+    right: 15px;
+    bottom: 18px;
+  }
+
+}
         .top-ad-wrapper a {
           flex: 1 1 50% !important;
           height: 100% !important;
