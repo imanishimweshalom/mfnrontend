@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
+
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 
 import PublicLayout from '../../components/layout/PublicLayout';
@@ -16,9 +17,10 @@ import {
   imgUrl
 } from '../../components/ui';
 
-import api, {
+import {
   storiesAPI,
-  adsAPI
+  adsAPI,
+  sportsAPI
 } from '../../utils/api';
 
 /* =========================================================
@@ -81,12 +83,30 @@ const SPORTS_LEAGUES = [
 ];
 
 /* =========================================================
-   SPORTS CACHE
+   SPORTS CONFIG
 ========================================================= */
 
-const SPORTS_STORAGE_KEY = 'mfn_sports_dashboard_v4';
-const SPORTS_STORAGE_TIME_KEY = 'mfn_sports_dashboard_timestamp_v4';
-const SPORTS_CACHE_DURATION = 30 * 60 * 1000;
+const SPORTS_STORAGE_KEY = 'mfn_sports_dashboard_v5';
+const SPORTS_STORAGE_TIME_KEY = 'mfn_sports_dashboard_timestamp_v5';
+
+/*
+ * Frontend refresh:
+ * Every 5 minutes.
+ */
+const SPORTS_REFRESH_INTERVAL = 5 * 60 * 1000;
+
+/*
+ * Cache is considered usable for 5 minutes.
+ * Cached data is still displayed immediately while
+ * fresh data is requested in the background.
+ */
+const SPORTS_CACHE_DURATION = 5 * 60 * 1000;
+
+/*
+ * How many days around today to request.
+ */
+const FIXTURE_DAYS_BEFORE = 2;
+const FIXTURE_DAYS_AFTER = 10;
 
 /* =========================================================
    HELPERS
@@ -104,9 +124,15 @@ const getDateString = (date = new Date()) => {
 
 const getDateOffset = (days) => {
   const d = new Date();
+
   d.setDate(d.getDate() + days);
+
   return getDateString(d);
 };
+
+/* =========================================================
+   TIMEZONE-SAFE DATE FORMAT
+========================================================= */
 
 const formatMatchTime = (date) => {
   if (!date) {
@@ -150,14 +176,29 @@ const formatShortDate = (date) => {
   }
 };
 
+/* =========================================================
+   CURRENT SEASON
+========================================================= */
+
 const getSeason = () => {
   const now = new Date();
   const month = now.getMonth() + 1;
 
+  /*
+   * August -> new football season.
+   *
+   * Example:
+   * August 2026 => 2026
+   * July 2026   => 2025
+   */
   return month >= 8
     ? now.getFullYear()
     : now.getFullYear() - 1;
 };
+
+/* =========================================================
+   MATCH STATUS
+========================================================= */
 
 const getMatchStatus = (fixture) => {
   const status = fixture?.fixture?.status;
@@ -166,9 +207,13 @@ const getMatchStatus = (fixture) => {
     return '';
   }
 
-  const short = String(status.short || '').toUpperCase();
+  const short = String(
+    status.short || ''
+  ).toUpperCase();
 
-  if (['FT', 'AET', 'PEN'].includes(short)) {
+  if (
+    ['FT', 'AET', 'PEN'].includes(short)
+  ) {
     return 'FULL TIME';
   }
 
@@ -180,13 +225,16 @@ const getMatchStatus = (fixture) => {
       'ET',
       'BT',
       'P',
-      'HT'
+      'HT',
+      'INT'
     ].includes(short)
   ) {
     return 'LIVE';
   }
 
-  if (['NS', 'TBD'].includes(short)) {
+  if (
+    ['NS', 'TBD'].includes(short)
+  ) {
     return 'UPCOMING';
   }
 
@@ -194,7 +242,7 @@ const getMatchStatus = (fixture) => {
 };
 
 /* =========================================================
-   API RESPONSE HELPERS
+   ARRAY EXTRACTION
 ========================================================= */
 
 const extractArray = (data, keys = []) => {
@@ -212,23 +260,18 @@ const extractArray = (data, keys = []) => {
 };
 
 /* =========================================================
-   SPORTS API
+   SPORTS RESPONSE HELPERS
 ========================================================= */
 
-const fetchSportsFixtures = async (leagueId) => {
-  const response = await api.get('/sports/fixtures', {
-    params: {
-      league: leagueId,
-      season: getSeason(),
-      from: getDateOffset(-2),
-      to: getDateOffset(10)
-    }
-  });
-
+const normalizeFixtures = (response) => {
   const data = response?.data;
 
+  const raw =
+    data?.response ??
+    data;
+
   return extractArray(
-    data?.response ?? data,
+    raw,
     [
       'fixtures',
       'matches',
@@ -237,16 +280,12 @@ const fetchSportsFixtures = async (leagueId) => {
   );
 };
 
-const fetchSportsStandings = async (leagueId) => {
-  const response = await api.get('/sports/standings', {
-    params: {
-      league: leagueId,
-      season: getSeason()
-    }
-  });
-
+const normalizeStandings = (response) => {
   const data = response?.data;
-  const raw = data?.response ?? data;
+
+  const raw =
+    data?.response ??
+    data;
 
   if (Array.isArray(raw)) {
     return raw;
@@ -278,16 +317,12 @@ const fetchSportsStandings = async (leagueId) => {
   );
 };
 
-const fetchSportsTopScorers = async (leagueId) => {
-  const response = await api.get('/sports/topscorers', {
-    params: {
-      league: leagueId,
-      season: getSeason()
-    }
-  });
-
+const normalizeTopScorers = (response) => {
   const data = response?.data;
-  const raw = data?.response ?? data;
+
+  const raw =
+    data?.response ??
+    data;
 
   if (Array.isArray(raw)) {
     return raw;
@@ -306,7 +341,7 @@ const fetchSportsTopScorers = async (leagueId) => {
 };
 
 /* =========================================================
-   IMAGE ERROR HANDLER
+   IMAGE ERROR
 ========================================================= */
 
 const handleImageError = (event) => {
@@ -315,36 +350,152 @@ const handleImageError = (event) => {
   }
 
   event.currentTarget.onerror = null;
-  event.currentTarget.src = '/placeholder.jpg';
+
+  event.currentTarget.src =
+    '/placeholder.jpg';
 };
 
 /* =========================================================
-   MATCH CARD
+   SPORTS FETCH
+========================================================= */
+
+const fetchLeagueSports = async (league) => {
+  const params = {
+    league: league.id,
+    season: getSeason()
+  };
+
+  const fixtureParams = {
+    ...params,
+    from: getDateOffset(
+      -FIXTURE_DAYS_BEFORE
+    ),
+    to: getDateOffset(
+      FIXTURE_DAYS_AFTER
+    )
+  };
+
+  /*
+   * We deliberately use Promise.allSettled here.
+   *
+   * If standings fail, fixtures can still load.
+   * If top scorers fail, fixtures can still load.
+   */
+  const [
+    fixturesResult,
+    standingsResult,
+    scorersResult
+  ] = await Promise.allSettled([
+    sportsAPI.getFixtures(
+      fixtureParams
+    ),
+
+    sportsAPI.getStandings(
+      params
+    ),
+
+    sportsAPI.getTopScorers(
+      params
+    )
+  ]);
+
+  const fixtures =
+    fixturesResult.status === 'fulfilled'
+      ? normalizeFixtures(
+          fixturesResult.value
+        )
+      : [];
+
+  const standings =
+    standingsResult.status === 'fulfilled'
+      ? normalizeStandings(
+          standingsResult.value
+        )
+      : [];
+
+  const scorers =
+    scorersResult.status === 'fulfilled'
+      ? normalizeTopScorers(
+          scorersResult.value
+        )
+      : [];
+
+  return {
+    league,
+    fixtures,
+    standings,
+    scorers,
+
+    errors: {
+      fixtures:
+        fixturesResult.status ===
+        'rejected'
+          ? fixturesResult.reason
+          : null,
+
+      standings:
+        standingsResult.status ===
+        'rejected'
+          ? standingsResult.reason
+          : null,
+
+      scorers:
+        scorersResult.status ===
+        'rejected'
+          ? scorersResult.reason
+          : null
+    }
+  };
+};
+
+/* =========================================================
+   SPORTS MATCH CARD
 ========================================================= */
 
 function SportMatchCard({
   fixture,
   league
 }) {
-  const home = fixture?.teams?.home || {};
-  const away = fixture?.teams?.away || {};
-  const goals = fixture?.goals || {};
+  const home =
+    fixture?.teams?.home || {};
 
-  const status = getMatchStatus(fixture);
+  const away =
+    fixture?.teams?.away || {};
 
-  const isLive = status === 'LIVE';
-  const isFinished = status === 'FULL TIME';
+  const goals =
+    fixture?.goals || {};
 
-  const homeScore = goals?.home;
-  const awayScore = goals?.away;
+  const status =
+    getMatchStatus(fixture);
+
+  const isLive =
+    status === 'LIVE';
+
+  const isFinished =
+    status === 'FULL TIME';
+
+  const homeScore =
+    goals?.home;
+
+  const awayScore =
+    goals?.away;
 
   return (
-    <article className="sports-match-card">
+    <article
+      className={
+        `sports-match-card ${
+          isLive
+            ? 'sports-match-live'
+            : ''
+        }`
+      }
+    >
 
       <div className="sports-match-top">
 
         <div className="sports-league-name">
-          {league?.short || 'Football'}
+          {league?.short ||
+            'Football'}
         </div>
 
         <div
@@ -354,7 +505,8 @@ function SportMatchCard({
               : 'sports-status'
           }
         >
-          {status || 'UPCOMING'}
+          {status ||
+            'UPCOMING'}
         </div>
 
       </div>
@@ -366,9 +518,14 @@ function SportMatchCard({
           {home?.logo ? (
             <img
               src={home.logo}
-              alt={home?.name || 'Home team'}
+              alt={
+                home?.name ||
+                'Home team'
+              }
               loading="lazy"
-              onError={handleImageError}
+              onError={
+                handleImageError
+              }
             />
           ) : (
             <div className="sports-team-placeholder">
@@ -377,36 +534,44 @@ function SportMatchCard({
           )}
 
           <span>
-            {home?.name || 'Home'}
+            {home?.name ||
+              'Home'}
           </span>
 
         </div>
 
         <div className="sports-score">
 
-          {isFinished || isLive ? (
+          {isFinished ||
+          isLive ? (
             <>
               <strong>
-                {homeScore ?? 0}
+                {homeScore ??
+                  0}
               </strong>
 
               <span>:</span>
 
               <strong>
-                {awayScore ?? 0}
+                {awayScore ??
+                  0}
               </strong>
             </>
           ) : (
             <div>
               <span className="sports-vs">
                 {formatMatchTime(
-                  fixture?.fixture?.date
+                  fixture
+                    ?.fixture
+                    ?.date
                 )}
               </span>
 
               <small>
                 {formatShortDate(
-                  fixture?.fixture?.date
+                  fixture
+                    ?.fixture
+                    ?.date
                 )}
               </small>
             </div>
@@ -419,9 +584,14 @@ function SportMatchCard({
           {away?.logo ? (
             <img
               src={away.logo}
-              alt={away?.name || 'Away team'}
+              alt={
+                away?.name ||
+                'Away team'
+              }
               loading="lazy"
-              onError={handleImageError}
+              onError={
+                handleImageError
+              }
             />
           ) : (
             <div className="sports-team-placeholder">
@@ -430,7 +600,8 @@ function SportMatchCard({
           )}
 
           <span>
-            {away?.name || 'Away'}
+            {away?.name ||
+              'Away'}
           </span>
 
         </div>
@@ -440,13 +611,18 @@ function SportMatchCard({
       <div className="sports-match-footer">
 
         <span>
-          {fixture?.fixture?.venue?.name ||
+          {fixture
+            ?.fixture
+            ?.venue
+            ?.name ||
             'Football'}
         </span>
 
         <span>
           {formatShortDate(
-            fixture?.fixture?.date
+            fixture
+              ?.fixture
+              ?.date
           )}
         </span>
 
@@ -464,7 +640,10 @@ function SportsStandings({
   rows,
   league
 }) {
-  if (!Array.isArray(rows) || rows.length === 0) {
+  if (
+    !Array.isArray(rows) ||
+    rows.length === 0
+  ) {
     return (
       <div className="sports-empty">
 
@@ -477,8 +656,10 @@ function SportsStandings({
         </strong>
 
         <span>
-          No table data is available for{' '}
-          {league?.short || 'this league'}.
+          No table data is available
+          for{' '}
+          {league?.short ||
+            'this league'}.
         </span>
 
       </div>
@@ -491,13 +672,16 @@ function SportsStandings({
       <div className="sports-panel-title">
 
         <div>
+
           <span>
             📊 LEAGUE TABLE
           </span>
 
           <h3>
-            {league?.name || 'Standings'}
+            {league?.name ||
+              'Standings'}
           </h3>
+
         </div>
 
       </div>
@@ -507,6 +691,7 @@ function SportsStandings({
         <table className="sports-table">
 
           <thead>
+
             <tr>
               <th>#</th>
               <th>Team</th>
@@ -517,119 +702,158 @@ function SportsStandings({
               <th>GD</th>
               <th>PTS</th>
             </tr>
+
           </thead>
 
           <tbody>
 
             {rows
               .slice(0, 20)
-              .map((row, index) => {
+              .map(
+                (
+                  row,
+                  index
+                ) => {
 
-                const team = row?.team || {};
+                  const team =
+                    row?.team ||
+                    {};
 
-                const rank =
-                  row?.rank ??
-                  row?.position ??
-                  index + 1;
+                  const rank =
+                    row?.rank ??
+                    row?.position ??
+                    index + 1;
 
-                const played =
-                  row?.all?.played ??
-                  row?.played ??
-                  0;
+                  const played =
+                    row?.all
+                      ?.played ??
+                    row?.played ??
+                    0;
 
-                const wins =
-                  row?.all?.win ??
-                  row?.wins ??
-                  0;
+                  const wins =
+                    row?.all
+                      ?.win ??
+                    row?.wins ??
+                    0;
 
-                const draws =
-                  row?.all?.draw ??
-                  row?.draws ??
-                  0;
+                  const draws =
+                    row?.all
+                      ?.draw ??
+                    row?.draws ??
+                    0;
 
-                const losses =
-                  row?.all?.lose ??
-                  row?.losses ??
-                  0;
+                  const losses =
+                    row?.all
+                      ?.lose ??
+                    row?.losses ??
+                    0;
 
-                const goalsFor =
-                  Number(
-                    row?.all?.goals?.for ??
-                    row?.goals?.for ??
-                    0
-                  );
+                  const goalsFor =
+                    Number(
+                      row?.all
+                        ?.goals
+                        ?.for ??
+                      row?.goals
+                        ?.for ??
+                      0
+                    );
 
-                const goalsAgainst =
-                  Number(
-                    row?.all?.goals?.against ??
-                    row?.goals?.against ??
-                    0
-                  );
+                  const goalsAgainst =
+                    Number(
+                      row?.all
+                        ?.goals
+                        ?.against ??
+                      row?.goals
+                        ?.against ??
+                      0
+                    );
 
-                const goalDifference =
-                  row?.goalsDiff ??
-                  row?.goalDifference ??
-                  goalsFor - goalsAgainst;
+                  const goalDifference =
+                    row?.goalsDiff ??
+                    row?.goalDifference ??
+                    goalsFor -
+                      goalsAgainst;
 
-                const points =
-                  row?.points ??
-                  row?.pts ??
-                  0;
+                  const points =
+                    row?.points ??
+                    row?.pts ??
+                    0;
 
-                return (
-                  <tr
-                    key={
-                      team?.id ||
-                      `${league?.key}-${index}`
-                    }
-                  >
+                  return (
+                    <tr
+                      key={
+                        team?.id ||
+                        `${league?.key}-${index}`
+                      }
+                    >
 
-                    <td>
-                      {rank}
-                    </td>
+                      <td>
+                        {rank}
+                      </td>
 
-                    <td>
-                      <div className="sports-table-team">
+                      <td>
 
-                        {team?.logo ? (
-                          <img
-                            src={team.logo}
-                            alt={
-                              team?.name ||
-                              'Team'
-                            }
-                            loading="lazy"
-                            onError={
-                              handleImageError
-                            }
-                          />
-                        ) : (
-                          <span>⚽</span>
-                        )}
+                        <div className="sports-table-team">
 
+                          {team?.logo ? (
+                            <img
+                              src={
+                                team.logo
+                              }
+                              alt={
+                                team?.name ||
+                                'Team'
+                              }
+                              loading="lazy"
+                              onError={
+                                handleImageError
+                              }
+                            />
+                          ) : (
+                            <span>
+                              ⚽
+                            </span>
+                          )}
+
+                          <strong>
+                            {team?.name ||
+                              'Unknown team'}
+                          </strong>
+
+                        </div>
+
+                      </td>
+
+                      <td>
+                        {played}
+                      </td>
+
+                      <td>
+                        {wins}
+                      </td>
+
+                      <td>
+                        {draws}
+                      </td>
+
+                      <td>
+                        {losses}
+                      </td>
+
+                      <td>
+                        {goalDifference}
+                      </td>
+
+                      <td>
                         <strong>
-                          {team?.name ||
-                            'Unknown team'}
+                          {points}
                         </strong>
+                      </td>
 
-                      </div>
-                    </td>
-
-                    <td>{played}</td>
-                    <td>{wins}</td>
-                    <td>{draws}</td>
-                    <td>{losses}</td>
-                    <td>{goalDifference}</td>
-
-                    <td>
-                      <strong>
-                        {points}
-                      </strong>
-                    </td>
-
-                  </tr>
-                );
-              })}
+                    </tr>
+                  );
+                }
+              )}
 
           </tbody>
 
@@ -649,7 +873,10 @@ function SportsTopScorers({
   players,
   league
 }) {
-  if (!Array.isArray(players) || players.length === 0) {
+  if (
+    !Array.isArray(players) ||
+    players.length === 0
+  ) {
     return (
       <div className="sports-empty">
 
@@ -662,8 +889,10 @@ function SportsTopScorers({
         </strong>
 
         <span>
-          No scorer data is available for{' '}
-          {league?.short || 'this league'}.
+          No scorer data is available
+          for{' '}
+          {league?.short ||
+            'this league'}.
         </span>
 
       </div>
@@ -676,13 +905,16 @@ function SportsTopScorers({
       <div className="sports-panel-title">
 
         <div>
+
           <span>
             🏆 TOP SCORERS
           </span>
 
           <h3>
-            {league?.name || 'Top Scorers'}
+            {league?.name ||
+              'Top Scorers'}
           </h3>
+
         </div>
 
       </div>
@@ -691,98 +923,114 @@ function SportsTopScorers({
 
         {players
           .slice(0, 10)
-          .map((item, index) => {
+          .map(
+            (
+              item,
+              index
+            ) => {
 
-            const player =
-              item?.player ||
-              {};
+              const player =
+                item?.player ||
+                {};
 
-            const statistics =
-              Array.isArray(
-                item?.statistics
-              )
-                ? item.statistics[0] || {}
-                : item?.statistics || {};
+              const statistics =
+                Array.isArray(
+                  item?.statistics
+                )
+                  ? item
+                      .statistics[0] ||
+                    {}
+                  : item?.statistics ||
+                    {};
 
-            const team =
-              statistics?.team ||
-              item?.team ||
-              {};
+              const team =
+                statistics
+                  ?.team ||
+                item?.team ||
+                {};
 
-            const goals =
-              statistics?.goals?.total ??
-              item?.goals ??
-              0;
+              const goals =
+                statistics
+                  ?.goals
+                  ?.total ??
+                item?.goals ??
+                0;
 
-            const assists =
-              statistics?.goals?.assists ??
-              item?.assists ??
-              0;
+              const assists =
+                statistics
+                  ?.goals
+                  ?.assists ??
+                item?.assists ??
+                0;
 
-            return (
-              <div
-                className="sports-scorer-card"
-                key={
-                  player?.id ||
-                  `${league?.key}-${index}`
-                }
-              >
+              return (
+                <div
+                  className="sports-scorer-card"
+                  key={
+                    player?.id ||
+                    `${league?.key}-${index}`
+                  }
+                >
 
-                <div className="sports-scorer-rank">
-                  {index + 1}
-                </div>
-
-                {player?.photo ? (
-                  <img
-                    src={player.photo}
-                    alt={
-                      player?.name ||
-                      'Player'
-                    }
-                    loading="lazy"
-                    onError={
-                      handleImageError
-                    }
-                  />
-                ) : (
-                  <div className="sports-scorer-placeholder">
-                    👤
+                  <div className="sports-scorer-rank">
+                    {index + 1}
                   </div>
-                )}
 
-                <div className="sports-scorer-info">
+                  {player?.photo ? (
+                    <img
+                      src={
+                        player.photo
+                      }
+                      alt={
+                        player?.name ||
+                        'Player'
+                      }
+                      loading="lazy"
+                      onError={
+                        handleImageError
+                      }
+                    />
+                  ) : (
+                    <div className="sports-scorer-placeholder">
+                      👤
+                    </div>
+                  )}
 
-                  <strong>
-                    {player?.name ||
-                      'Unknown player'}
-                  </strong>
+                  <div className="sports-scorer-info">
 
-                  <span>
-                    {team?.name ||
-                      'Unknown team'}
-                  </span>
+                    <strong>
+                      {player?.name ||
+                        'Unknown player'}
+                    </strong>
+
+                    <span>
+                      {team?.name ||
+                        'Unknown team'}
+                    </span>
+
+                  </div>
+
+                  <div className="sports-scorer-stats">
+
+                    <strong>
+                      {goals}
+                    </strong>
+
+                    <span>
+                      GOALS
+                    </span>
+
+                    <small>
+                      {assists}{' '}
+                      assists
+                    </small>
+
+                  </div>
 
                 </div>
-
-                <div className="sports-scorer-stats">
-
-                  <strong>
-                    {goals}
-                  </strong>
-
-                  <span>
-                    GOALS
-                  </span>
-
-                  <small>
-                    {assists} assists
-                  </small>
-
-                </div>
-
-              </div>
-            );
-          })}
+              );
+            }
+          )}
 
       </div>
 
@@ -808,8 +1056,14 @@ function SportsUpdates() {
   const [sportsLoading, setSportsLoading] =
     useState(true);
 
+  const [refreshing, setRefreshing] =
+    useState(false);
+
   const [sportsError, setSportsError] =
     useState('');
+
+  const [lastUpdated, setLastUpdated] =
+    useState(null);
 
   const [activeLeague, setActiveLeague] =
     useState('ALL');
@@ -817,22 +1071,47 @@ function SportsUpdates() {
   const [activeTab, setActiveTab] =
     useState('matches');
 
+  /*
+   * Prevents overlapping refresh requests.
+   */
+  const refreshingRef =
+    useRef(false);
+
   /* =======================================================
      LOAD SPORTS
   ======================================================= */
 
-  useEffect(() => {
+  const loadSports = async (
+    background = false
+  ) => {
 
-    let cancelled = false;
+    if (
+      refreshingRef.current
+    ) {
+      return;
+    }
 
-    const loadSports = async () => {
+    refreshingRef.current = true;
 
+    if (background) {
+      setRefreshing(true);
+    } else {
       setSportsLoading(true);
-      setSportsError('');
+    }
 
-      try {
+    setSportsError('');
 
-        let cachedData = null;
+    try {
+
+      /*
+       * -----------------------------------------------------
+       * First read cache.
+       *
+       * Only on initial loading.
+       * -----------------------------------------------------
+       */
+
+      if (!background) {
 
         try {
 
@@ -848,99 +1127,100 @@ function SportsUpdates() {
 
           if (
             stored &&
-            storedTime &&
-            Date.now() -
-              Number(storedTime) <
-              SPORTS_CACHE_DURATION
+            storedTime
           ) {
 
-            cachedData =
+            const parsed =
               JSON.parse(stored);
+
+            const cacheAge =
+              Date.now() -
+              Number(
+                storedTime
+              );
+
+            /*
+             * Display cache immediately.
+             */
+            if (
+              parsed &&
+              cacheAge <
+                SPORTS_CACHE_DURATION
+            ) {
+
+              setSports(
+                Array.isArray(
+                  parsed.sports
+                )
+                  ? parsed.sports
+                  : []
+              );
+
+              setStandings(
+                parsed.standings ||
+                {}
+              );
+
+              setTopScorers(
+                parsed.topScorers ||
+                {}
+              );
+
+              setLastUpdated(
+                Number(
+                  storedTime
+                )
+              );
+
+              /*
+               * Do NOT return here.
+               *
+               * We continue and fetch fresh
+               * data in the background.
+               */
+            }
 
           }
 
         } catch (cacheError) {
 
           console.warn(
-            'Sports cache error:',
+            'Sports cache read error:',
             cacheError
           );
 
         }
 
-        if (
-          cachedData &&
-          !cancelled
-        ) {
+      }
 
-          setSports(
-            Array.isArray(
-              cachedData.sports
-            )
-              ? cachedData.sports
-              : []
-          );
+      /* =====================================================
+         FETCH ALL LEAGUES
+      ===================================================== */
 
-          setStandings(
-            cachedData.standings || {}
-          );
+      const results =
+        await Promise.allSettled(
 
-          setTopScorers(
-            cachedData.topScorers || {}
-          );
+          SPORTS_LEAGUES.map(
+            league =>
+              fetchLeagueSports(
+                league
+              )
+          )
 
-          setSportsLoading(false);
+        );
 
-          return;
-        }
+      const allFixtures = [];
+      const nextStandings = {};
+      const nextTopScorers = {};
 
-        const allFixtures = [];
-        const nextStandings = {};
-        const nextTopScorers = {};
+      let successfulLeagues = 0;
 
-        /* =================================================
-           FETCH LEAGUES
-        ================================================= */
+      /* =====================================================
+         PROCESS RESULTS
+      ===================================================== */
 
-        const results =
-          await Promise.allSettled(
-
-            SPORTS_LEAGUES.map(
-              async (league) => {
-
-                const [
-                  fixtures,
-                  table,
-                  scorers
-                ] =
-                  await Promise.all([
-                    fetchSportsFixtures(
-                      league.id
-                    ),
-                    fetchSportsStandings(
-                      league.id
-                    ),
-                    fetchSportsTopScorers(
-                      league.id
-                    )
-                  ]);
-
-                return {
-                  league,
-                  fixtures,
-                  table,
-                  scorers
-                };
-              }
-            )
-
-          );
-
-        /* =================================================
-           PROCESS RESULTS
-        ================================================= */
-
-        results.forEach(result => {
+      results.forEach(
+        result => {
 
           if (
             result.status !==
@@ -949,31 +1229,45 @@ function SportsUpdates() {
             return;
           }
 
+          successfulLeagues++;
+
           const {
             league,
             fixtures,
-            table,
+            standings: table,
             scorers
-          } = result.value;
+          } =
+            result.value;
+
+          /* -------------------------------------------------
+             FIXTURES
+          ------------------------------------------------- */
 
           if (
-            Array.isArray(fixtures)
+            Array.isArray(
+              fixtures
+            )
           ) {
 
             fixtures.forEach(
               fixture => {
 
                 allFixtures.push({
+
                   ...fixture,
 
                   mfnLeagueKey:
                     league.key,
+
+                  mfnLeagueId:
+                    league.id,
 
                   mfnLeagueName:
                     league.name,
 
                   mfnLeagueShort:
                     league.short
+
                 });
 
               }
@@ -981,154 +1275,330 @@ function SportsUpdates() {
 
           }
 
+          /* -------------------------------------------------
+             STANDINGS
+          ------------------------------------------------- */
+
           nextStandings[
             league.key
           ] =
-            Array.isArray(table)
+            Array.isArray(
+              table
+            )
               ? table
               : [];
+
+          /* -------------------------------------------------
+             TOP SCORERS
+          ------------------------------------------------- */
 
           nextTopScorers[
             league.key
           ] =
-            Array.isArray(scorers)
+            Array.isArray(
+              scorers
+            )
               ? scorers
               : [];
 
-        });
+        }
+      );
 
-        /* =================================================
-           REMOVE DUPLICATES
-        ================================================= */
+      /* =====================================================
+         REMOVE DUPLICATES
+      ===================================================== */
 
-        const uniqueFixtures =
-          Array.from(
-            new Map(
-              allFixtures.map(
-                fixture => {
+      const uniqueFixtures =
+        Array.from(
+          new Map(
 
-                  const fixtureId =
-                    fixture?.fixture?.id ||
-                    `${fixture?.mfnLeagueKey}-${fixture?.fixture?.date}-${fixture?.teams?.home?.id}-${fixture?.teams?.away?.id}`;
+            allFixtures.map(
+              fixture => {
 
-                  return [
-                    fixtureId,
-                    fixture
-                  ];
-                }
-              )
-            ).values()
-          );
+                const fixtureId =
+                  fixture
+                    ?.fixture
+                    ?.id ||
+                  `${fixture?.mfnLeagueKey}-${fixture?.fixture?.date}-${fixture?.teams?.home?.id}-${fixture?.teams?.away?.id}`;
 
-        /* =================================================
-           SORT
-        ================================================= */
+                return [
+                  fixtureId,
+                  fixture
+                ];
 
-        uniqueFixtures.sort(
-          (a, b) =>
-            new Date(
-              a?.fixture?.date || 0
-            ) -
-            new Date(
-              b?.fixture?.date || 0
+              }
             )
+
+          ).values()
         );
 
-        /* =================================================
-           CACHE
-        ================================================= */
+      /* =====================================================
+         SORT FIXTURES
+      ===================================================== */
 
-        const payload = {
-          sports:
-            uniqueFixtures,
+      uniqueFixtures.sort(
+        (a, b) => {
 
-          standings:
-            nextStandings,
+          const aDate =
+            new Date(
+              a?.fixture?.date ||
+              0
+            ).getTime();
 
-          topScorers:
-            nextTopScorers
-        };
+          const bDate =
+            new Date(
+              b?.fixture?.date ||
+              0
+            ).getTime();
 
-        try {
-
-          localStorage.setItem(
-            SPORTS_STORAGE_KEY,
-            JSON.stringify(payload)
-          );
-
-          localStorage.setItem(
-            SPORTS_STORAGE_TIME_KEY,
-            String(Date.now())
-          );
-
-        } catch (storageError) {
-
-          console.warn(
-            'Sports cache save failed:',
-            storageError
+          return (
+            aDate - bDate
           );
 
         }
+      );
 
-        if (!cancelled) {
+      /* =====================================================
+         CACHE
+      ===================================================== */
 
-          setSports(
-            uniqueFixtures
-          );
+      const payload = {
 
-          setStandings(
+        sports:
+          uniqueFixtures,
+
+        standings:
+          nextStandings,
+
+        topScorers:
+          nextTopScorers
+
+      };
+
+      const updatedAt =
+        Date.now();
+
+      try {
+
+        localStorage.setItem(
+          SPORTS_STORAGE_KEY,
+          JSON.stringify(
+            payload
+          )
+        );
+
+        localStorage.setItem(
+          SPORTS_STORAGE_TIME_KEY,
+          String(
+            updatedAt
+          )
+        );
+
+      } catch (storageError) {
+
+        console.warn(
+          'Sports cache save failed:',
+          storageError
+        );
+
+      }
+
+      /* =====================================================
+         UPDATE STATE
+      ===================================================== */
+
+      setSports(
+        uniqueFixtures
+      );
+
+      setStandings(
+        nextStandings
+      );
+
+      setTopScorers(
+        nextTopScorers
+      );
+
+      setLastUpdated(
+        updatedAt
+      );
+
+      /*
+       * We only display an error when every league
+       * failed or absolutely no sports data exists.
+       */
+      if (
+        successfulLeagues === 0 ||
+        (
+          uniqueFixtures.length === 0 &&
+          Object.keys(
             nextStandings
-          );
+          ).length === 0
+        )
+      ) {
 
-          setTopScorers(
-            nextTopScorers
-          );
+        setSportsError(
+          'Sports data is currently unavailable. The system will try again automatically.'
+        );
 
-          if (
-            uniqueFixtures.length === 0 &&
-            Object.keys(nextStandings).length === 0
-          ) {
+      } else {
 
-            setSportsError(
-              'Sports data is currently unavailable.'
+        setSportsError('');
+
+      }
+
+    } catch (error) {
+
+      console.error(
+        'Sports dashboard error:',
+        error
+      );
+
+      setSportsError(
+        'Unable to refresh sports data. Retrying automatically...'
+      );
+
+    } finally {
+
+      refreshingRef.current =
+        false;
+
+      setSportsLoading(false);
+      setRefreshing(false);
+
+    }
+
+  };
+
+  /* =======================================================
+     INITIAL LOAD + AUTOMATIC REFRESH
+  ======================================================= */
+
+  useEffect(() => {
+
+    let cancelled = false;
+
+    const initialLoad =
+      async () => {
+
+        if (cancelled) {
+          return;
+        }
+
+        await loadSports(
+          false
+        );
+
+      };
+
+    initialLoad();
+
+    /*
+     * -------------------------------------------------------
+     * AUTOMATIC REFRESH EVERY 5 MINUTES
+     * -------------------------------------------------------
+     */
+
+    const interval =
+      window.setInterval(
+        () => {
+
+          if (!cancelled) {
+
+            loadSports(
+              true
             );
 
           }
 
-        }
+        },
+        SPORTS_REFRESH_INTERVAL
+      );
 
-      } catch (error) {
+    /*
+     * -------------------------------------------------------
+     * REFRESH WHEN USER RETURNS TO TAB
+     *
+     * This is useful because browsers may pause intervals
+     * while the tab is in the background.
+     * -------------------------------------------------------
+     */
 
-        console.error(
-          'Sports dashboard error:',
-          error
-        );
+    const handleVisibility =
+      () => {
 
-        if (!cancelled) {
+        if (
+          document.visibilityState ===
+          'visible'
+        ) {
 
-          setSportsError(
-            'Unable to load sports data from the server.'
+          loadSports(
+            true
           );
 
         }
 
-      } finally {
+      };
 
-        if (!cancelled) {
-          setSportsLoading(false);
-        }
+    document.addEventListener(
+      'visibilitychange',
+      handleVisibility
+    );
 
-      }
+    /*
+     * -------------------------------------------------------
+     * REFRESH WHEN INTERNET RETURNS
+     * -------------------------------------------------------
+     */
 
-    };
+    const handleOnline =
+      () => {
 
-    loadSports();
+        loadSports(
+          true
+        );
+
+      };
+
+    window.addEventListener(
+      'online',
+      handleOnline
+    );
 
     return () => {
+
       cancelled = true;
+
+      window.clearInterval(
+        interval
+      );
+
+      document.removeEventListener(
+        'visibilitychange',
+        handleVisibility
+      );
+
+      window.removeEventListener(
+        'online',
+        handleOnline
+      );
+
     };
 
   }, []);
+
+  /* =======================================================
+     MANUAL REFRESH
+  ======================================================= */
+
+  const handleManualRefresh =
+    () => {
+
+      loadSports(
+        true
+      );
+
+    };
 
   /* =======================================================
      SELECTED LEAGUE
@@ -1137,11 +1607,12 @@ function SportsUpdates() {
   const selectedLeague =
     SPORTS_LEAGUES.find(
       league =>
-        league.key === activeLeague
+        league.key ===
+        activeLeague
     );
 
   /* =======================================================
-     FILTER
+     FILTER MATCHES
   ======================================================= */
 
   const filteredSports =
@@ -1153,15 +1624,23 @@ function SportsUpdates() {
             activeLeague
         );
 
+  /* =======================================================
+     SELECTED DATA
+  ======================================================= */
+
   const displayedStandings =
     activeLeague === 'ALL'
       ? []
-      : standings?.[activeLeague] || [];
+      : standings?.[
+          activeLeague
+        ] || [];
 
   const displayedScorers =
     activeLeague === 'ALL'
       ? []
-      : topScorers?.[activeLeague] || [];
+      : topScorers?.[
+          activeLeague
+        ] || [];
 
   /* =======================================================
      COUNTS
@@ -1170,23 +1649,43 @@ function SportsUpdates() {
   const liveMatches =
     filteredSports.filter(
       fixture =>
-        getMatchStatus(fixture) ===
-        'LIVE'
+        getMatchStatus(
+          fixture
+        ) === 'LIVE'
     );
 
   const upcomingMatches =
     filteredSports.filter(
       fixture =>
-        getMatchStatus(fixture) ===
-        'UPCOMING'
+        getMatchStatus(
+          fixture
+        ) === 'UPCOMING'
     );
 
   const finishedMatches =
     filteredSports.filter(
       fixture =>
-        getMatchStatus(fixture) ===
-        'FULL TIME'
+        getMatchStatus(
+          fixture
+        ) === 'FULL TIME'
     );
+
+  /* =======================================================
+     LAST UPDATED LABEL
+  ======================================================= */
+
+  const lastUpdatedLabel =
+    lastUpdated
+      ? new Date(
+          lastUpdated
+        ).toLocaleTimeString(
+          [],
+          {
+            hour: '2-digit',
+            minute: '2-digit'
+          }
+        )
+      : '--:--';
 
   /* =======================================================
      LOADING
@@ -1225,7 +1724,9 @@ function SportsUpdates() {
         </div>
 
         <div className="sports-loading">
+
           <Spinner />
+
         </div>
 
       </section>
@@ -1238,6 +1739,10 @@ function SportsUpdates() {
 
   return (
     <section className="sports-section">
+
+      {/* =================================================
+          HEADING
+      ================================================= */}
 
       <div className="sports-heading">
 
@@ -1261,14 +1766,49 @@ function SportsUpdates() {
 
         </div>
 
-        <div className="sports-live-badge">
-          <span />
-          LIVE DATA
+        <div className="sports-heading-actions">
+
+          <div className="sports-live-badge">
+            <span />
+            {liveMatches.length > 0
+              ? `${liveMatches.length} LIVE`
+              : 'LIVE DATA'}
+          </div>
+
+          <button
+            type="button"
+            className="sports-refresh-button"
+            onClick={
+              handleManualRefresh
+            }
+            disabled={refreshing}
+            title="Refresh sports data"
+          >
+            <span
+              className={
+                refreshing
+                  ? 'sports-refresh-icon spinning'
+                  : 'sports-refresh-icon'
+              }
+            >
+              ↻
+            </span>
+
+            {refreshing
+              ? 'Updating...'
+              : 'Refresh'}
+          </button>
+
         </div>
 
       </div>
 
+      {/* =================================================
+          ERROR
+      ================================================= */}
+
       {sportsError && (
+
         <div className="sports-error">
 
           <strong>
@@ -1276,13 +1816,12 @@ function SportsUpdates() {
           </strong>
 
           <span>
-            Stories are still available
-            below. Sports information
-            will appear when the backend
-            sports service responds.
+            The sports centre will
+            automatically try again.
           </span>
 
         </div>
+
       )}
 
       {/* =================================================
@@ -1299,8 +1838,15 @@ function SportsUpdates() {
               : ''
           }
           onClick={() => {
-            setActiveLeague('ALL');
-            setActiveTab('matches');
+
+            setActiveLeague(
+              'ALL'
+            );
+
+            setActiveTab(
+              'matches'
+            );
+
           }}
         >
           ALL
@@ -1311,7 +1857,9 @@ function SportsUpdates() {
 
             <button
               type="button"
-              key={league.key}
+              key={
+                league.key
+              }
               className={
                 activeLeague ===
                 league.key
@@ -1347,12 +1895,15 @@ function SportsUpdates() {
         <button
           type="button"
           className={
-            activeTab === 'matches'
+            activeTab ===
+            'matches'
               ? 'active'
               : ''
           }
           onClick={() =>
-            setActiveTab('matches')
+            setActiveTab(
+              'matches'
+            )
           }
         >
           ⚽ Matches
@@ -1361,15 +1912,19 @@ function SportsUpdates() {
         <button
           type="button"
           className={
-            activeTab === 'standings'
+            activeTab ===
+            'standings'
               ? 'active'
               : ''
           }
           onClick={() =>
-            setActiveTab('standings')
+            setActiveTab(
+              'standings'
+            )
           }
           disabled={
-            activeLeague === 'ALL'
+            activeLeague ===
+            'ALL'
           }
         >
           📊 Standings
@@ -1378,15 +1933,19 @@ function SportsUpdates() {
         <button
           type="button"
           className={
-            activeTab === 'scorers'
+            activeTab ===
+            'scorers'
               ? 'active'
               : ''
           }
           onClick={() =>
-            setActiveTab('scorers')
+            setActiveTab(
+              'scorers'
+            )
           }
           disabled={
-            activeLeague === 'ALL'
+            activeLeague ===
+            'ALL'
           }
         >
           🏆 Top Scorers
@@ -1398,12 +1957,15 @@ function SportsUpdates() {
           MATCHES
       ================================================= */}
 
-      {activeTab === 'matches' && (
+      {activeTab ===
+        'matches' && (
+
         <>
 
           <div className="sports-summary-grid">
 
             <div>
+
               <strong>
                 {liveMatches.length}
               </strong>
@@ -1411,9 +1973,11 @@ function SportsUpdates() {
               <span>
                 LIVE
               </span>
+
             </div>
 
             <div>
+
               <strong>
                 {upcomingMatches.length}
               </strong>
@@ -1421,9 +1985,11 @@ function SportsUpdates() {
               <span>
                 UPCOMING
               </span>
+
             </div>
 
             <div>
+
               <strong>
                 {finishedMatches.length}
               </strong>
@@ -1431,9 +1997,11 @@ function SportsUpdates() {
               <span>
                 FINISHED
               </span>
+
             </div>
 
             <div>
+
               <strong>
                 {filteredSports.length}
               </strong>
@@ -1441,11 +2009,13 @@ function SportsUpdates() {
               <span>
                 TOTAL
               </span>
+
             </div>
 
           </div>
 
-          {filteredSports.length === 0 ? (
+          {filteredSports.length ===
+          0 ? (
 
             <div className="sports-empty">
 
@@ -1458,9 +2028,10 @@ function SportsUpdates() {
               </strong>
 
               <span>
-                No fixtures are currently
-                available for the selected
-                leagues and dates.
+                No fixtures are
+                currently available
+                for the selected
+                league and dates.
               </span>
 
             </div>
@@ -1479,13 +2050,18 @@ function SportsUpdates() {
 
                     <SportMatchCard
                       key={
-                        fixture?.fixture?.id ||
+                        fixture
+                          ?.fixture
+                          ?.id ||
                         `${fixture?.mfnLeagueKey}-${index}`
                       }
-                      fixture={fixture}
+                      fixture={
+                        fixture
+                      }
                       league={{
                         short:
-                          fixture?.mfnLeagueShort ||
+                          fixture
+                            ?.mfnLeagueShort ||
                           'Football'
                       }}
                     />
@@ -1498,13 +2074,15 @@ function SportsUpdates() {
           )}
 
         </>
+
       )}
 
       {/* =================================================
           STANDINGS
       ================================================= */}
 
-      {activeTab === 'standings' &&
+      {activeTab ===
+        'standings' &&
         selectedLeague && (
 
           <SportsStandings
@@ -1522,7 +2100,8 @@ function SportsUpdates() {
           TOP SCORERS
       ================================================= */}
 
-      {activeTab === 'scorers' &&
+      {activeTab ===
+        'scorers' &&
         selectedLeague && (
 
           <SportsTopScorers
@@ -1536,12 +2115,25 @@ function SportsUpdates() {
 
         )}
 
+      {/* =================================================
+          CACHE / UPDATE INFO
+      ================================================= */}
+
       <div className="sports-cache-info">
 
-        <span>●</span>
+        <span
+          className={
+            refreshing
+              ? 'updating'
+              : ''
+          }
+        >
+          ●
+        </span>
 
-        Sports data refreshes
-        automatically every 30 minutes.
+        {refreshing
+          ? ' Updating sports data...'
+          : ` Updated ${lastUpdatedLabel} · Auto-refresh every 5 minutes.`}
 
       </div>
 
@@ -1555,29 +2147,32 @@ function SportsUpdates() {
 
 export default function CategoryPage() {
 
-  const { category } = useParams();
+  const {
+    category
+  } = useParams();
 
   /* =======================================================
      DECODE CATEGORY
   ======================================================= */
 
-  const decodedCategory = useMemo(() => {
+  const decodedCategory =
+    useMemo(() => {
 
-    try {
+      try {
 
-      return decodeURIComponent(
-        category || ''
-      ).trim();
+        return decodeURIComponent(
+          category || ''
+        ).trim();
 
-    } catch {
+      } catch {
 
-      return String(
-        category || ''
-      ).trim();
+        return String(
+          category || ''
+        ).trim();
 
-    }
+      }
 
-  }, [category]);
+    }, [category]);
 
   /* =======================================================
      CATEGORY KEY
@@ -1586,15 +2181,15 @@ export default function CategoryPage() {
   const categoryKey =
     decodedCategory
       .toLowerCase()
-      .replace(/[-_]+/g, ' ')
-      .replace(/\s+/g, ' ')
+      .replace(
+        /[-_]+/g,
+        ' '
+      )
+      .replace(
+        /\s+/g,
+        ' '
+      )
       .trim();
-
-  /*
-    Important:
-    Sport / sport / SPORTS / sports
-    all become Sport.
-  */
 
   const isSport =
     categoryKey === 'sport' ||
@@ -1638,8 +2233,12 @@ export default function CategoryPage() {
   ======================================================= */
 
   const accent =
-    CAT_COLORS[normalizedCategory] ||
-    CAT_COLORS[decodedCategory] ||
+    CAT_COLORS[
+      normalizedCategory
+    ] ||
+    CAT_COLORS[
+      decodedCategory
+    ] ||
     '#c0392b';
 
   /* =======================================================
@@ -1650,7 +2249,9 @@ export default function CategoryPage() {
 
     setPage(1);
 
-  }, [normalizedCategory]);
+  }, [
+    normalizedCategory
+  ]);
 
   /* =======================================================
      LOAD CATEGORY DATA
@@ -1658,221 +2259,231 @@ export default function CategoryPage() {
 
   useEffect(() => {
 
-    let cancelled = false;
+    let cancelled =
+      false;
 
-    const load = async () => {
+    const load =
+      async () => {
 
-      setLoading(true);
-      setError('');
+        setLoading(true);
+        setError('');
 
-      try {
+        try {
 
-        const [
-          storiesResult,
-          popularResult,
-          adsResult
-        ] = await Promise.allSettled([
+          const [
+            storiesResult,
+            popularResult,
+            adsResult
+          ] =
+            await Promise.allSettled([
 
-          storiesAPI.getAll({
-            category:
-              normalizedCategory,
-            page,
-            limit: 12,
-            status: 'published'
-          }),
+              storiesAPI.getAll({
+                category:
+                  normalizedCategory,
+                page,
+                limit: 12,
+                status:
+                  'published'
+              }),
 
-          storiesAPI.getPopular({
-            category:
-              normalizedCategory,
-            limit: 5
-          }),
+              storiesAPI.getPopular({
+                category:
+                  normalizedCategory,
+                limit: 5
+              }),
 
-          adsAPI.getAll()
+              adsAPI.getAll()
 
-        ]);
+            ]);
 
-        if (cancelled) {
-          return;
-        }
+          if (cancelled) {
+            return;
+          }
 
-        /* =================================================
-           STORIES
-        ================================================= */
+          /* ===============================================
+             STORIES
+          =============================================== */
 
-        if (
-          storiesResult.status ===
-          'fulfilled'
-        ) {
+          if (
+            storiesResult.status ===
+            'fulfilled'
+          ) {
 
-          const storiesData =
-            storiesResult.value?.data;
+            const storiesData =
+              storiesResult
+                .value
+                ?.data;
 
-          const storiesList =
-            Array.isArray(
-              storiesData?.stories
-            )
-              ? storiesData.stories
-              : Array.isArray(
-                  storiesData?.data
-                )
-                ? storiesData.data
+            const storiesList =
+              Array.isArray(
+                storiesData?.stories
+              )
+                ? storiesData.stories
                 : Array.isArray(
-                    storiesData
+                    storiesData?.data
                   )
-                  ? storiesData
-                  : [];
+                  ? storiesData.data
+                  : Array.isArray(
+                      storiesData
+                    )
+                    ? storiesData
+                    : [];
 
-          setStories(
-            storiesList
-          );
+            setStories(
+              storiesList
+            );
 
-          setTotalPages(
-            Number(
-              storiesData?.pages ??
-              storiesData?.totalPages
-            ) || 1
-          );
+            setTotalPages(
+              Number(
+                storiesData?.pages ??
+                storiesData?.totalPages
+              ) || 1
+            );
 
-          setTotal(
-            Number(
-              storiesData?.total ??
-              storiesData?.count
-            ) ||
-            storiesList.length ||
-            0
-          );
+            setTotal(
+              Number(
+                storiesData?.total ??
+                storiesData?.count
+              ) ||
+              storiesList.length ||
+              0
+            );
 
-        } else {
+          } else {
+
+            console.error(
+              'Stories API error:',
+              storiesResult.reason
+            );
+
+            setStories([]);
+            setTotal(0);
+            setTotalPages(1);
+
+            setError(
+              'Unable to load category stories.'
+            );
+
+          }
+
+          /* ===============================================
+             POPULAR
+          =============================================== */
+
+          if (
+            popularResult.status ===
+            'fulfilled'
+          ) {
+
+            const popularData =
+              popularResult
+                .value
+                ?.data;
+
+            const popularList =
+              Array.isArray(
+                popularData
+              )
+                ? popularData
+                : Array.isArray(
+                    popularData?.stories
+                  )
+                  ? popularData.stories
+                  : Array.isArray(
+                      popularData?.data
+                    )
+                    ? popularData.data
+                    : [];
+
+            setPopular(
+              popularList
+            );
+
+          } else {
+
+            console.warn(
+              'Popular stories unavailable:',
+              popularResult.reason
+            );
+
+            setPopular([]);
+
+          }
+
+          /* ===============================================
+             ADS
+          =============================================== */
+
+          if (
+            adsResult.status ===
+            'fulfilled'
+          ) {
+
+            const adsData =
+              adsResult
+                .value
+                ?.data;
+
+            const adsList =
+              Array.isArray(
+                adsData
+              )
+                ? adsData
+                : Array.isArray(
+                    adsData?.ads
+                  )
+                  ? adsData.ads
+                  : Array.isArray(
+                      adsData?.data
+                    )
+                    ? adsData.data
+                    : [];
+
+            setAds(
+              adsList
+            );
+
+          } else {
+
+            console.warn(
+              'Ads unavailable:',
+              adsResult.reason
+            );
+
+            setAds([]);
+
+          }
+
+        } catch (err) {
 
           console.error(
-            'Stories API error:',
-            storiesResult.reason
+            'Category loading error:',
+            err
           );
 
-          setStories([]);
-          setTotal(0);
-          setTotalPages(1);
+          if (!cancelled) {
 
-          setError(
-            'Unable to load category stories.'
-          );
+            setStories([]);
+            setPopular([]);
+            setAds([]);
+            setTotal(0);
+            setTotalPages(1);
+
+            setError(
+              'Unable to load this category right now.'
+            );
+
+          }
+
+        } finally {
+
+          if (!cancelled) {
+            setLoading(false);
+          }
 
         }
 
-        /* =================================================
-           POPULAR
-        ================================================= */
-
-        if (
-          popularResult.status ===
-          'fulfilled'
-        ) {
-
-          const popularData =
-            popularResult.value?.data;
-
-          const popularList =
-            Array.isArray(
-              popularData
-            )
-              ? popularData
-              : Array.isArray(
-                  popularData?.stories
-                )
-                ? popularData.stories
-                : Array.isArray(
-                    popularData?.data
-                  )
-                  ? popularData.data
-                  : [];
-
-          setPopular(
-            popularList
-          );
-
-        } else {
-
-          console.warn(
-            'Popular stories unavailable:',
-            popularResult.reason
-          );
-
-          setPopular([]);
-
-        }
-
-        /* =================================================
-           ADS
-        ================================================= */
-
-        if (
-          adsResult.status ===
-          'fulfilled'
-        ) {
-
-          const adsData =
-            adsResult.value?.data;
-
-          const adsList =
-            Array.isArray(
-              adsData
-            )
-              ? adsData
-              : Array.isArray(
-                  adsData?.ads
-                )
-                ? adsData.ads
-                : Array.isArray(
-                    adsData?.data
-                  )
-                  ? adsData.data
-                  : [];
-
-          setAds(
-            adsList
-          );
-
-        } else {
-
-          console.warn(
-            'Ads unavailable:',
-            adsResult.reason
-          );
-
-          setAds([]);
-
-        }
-
-      } catch (err) {
-
-        console.error(
-          'Category loading error:',
-          err
-        );
-
-        if (!cancelled) {
-
-          setStories([]);
-          setPopular([]);
-          setAds([]);
-          setTotal(0);
-          setTotalPages(1);
-
-          setError(
-            'Unable to load this category right now.'
-          );
-
-        }
-
-      } finally {
-
-        if (!cancelled) {
-          setLoading(false);
-        }
-
-      }
-
-    };
+      };
 
     load();
 
@@ -2000,7 +2611,8 @@ export default function CategoryPage() {
             0 18px 45px
             rgba(0,0,0,.12);
 
-          transform: translateZ(0);
+          transform:
+            translateZ(0);
         }
 
         .cat-featured-story img {
@@ -2010,8 +2622,11 @@ export default function CategoryPage() {
         }
 
         .cat-featured-story:hover img {
-          transform: scale(1.04);
-          opacity: .62 !important;
+          transform:
+            scale(1.04);
+
+          opacity:
+            .62 !important;
         }
 
         .cat-card-grid {
@@ -2020,7 +2635,10 @@ export default function CategoryPage() {
           grid-template-columns:
             repeat(
               auto-fill,
-              minmax(230px,1fr)
+              minmax(
+                230px,
+                1fr
+              )
             );
 
           gap: 20px;
@@ -2042,7 +2660,8 @@ export default function CategoryPage() {
 
           padding: 26px;
 
-          background: #f7f8fa;
+          background:
+            #f7f8fa;
 
           border:
             1px solid #e6e9ed;
@@ -2071,7 +2690,12 @@ export default function CategoryPage() {
           font-weight: 900;
 
           color:
-            rgba(13,59,110,.035);
+            rgba(
+              13,
+              59,
+              110,
+              .035
+            );
 
           pointer-events: none;
         }
@@ -2079,7 +2703,8 @@ export default function CategoryPage() {
         .sports-heading {
           display: flex;
 
-          align-items: flex-start;
+          align-items:
+            flex-start;
 
           justify-content:
             space-between;
@@ -2090,6 +2715,19 @@ export default function CategoryPage() {
 
           position: relative;
           z-index: 1;
+        }
+
+        .sports-heading-actions {
+          display: flex;
+
+          align-items: center;
+
+          gap: 8px;
+
+          flex-wrap: wrap;
+
+          justify-content:
+            flex-end;
         }
 
         .sports-kicker {
@@ -2104,7 +2742,8 @@ export default function CategoryPage() {
 
           letter-spacing: 2px;
 
-          color: #0d3b6e;
+          color:
+            #0d3b6e;
 
           margin-bottom: 5px;
         }
@@ -2125,37 +2764,48 @@ export default function CategoryPage() {
 
           font-weight: 900;
 
-          text-transform: uppercase;
+          text-transform:
+            uppercase;
 
-          color: #101820;
+          color:
+            #101820;
 
-          letter-spacing: -.5px;
+          letter-spacing:
+            -.5px;
         }
 
         .sports-heading p {
-          margin: 5px 0 0;
+          margin:
+            5px 0 0;
 
-          color: #69727d;
+          color:
+            #69727d;
 
           font-size: 13px;
 
-          max-width: 600px;
+          max-width:
+            600px;
 
-          line-height: 1.5;
+          line-height:
+            1.5;
         }
 
         .sports-live-badge {
           display: flex;
 
-          align-items: center;
+          align-items:
+            center;
 
           gap: 7px;
 
-          background: #101820;
+          background:
+            #101820;
 
-          color: #fff;
+          color:
+            #fff;
 
-          padding: 7px 11px;
+          padding:
+            7px 11px;
 
           font-family:
             'Barlow Condensed',
@@ -2166,36 +2816,136 @@ export default function CategoryPage() {
 
           letter-spacing: 1px;
 
-          white-space: nowrap;
+          white-space:
+            nowrap;
         }
 
         .sports-live-badge span {
           width: 7px;
           height: 7px;
 
-          background: #e53935;
+          background:
+            #e53935;
 
-          border-radius: 50%;
+          border-radius:
+            50%;
 
           animation:
-            sportsPulse 1.5s infinite;
+            sportsPulse
+            1.5s infinite;
         }
 
         @keyframes sportsPulse {
 
           0% {
-            transform: scale(1);
-            opacity: 1;
+            transform:
+              scale(1);
+
+            opacity:
+              1;
           }
 
           50% {
-            transform: scale(1.5);
-            opacity: .45;
+            transform:
+              scale(1.5);
+
+            opacity:
+              .45;
           }
 
           100% {
-            transform: scale(1);
-            opacity: 1;
+            transform:
+              scale(1);
+
+            opacity:
+              1;
+          }
+
+        }
+
+        .sports-refresh-button {
+          display: flex;
+
+          align-items:
+            center;
+
+          gap: 6px;
+
+          border:
+            1px solid #d5dbe1;
+
+          background:
+            #fff;
+
+          color:
+            #3e4852;
+
+          padding:
+            7px 10px;
+
+          font-family:
+            'Barlow Condensed',
+            sans-serif;
+
+          font-size:
+            10px;
+
+          font-weight:
+            800;
+
+          letter-spacing:
+            .5px;
+
+          cursor:
+            pointer;
+
+          transition:
+            all .2s ease;
+        }
+
+        .sports-refresh-button:hover {
+          border-color:
+            #0d3b6e;
+
+          color:
+            #0d3b6e;
+        }
+
+        .sports-refresh-button:disabled {
+          opacity:
+            .6;
+
+          cursor:
+            not-allowed;
+        }
+
+        .sports-refresh-icon {
+          font-size:
+            16px;
+
+          line-height:
+            1;
+
+          display:
+            inline-block;
+        }
+
+        .sports-refresh-icon.spinning {
+          animation:
+            sportsRotate
+            .8s linear infinite;
+        }
+
+        @keyframes sportsRotate {
+
+          from {
+            transform:
+              rotate(0deg);
+          }
+
+          to {
+            transform:
+              rotate(360deg);
           }
 
         }
@@ -2205,13 +2955,17 @@ export default function CategoryPage() {
 
           gap: 7px;
 
-          overflow-x: auto;
+          overflow-x:
+            auto;
 
-          padding-bottom: 12px;
+          padding-bottom:
+            12px;
 
-          margin-bottom: 17px;
+          margin-bottom:
+            17px;
 
-          scrollbar-width: thin;
+          scrollbar-width:
+            thin;
 
           position: relative;
           z-index: 2;
@@ -2221,37 +2975,55 @@ export default function CategoryPage() {
           border:
             1px solid #d8dde3;
 
-          background: #fff;
+          background:
+            #fff;
 
-          color: #48515a;
+          color:
+            #48515a;
 
-          padding: 8px 12px;
+          padding:
+            8px 12px;
 
           font-family:
             'Barlow Condensed',
             sans-serif;
 
-          font-size: 10px;
-          font-weight: 800;
+          font-size:
+            10px;
 
-          letter-spacing: .8px;
+          font-weight:
+            800;
 
-          white-space: nowrap;
+          letter-spacing:
+            .8px;
 
-          cursor: pointer;
+          white-space:
+            nowrap;
 
-          transition: all .2s ease;
+          cursor:
+            pointer;
+
+          transition:
+            all .2s ease;
         }
 
         .sports-leagues button:hover {
-          border-color: #0d3b6e;
-          color: #0d3b6e;
+          border-color:
+            #0d3b6e;
+
+          color:
+            #0d3b6e;
         }
 
         .sports-leagues button.active {
-          background: #0d3b6e;
-          border-color: #0d3b6e;
-          color: #fff;
+          background:
+            #0d3b6e;
+
+          border-color:
+            #0d3b6e;
+
+          color:
+            #fff;
         }
 
         .sports-tabs {
@@ -2259,7 +3031,8 @@ export default function CategoryPage() {
 
           gap: 8px;
 
-          margin-bottom: 18px;
+          margin-bottom:
+            18px;
 
           position: relative;
           z-index: 2;
@@ -2269,70 +3042,95 @@ export default function CategoryPage() {
         }
 
         .sports-tabs button {
-          border: 0;
+          border:
+            0;
 
-          background: transparent;
+          background:
+            transparent;
 
-          color: #69727d;
+          color:
+            #69727d;
 
-          padding: 10px 14px;
+          padding:
+            10px 14px;
 
           font-family:
             'Barlow Condensed',
             sans-serif;
 
-          font-size: 11px;
-          font-weight: 800;
+          font-size:
+            11px;
 
-          cursor: pointer;
+          font-weight:
+            800;
 
-          transition: all .2s ease;
+          cursor:
+            pointer;
+
+          transition:
+            all .2s ease;
         }
 
         .sports-tabs button:hover {
-          color: #0d3b6e;
+          color:
+            #0d3b6e;
         }
 
         .sports-tabs button.active {
-          color: #0d3b6e;
+          color:
+            #0d3b6e;
 
           border-bottom:
             3px solid #0d3b6e;
         }
 
         .sports-tabs button:disabled {
-          opacity: .35;
-          cursor: not-allowed;
+          opacity:
+            .35;
+
+          cursor:
+            not-allowed;
         }
 
         .sports-summary-grid {
           display: grid;
 
           grid-template-columns:
-            repeat(4,1fr);
+            repeat(
+              4,
+              1fr
+            );
 
-          gap: 10px;
+          gap:
+            10px;
 
-          margin-bottom: 18px;
+          margin-bottom:
+            18px;
         }
 
         .sports-summary-grid > div {
-          background: #fff;
+          background:
+            #fff;
 
           border:
             1px solid #e2e6ea;
 
-          padding: 14px;
+          padding:
+            14px;
 
           display: flex;
 
-          flex-direction: column;
+          flex-direction:
+            column;
 
-          align-items: center;
+          align-items:
+            center;
 
-          justify-content: center;
+          justify-content:
+            center;
 
-          gap: 3px;
+          gap:
+            3px;
         }
 
         .sports-summary-grid strong {
@@ -2340,10 +3138,14 @@ export default function CategoryPage() {
             'Barlow Condensed',
             sans-serif;
 
-          font-size: 25px;
-          font-weight: 900;
+          font-size:
+            25px;
 
-          color: #101820;
+          font-weight:
+            900;
+
+          color:
+            #101820;
         }
 
         .sports-summary-grid span {
@@ -2351,12 +3153,17 @@ export default function CategoryPage() {
             'Barlow Condensed',
             sans-serif;
 
-          font-size: 9px;
-          font-weight: 800;
+          font-size:
+            9px;
 
-          letter-spacing: 1px;
+          font-weight:
+            800;
 
-          color: #7c858e;
+          letter-spacing:
+            1px;
+
+          color:
+            #7c858e;
         }
 
         .sports-grid {
@@ -2365,44 +3172,88 @@ export default function CategoryPage() {
           grid-template-columns:
             repeat(
               3,
-              minmax(0,1fr)
+              minmax(
+                0,
+                1fr
+              )
             );
 
-          gap: 13px;
+          gap:
+            13px;
         }
 
         .sports-match-card {
-          background: #fff;
+          background:
+            #fff;
 
           border:
             1px solid #e2e6ea;
 
-          padding: 14px;
+          padding:
+            14px;
 
           transition:
             transform .25s ease,
             box-shadow .25s ease;
+
+          position:
+            relative;
         }
 
         .sports-match-card:hover {
-          transform: translateY(-3px);
+          transform:
+            translateY(-3px);
 
           box-shadow:
             0 10px 25px
-            rgba(0,0,0,.08);
+            rgba(
+              0,
+              0,
+              0,
+              .08
+            );
+        }
+
+        .sports-match-live {
+          border-color:
+            rgba(
+              211,
+              47,
+              47,
+              .35
+            );
+        }
+
+        .sports-match-live::before {
+          content: '';
+
+          position:
+            absolute;
+
+          top: 0;
+          left: 0;
+
+          width: 100%;
+          height: 3px;
+
+          background:
+            #d32f2f;
         }
 
         .sports-match-top {
           display: flex;
 
-          align-items: center;
+          align-items:
+            center;
 
           justify-content:
             space-between;
 
-          gap: 8px;
+          gap:
+            8px;
 
-          margin-bottom: 13px;
+          margin-bottom:
+            13px;
         }
 
         .sports-league-name {
@@ -2410,14 +3261,20 @@ export default function CategoryPage() {
             'Barlow Condensed',
             sans-serif;
 
-          font-size: 9px;
-          font-weight: 800;
+          font-size:
+            9px;
 
-          color: #777;
+          font-weight:
+            800;
 
-          text-transform: uppercase;
+          color:
+            #777;
 
-          letter-spacing: .7px;
+          text-transform:
+            uppercase;
+
+          letter-spacing:
+            .7px;
         }
 
         .sports-status {
@@ -2425,14 +3282,19 @@ export default function CategoryPage() {
             'Barlow Condensed',
             sans-serif;
 
-          font-size: 9px;
-          font-weight: 800;
+          font-size:
+            9px;
 
-          color: #78818b;
+          font-weight:
+            800;
+
+          color:
+            #78818b;
         }
 
         .sports-status.live {
-          color: #d32f2f;
+          color:
+            #d32f2f;
 
           animation:
             sportsTextPulse
@@ -2442,7 +3304,8 @@ export default function CategoryPage() {
         @keyframes sportsTextPulse {
 
           50% {
-            opacity: .45;
+            opacity:
+              .45;
           }
 
         }
@@ -2453,40 +3316,56 @@ export default function CategoryPage() {
           grid-template-columns:
             1fr 55px 1fr;
 
-          align-items: center;
+          align-items:
+            center;
 
-          gap: 8px;
+          gap:
+            8px;
         }
 
         .sports-team {
           display: flex;
 
-          flex-direction: column;
+          flex-direction:
+            column;
 
-          align-items: center;
+          align-items:
+            center;
 
-          text-align: center;
+          text-align:
+            center;
 
-          gap: 6px;
+          gap:
+            6px;
 
-          min-width: 0;
+          min-width:
+            0;
         }
 
         .sports-team img,
         .sports-team-placeholder {
-          width: 30px;
-          height: 30px;
+          width:
+            30px;
 
-          object-fit: contain;
+          height:
+            30px;
+
+          object-fit:
+            contain;
         }
 
         .sports-team-placeholder {
-          display: flex;
+          display:
+            flex;
 
-          align-items: center;
-          justify-content: center;
+          align-items:
+            center;
 
-          font-size: 22px;
+          justify-content:
+            center;
+
+          font-size:
+            22px;
         }
 
         .sports-team span {
@@ -2494,102 +3373,139 @@ export default function CategoryPage() {
             'Barlow Condensed',
             sans-serif;
 
-          font-size: 12px;
-          font-weight: 700;
+          font-size:
+            12px;
 
-          color: #20262c;
+          font-weight:
+            700;
 
-          line-height: 1.15;
+          color:
+            #20262c;
 
-          overflow: hidden;
+          line-height:
+            1.15;
 
-          text-overflow: ellipsis;
+          overflow:
+            hidden;
 
-          display: -webkit-box;
+          text-overflow:
+            ellipsis;
 
-          -webkit-line-clamp: 2;
+          display:
+            -webkit-box;
 
-          -webkit-box-orient: vertical;
+          -webkit-line-clamp:
+            2;
+
+          -webkit-box-orient:
+            vertical;
         }
 
         .sports-score {
-          display: flex;
+          display:
+            flex;
 
-          justify-content: center;
+          justify-content:
+            center;
 
-          align-items: center;
+          align-items:
+            center;
 
-          gap: 5px;
+          gap:
+            5px;
 
           font-family:
             'Barlow Condensed',
             sans-serif;
 
-          font-size: 20px;
+          font-size:
+            20px;
 
-          color: #101820;
+          color:
+            #101820;
         }
 
         .sports-vs {
-          display: block;
+          display:
+            block;
 
-          font-size: 11px;
-          font-weight: 800;
+          font-size:
+            11px;
 
-          color: #0d3b6e;
+          font-weight:
+            800;
 
-          text-align: center;
+          color:
+            #0d3b6e;
+
+          text-align:
+            center;
         }
 
         .sports-score small {
-          display: block;
+          display:
+            block;
 
-          margin-top: 2px;
+          margin-top:
+            2px;
 
-          font-size: 8px;
+          font-size:
+            8px;
 
-          color: #9299a1;
+          color:
+            #9299a1;
 
-          text-align: center;
+          text-align:
+            center;
         }
 
         .sports-match-footer {
           border-top:
             1px solid #edf0f2;
 
-          margin-top: 13px;
+          margin-top:
+            13px;
 
-          padding-top: 9px;
+          padding-top:
+            9px;
 
-          display: flex;
+          display:
+            flex;
 
           justify-content:
             space-between;
 
-          gap: 10px;
+          gap:
+            10px;
 
-          color: #9299a1;
+          color:
+            #9299a1;
 
           font-family:
             'Barlow Condensed',
             sans-serif;
 
-          font-size: 9px;
+          font-size:
+            9px;
         }
 
         .sports-panel {
-          background: #fff;
+          background:
+            #fff;
 
           border:
             1px solid #e2e6ea;
 
-          position: relative;
+          position:
+            relative;
 
-          z-index: 2;
+          z-index:
+            2;
         }
 
         .sports-panel-title {
-          padding: 18px;
+          padding:
+            18px;
 
           border-bottom:
             1px solid #edf0f2;
@@ -2600,186 +3516,265 @@ export default function CategoryPage() {
             'Barlow Condensed',
             sans-serif;
 
-          font-size: 9px;
-          font-weight: 800;
+          font-size:
+            9px;
 
-          color: #0d3b6e;
+          font-weight:
+            800;
 
-          letter-spacing: 1.5px;
+          color:
+            #0d3b6e;
+
+          letter-spacing:
+            1.5px;
         }
 
         .sports-panel-title h3 {
-          margin: 4px 0 0;
+          margin:
+            4px 0 0;
 
           font-family:
             'Barlow Condensed',
             sans-serif;
 
-          font-size: 21px;
-          font-weight: 900;
+          font-size:
+            21px;
 
-          color: #101820;
+          font-weight:
+            900;
+
+          color:
+            #101820;
         }
 
         .sports-table-wrap {
-          width: 100%;
-          overflow-x: auto;
+          width:
+            100%;
+
+          overflow-x:
+            auto;
         }
 
         .sports-table {
-          width: 100%;
+          width:
+            100%;
 
-          border-collapse: collapse;
+          border-collapse:
+            collapse;
 
-          min-width: 650px;
+          min-width:
+            650px;
         }
 
         .sports-table th {
-          background: #f5f7f8;
+          background:
+            #f5f7f8;
 
-          color: #727b84;
+          color:
+            #727b84;
 
           font-family:
             'Barlow Condensed',
             sans-serif;
 
-          font-size: 10px;
-          font-weight: 800;
+          font-size:
+            10px;
 
-          letter-spacing: .7px;
+          font-weight:
+            800;
 
-          padding: 11px 10px;
+          letter-spacing:
+            .7px;
 
-          text-align: center;
+          padding:
+            11px 10px;
+
+          text-align:
+            center;
         }
 
         .sports-table td {
-          padding: 11px 10px;
+          padding:
+            11px 10px;
 
           border-top:
             1px solid #edf0f2;
 
-          color: #333b42;
+          color:
+            #333b42;
 
           font-family:
             'Barlow Condensed',
             sans-serif;
 
-          font-size: 12px;
+          font-size:
+            12px;
 
-          text-align: center;
+          text-align:
+            center;
         }
 
         .sports-table td:nth-child(2) {
-          text-align: left;
+          text-align:
+            left;
         }
 
         .sports-table-team {
-          display: flex;
+          display:
+            flex;
 
-          align-items: center;
+          align-items:
+            center;
 
-          gap: 9px;
+          gap:
+            9px;
         }
 
         .sports-table-team img {
-          width: 25px;
-          height: 25px;
+          width:
+            25px;
 
-          object-fit: contain;
+          height:
+            25px;
+
+          object-fit:
+            contain;
         }
 
         .sports-table-team span {
-          font-size: 20px;
+          font-size:
+            20px;
         }
 
         .sports-scorers-grid {
-          display: grid;
+          display:
+            grid;
 
           grid-template-columns:
             repeat(
               2,
-              minmax(0,1fr)
+              minmax(
+                0,
+                1fr
+              )
             );
 
-          gap: 10px;
+          gap:
+            10px;
 
-          padding: 16px;
+          padding:
+            16px;
         }
 
         .sports-scorer-card {
-          display: grid;
+          display:
+            grid;
 
           grid-template-columns:
             28px
             48px
-            minmax(0,1fr)
+            minmax(
+              0,
+              1fr
+            )
             60px;
 
-          align-items: center;
+          align-items:
+            center;
 
-          gap: 10px;
+          gap:
+            10px;
 
-          background: #f8f9fa;
+          background:
+            #f8f9fa;
 
           border:
             1px solid #e9ecef;
 
-          padding: 10px;
+          padding:
+            10px;
         }
 
         .sports-scorer-rank {
-          width: 28px;
-          height: 28px;
+          width:
+            28px;
 
-          border-radius: 50%;
+          height:
+            28px;
 
-          display: flex;
+          border-radius:
+            50%;
 
-          align-items: center;
-          justify-content: center;
+          display:
+            flex;
 
-          background: #0d3b6e;
+          align-items:
+            center;
 
-          color: #fff;
+          justify-content:
+            center;
+
+          background:
+            #0d3b6e;
+
+          color:
+            #fff;
 
           font-family:
             'Barlow Condensed',
             sans-serif;
 
-          font-size: 11px;
-          font-weight: 900;
+          font-size:
+            11px;
+
+          font-weight:
+            900;
         }
 
         .sports-scorer-card img,
         .sports-scorer-placeholder {
-          width: 48px;
-          height: 48px;
+          width:
+            48px;
 
-          border-radius: 50%;
+          height:
+            48px;
 
-          object-fit: cover;
+          border-radius:
+            50%;
+
+          object-fit:
+            cover;
         }
 
         .sports-scorer-placeholder {
-          display: flex;
+          display:
+            flex;
 
-          align-items: center;
-          justify-content: center;
+          align-items:
+            center;
 
-          background: #e9edf1;
+          justify-content:
+            center;
 
-          font-size: 23px;
+          background:
+            #e9edf1;
+
+          font-size:
+            23px;
         }
 
         .sports-scorer-info {
-          min-width: 0;
+          min-width:
+            0;
 
-          display: flex;
+          display:
+            flex;
 
-          flex-direction: column;
+          flex-direction:
+            column;
 
-          gap: 3px;
+          gap:
+            3px;
         }
 
         .sports-scorer-info strong {
@@ -2787,14 +3782,20 @@ export default function CategoryPage() {
             'Barlow Condensed',
             sans-serif;
 
-          font-size: 14px;
-          color: #182027;
+          font-size:
+            14px;
 
-          overflow: hidden;
+          color:
+            #182027;
 
-          text-overflow: ellipsis;
+          overflow:
+            hidden;
 
-          white-space: nowrap;
+          text-overflow:
+            ellipsis;
+
+          white-space:
+            nowrap;
         }
 
         .sports-scorer-info span {
@@ -2802,22 +3803,31 @@ export default function CategoryPage() {
             'Barlow Condensed',
             sans-serif;
 
-          font-size: 10px;
-          color: #858e97;
+          font-size:
+            10px;
 
-          overflow: hidden;
+          color:
+            #858e97;
 
-          text-overflow: ellipsis;
+          overflow:
+            hidden;
 
-          white-space: nowrap;
+          text-overflow:
+            ellipsis;
+
+          white-space:
+            nowrap;
         }
 
         .sports-scorer-stats {
-          text-align: right;
+          text-align:
+            right;
 
-          display: flex;
+          display:
+            flex;
 
-          flex-direction: column;
+          flex-direction:
+            column;
         }
 
         .sports-scorer-stats strong {
@@ -2825,10 +3835,14 @@ export default function CategoryPage() {
             'Barlow Condensed',
             sans-serif;
 
-          font-size: 22px;
-          font-weight: 900;
+          font-size:
+            22px;
 
-          color: #0d3b6e;
+          font-weight:
+            900;
+
+          color:
+            #0d3b6e;
         }
 
         .sports-scorer-stats span {
@@ -2836,10 +3850,14 @@ export default function CategoryPage() {
             'Barlow Condensed',
             sans-serif;
 
-          font-size: 8px;
-          font-weight: 800;
+          font-size:
+            8px;
 
-          color: #737d86;
+          font-weight:
+            800;
+
+          color:
+            #737d86;
         }
 
         .sports-scorer-stats small {
@@ -2847,113 +3865,173 @@ export default function CategoryPage() {
             'Barlow Condensed',
             sans-serif;
 
-          font-size: 8px;
+          font-size:
+            8px;
 
-          color: #999;
+          color:
+            #999;
         }
 
         .sports-empty {
-          min-height: 130px;
+          min-height:
+            130px;
 
-          display: flex;
+          display:
+            flex;
 
-          align-items: center;
-          justify-content: center;
+          align-items:
+            center;
 
-          flex-direction: column;
+          justify-content:
+            center;
 
-          gap: 6px;
+          flex-direction:
+            column;
 
-          color: #89919a;
+          gap:
+            6px;
 
-          text-align: center;
+          color:
+            #89919a;
 
-          font-size: 13px;
+          text-align:
+            center;
 
-          padding: 25px;
+          font-size:
+            13px;
+
+          padding:
+            25px;
         }
 
         .sports-empty-icon {
-          font-size: 30px;
-          margin-bottom: 3px;
+          font-size:
+            30px;
+
+          margin-bottom:
+            3px;
         }
 
         .sports-loading {
-          padding: 20px 0;
+          padding:
+            20px 0;
         }
 
         .sports-cache-info {
-          margin-top: 16px;
+          margin-top:
+            16px;
 
-          color: #8a929b;
+          color:
+            #8a929b;
 
-          font-size: 10px;
+          font-size:
+            10px;
 
           font-family:
             'Barlow Condensed',
             sans-serif;
 
-          letter-spacing: .6px;
+          letter-spacing:
+            .6px;
+
+          display:
+            flex;
+
+          align-items:
+            center;
         }
 
         .sports-cache-info span {
-          color: #2e7d32;
-          margin-right: 5px;
+          color:
+            #2e7d32;
+
+          margin-right:
+            5px;
+        }
+
+        .sports-cache-info span.updating {
+          color:
+            #d97706;
+
+          animation:
+            sportsTextPulse
+            1s infinite;
         }
 
         .sports-error {
-          display: flex;
+          display:
+            flex;
 
-          flex-direction: column;
+          flex-direction:
+            column;
 
-          gap: 4px;
+          gap:
+            4px;
 
-          margin-bottom: 15px;
+          margin-bottom:
+            15px;
 
-          padding: 12px 14px;
+          padding:
+            12px 14px;
 
-          background: #fff7ed;
+          background:
+            #fff7ed;
 
           border:
             1px solid #fed7aa;
 
-          color: #9a3412;
+          color:
+            #9a3412;
 
           font-family:
             'Barlow Condensed',
             sans-serif;
 
-          font-size: 12px;
+          font-size:
+            12px;
         }
 
         .category-error {
-          padding: 25px;
+          padding:
+            25px;
 
-          background: #fff5f5;
+          background:
+            #fff5f5;
 
           border:
             1px solid #f1d1d1;
 
-          color: #9b2c2c;
+          color:
+            #9b2c2c;
 
-          margin-bottom: 25px;
+          margin-bottom:
+            25px;
         }
+
+        /* =================================================
+           RESPONSIVE
+        ================================================= */
 
         @media (max-width: 1100px) {
 
           .cat-main-grid {
-            grid-template-columns: 1fr;
+            grid-template-columns:
+              1fr;
           }
 
           .cat-sidebar-sticky {
-            position: static;
+            position:
+              static;
           }
 
           .sports-grid {
             grid-template-columns:
               repeat(
                 2,
-                minmax(0,1fr)
+                minmax(
+                  0,
+                  1fr
+                )
               );
           }
 
@@ -2963,43 +4041,66 @@ export default function CategoryPage() {
 
           .cat-content-wrap {
             padding:
-              24px 16px 40px;
+              24px
+              16px
+              40px;
           }
 
           .cat-featured-story {
-            height: 300px;
+            height:
+              300px;
           }
 
           .cat-watermark {
-            font-size: 90px;
+            font-size:
+              90px;
 
-            right: -10px;
-            top: -10px;
+            right:
+              -10px;
+
+            top:
+              -10px;
           }
 
           .sports-section {
-            padding: 20px 15px;
+            padding:
+              20px 15px;
           }
 
           .sports-heading {
-            flex-direction: column;
+            flex-direction:
+              column;
+          }
+
+          .sports-heading-actions {
+            width:
+              100%;
+
+            justify-content:
+              flex-start;
           }
 
           .sports-live-badge {
-            align-self: flex-start;
+            align-self:
+              flex-start;
           }
 
           .sports-grid {
-            grid-template-columns: 1fr;
+            grid-template-columns:
+              1fr;
           }
 
           .sports-summary-grid {
             grid-template-columns:
-              repeat(2,1fr);
+              repeat(
+                2,
+                1fr
+              );
           }
 
           .sports-scorers-grid {
-            grid-template-columns: 1fr;
+            grid-template-columns:
+              1fr;
           }
 
         }
@@ -3007,12 +4108,15 @@ export default function CategoryPage() {
         @media (max-width: 560px) {
 
           .cat-featured-story {
-            height: 230px;
+            height:
+              230px;
           }
 
           .cat-featured-overlay {
             padding:
-              30px 16px 16px !important;
+              30px
+              16px
+              16px !important;
           }
 
           .cat-featured-title {
@@ -3027,7 +4131,8 @@ export default function CategoryPage() {
             grid-template-columns:
               1fr !important;
 
-            gap: 16px !important;
+            gap:
+              16px !important;
           }
 
           .sports-section {
@@ -3036,35 +4141,51 @@ export default function CategoryPage() {
           }
 
           .sports-heading h2 {
-            font-size: 1.7rem;
+            font-size:
+              1.7rem;
           }
 
           .sports-tabs {
-            overflow-x: auto;
+            overflow-x:
+              auto;
           }
 
           .sports-tabs button {
-            white-space: nowrap;
+            white-space:
+              nowrap;
           }
 
           .sports-summary-grid strong {
-            font-size: 21px;
+            font-size:
+              21px;
           }
 
           .sports-scorer-card {
             grid-template-columns:
               25px
               42px
-              minmax(0,1fr)
+              minmax(
+                0,
+                1fr
+              )
               50px;
 
-            gap: 7px;
+            gap:
+              7px;
           }
 
           .sports-scorer-card img,
           .sports-scorer-placeholder {
-            width: 42px;
-            height: 42px;
+            width:
+              42px;
+
+            height:
+              42px;
+          }
+
+          .sports-refresh-button {
+            padding:
+              7px 9px;
           }
 
         }
@@ -3078,7 +4199,12 @@ export default function CategoryPage() {
       <div className="cat-header-wrap">
 
         <div className="cat-watermark">
-          {normalizedCategory.substring(0, 8)}
+
+          {normalizedCategory.substring(
+            0,
+            8
+          )}
+
         </div>
 
         <div
@@ -3095,7 +4221,8 @@ export default function CategoryPage() {
                 "'Barlow Condensed',sans-serif",
               fontSize: 11,
               letterSpacing: 2,
-              textTransform: 'uppercase',
+              textTransform:
+                'uppercase',
               color:
                 'rgba(255,255,255,.5)',
               display: 'flex',
@@ -3110,13 +4237,16 @@ export default function CategoryPage() {
               style={{
                 color:
                   'rgba(255,255,255,.5)',
-                textDecoration: 'none'
+                textDecoration:
+                  'none'
               }}
             >
               Home
             </Link>
 
-            <span>›</span>
+            <span>
+              ›
+            </span>
 
             <span
               style={{
@@ -3137,9 +4267,12 @@ export default function CategoryPage() {
               fontSize:
                 'clamp(1.6rem,4vw,3rem)',
               letterSpacing: 4,
-              textTransform: 'uppercase',
-              color: '#fff',
-              marginBottom: 16
+              textTransform:
+                'uppercase',
+              color:
+                '#fff',
+              marginBottom:
+                16
             }}
           >
 
@@ -3147,10 +4280,14 @@ export default function CategoryPage() {
 
             <span
               style={{
-                fontSize: '1rem',
-                fontWeight: 400,
-                opacity: .5,
-                marginLeft: 10
+                fontSize:
+                  '1rem',
+                fontWeight:
+                  400,
+                opacity:
+                  .5,
+                marginLeft:
+                  10
               }}
             >
               ({total} stories)
@@ -3160,12 +4297,16 @@ export default function CategoryPage() {
 
           <div
             style={{
-              display: 'flex',
-              gap: 0,
-              flexWrap: 'wrap',
+              display:
+                'flex',
+              gap:
+                0,
+              flexWrap:
+                'wrap',
               borderTop:
                 '1px solid rgba(255,255,255,.1)',
-              marginTop: 8
+              marginTop:
+                8
             }}
           >
 
@@ -3173,11 +4314,16 @@ export default function CategoryPage() {
               style={{
                 fontFamily:
                   "'Barlow Condensed',sans-serif",
-                fontSize: 11,
-                fontWeight: 700,
-                letterSpacing: 1.5,
-                textTransform: 'uppercase',
-                color: '#fff',
+                fontSize:
+                  11,
+                fontWeight:
+                  700,
+                letterSpacing:
+                  1.5,
+                textTransform:
+                  'uppercase',
+                color:
+                  '#fff',
                 padding:
                   '12px 18px',
                 borderRight:
@@ -3194,15 +4340,20 @@ export default function CategoryPage() {
               style={{
                 fontFamily:
                   "'Barlow Condensed',sans-serif",
-                fontSize: 11,
-                fontWeight: 700,
-                letterSpacing: 1.5,
-                textTransform: 'uppercase',
+                fontSize:
+                  11,
+                fontWeight:
+                  700,
+                letterSpacing:
+                  1.5,
+                textTransform:
+                  'uppercase',
                 color:
                   'rgba(255,255,255,.55)',
                 padding:
                   '12px 18px',
-                textDecoration: 'none'
+                textDecoration:
+                  'none'
               }}
             >
               All Stories
@@ -3234,9 +4385,11 @@ export default function CategoryPage() {
         )}
 
         {error && (
+
           <div className="category-error">
             {error}
           </div>
+
         )}
 
         <div className="cat-main-grid">
@@ -3251,7 +4404,8 @@ export default function CategoryPage() {
 
               <Spinner />
 
-            ) : stories.length === 0 ? (
+            ) : stories.length ===
+              0 ? (
 
               <EmptyState
                 icon="📰"
@@ -3288,20 +4442,28 @@ export default function CategoryPage() {
                       handleImageError
                     }
                     style={{
-                      width: '100%',
-                      height: '100%',
-                      objectFit: 'cover',
-                      opacity: .75
+                      width:
+                        '100%',
+                      height:
+                        '100%',
+                      objectFit:
+                        'cover',
+                      opacity:
+                        .75
                     }}
                   />
 
                   <div
                     className="cat-featured-overlay"
                     style={{
-                      position: 'absolute',
-                      bottom: 0,
-                      left: 0,
-                      right: 0,
+                      position:
+                        'absolute',
+                      bottom:
+                        0,
+                      left:
+                        0,
+                      right:
+                        0,
                       background:
                         'linear-gradient(transparent,rgba(0,0,0,.95))',
                       padding:
@@ -3311,21 +4473,28 @@ export default function CategoryPage() {
 
                     <div
                       style={{
-                        background: accent,
+                        background:
+                          accent,
                         display:
                           'inline-block',
                         padding:
                           '3px 10px',
                         fontFamily:
                           "'Barlow Condensed',sans-serif",
-                        fontWeight: 800,
-                        fontSize: 10,
-                        letterSpacing: 2,
-                        color: '#fff',
-                        marginBottom: 10
+                        fontWeight:
+                          800,
+                        fontSize:
+                          10,
+                        letterSpacing:
+                          2,
+                        color:
+                          '#fff',
+                        marginBottom:
+                          10
                       }}
                     >
-                      {stories[0]?.category ||
+                      {stories[0]
+                        ?.category ||
                         normalizedCategory}
                     </div>
 
@@ -3336,13 +4505,20 @@ export default function CategoryPage() {
                           "'Playfair Display',serif",
                         fontSize:
                           'clamp(1.3rem,2.5vw,2rem)',
-                        fontWeight: 900,
-                        color: '#fff',
-                        lineHeight: 1.15,
-                        margin: 0
+                        fontWeight:
+                          900,
+                        color:
+                          '#fff',
+                        lineHeight:
+                          1.15,
+                        margin:
+                          0
                       }}
                     >
-                      {stories[0]?.title}
+                      {
+                        stories[0]
+                          ?.title
+                      }
                     </h2>
 
                   </div>
@@ -3353,24 +4529,34 @@ export default function CategoryPage() {
 
                   {stories
                     .slice(1)
-                    .map(story => (
+                    .map(
+                      story => (
 
-                      <GridCard
-                        key={
-                          story?._id ||
-                          story?.id
-                        }
-                        story={story}
-                      />
+                        <GridCard
+                          key={
+                            story?._id ||
+                            story?.id
+                          }
+                          story={
+                            story
+                          }
+                        />
 
-                    ))}
+                      )
+                    )}
 
                 </div>
 
                 <Pagination
-                  page={page}
-                  totalPages={totalPages}
-                  onChange={setPage}
+                  page={
+                    page
+                  }
+                  totalPages={
+                    totalPages
+                  }
+                  onChange={
+                    setPage
+                  }
                 />
 
               </>
@@ -3389,11 +4575,14 @@ export default function CategoryPage() {
 
               <div
                 style={{
-                  background: '#fff',
+                  background:
+                    '#fff',
                   border:
                     '1px solid #e8e4d8',
-                  padding: 20,
-                  marginBottom: 22,
+                  padding:
+                    20,
+                  marginBottom:
+                    22,
                   borderTop:
                     `3px solid ${accent}`
                 }}
@@ -3404,7 +4593,10 @@ export default function CategoryPage() {
                 </SectionLabel>
 
                 {popular.map(
-                  (p, i) => (
+                  (
+                    p,
+                    i
+                  ) => (
 
                     <PopularItem
                       key={
@@ -3412,23 +4604,32 @@ export default function CategoryPage() {
                         p?.id ||
                         i
                       }
-                      story={p}
-                      rank={i + 1}
+                      story={
+                        p
+                      }
+                      rank={
+                        i + 1
+                      }
                     />
 
                   )
                 )}
 
-                {popular.length === 0 && (
+                {popular.length ===
+                  0 && (
 
                   <p
                     style={{
-                      color: '#bbb',
-                      fontStyle: 'italic',
-                      fontSize: 13
+                      color:
+                        '#bbb',
+                      fontStyle:
+                        'italic',
+                      fontSize:
+                        13
                     }}
                   >
-                    No popular stories yet.
+                    No popular
+                    stories yet.
                   </p>
 
                 )}
@@ -3450,3 +4651,4 @@ export default function CategoryPage() {
     </PublicLayout>
   );
 }
+
