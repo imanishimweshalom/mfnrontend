@@ -1,6 +1,5 @@
-
-import React, { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Link, useParams } from 'react-router-dom';
 
 import PublicLayout from '../../components/layout/PublicLayout';
 
@@ -90,7 +89,7 @@ const SPORTS_STORAGE_TIME_KEY = 'mfn_sports_dashboard_timestamp_v4';
 const SPORTS_CACHE_DURATION = 30 * 60 * 1000;
 
 /* =========================================================
-   DATE HELPERS
+   HELPERS
 ========================================================= */
 
 const getDateString = (date = new Date()) => {
@@ -103,42 +102,46 @@ const getDateString = (date = new Date()) => {
   return d.toISOString().split('T')[0];
 };
 
-const getDateOffset = days => {
+const getDateOffset = (days) => {
   const d = new Date();
   d.setDate(d.getDate() + days);
   return getDateString(d);
 };
 
-const formatMatchTime = date => {
-  if (!date) return '--:--';
+const formatMatchTime = (date) => {
+  if (!date) {
+    return '';
+  }
 
   try {
-    const d = new Date(date);
+    const parsed = new Date(date);
 
-    if (Number.isNaN(d.getTime())) {
-      return '--:--';
+    if (Number.isNaN(parsed.getTime())) {
+      return '';
     }
 
-    return d.toLocaleTimeString([], {
+    return parsed.toLocaleTimeString([], {
       hour: '2-digit',
       minute: '2-digit'
     });
   } catch {
-    return '--:--';
+    return '';
   }
 };
 
-const formatShortDate = date => {
-  if (!date) return '';
+const formatShortDate = (date) => {
+  if (!date) {
+    return '';
+  }
 
   try {
-    const d = new Date(date);
+    const parsed = new Date(date);
 
-    if (Number.isNaN(d.getTime())) {
+    if (Number.isNaN(parsed.getTime())) {
       return '';
     }
 
-    return d.toLocaleDateString([], {
+    return parsed.toLocaleDateString([], {
       day: '2-digit',
       month: 'short'
     });
@@ -147,64 +150,25 @@ const formatShortDate = date => {
   }
 };
 
-/* =========================================================
-   SPORTS RESPONSE NORMALIZER
-========================================================= */
+const getSeason = () => {
+  const now = new Date();
+  const month = now.getMonth() + 1;
 
-const extractResponseArray = data => {
-  if (Array.isArray(data)) {
-    return data;
-  }
-
-  if (Array.isArray(data?.response)) {
-    return data.response;
-  }
-
-  if (Array.isArray(data?.data)) {
-    return data.data;
-  }
-
-  if (Array.isArray(data?.results)) {
-    return data.results;
-  }
-
-  if (Array.isArray(data?.fixtures)) {
-    return data.fixtures;
-  }
-
-  if (Array.isArray(data?.standings)) {
-    return data.standings;
-  }
-
-  if (Array.isArray(data?.scorers)) {
-    return data.scorers;
-  }
-
-  if (Array.isArray(data?.topScorers)) {
-    return data.topScorers;
-  }
-
-  return [];
+  return month >= 8
+    ? now.getFullYear()
+    : now.getFullYear() - 1;
 };
 
-/* =========================================================
-   MATCH STATUS
-========================================================= */
-
-const getMatchStatus = fixture => {
+const getMatchStatus = (fixture) => {
   const status = fixture?.fixture?.status;
 
   if (!status) {
-    return 'UPCOMING';
+    return '';
   }
 
-  const short = String(
-    status?.short || ''
-  ).toUpperCase();
+  const short = String(status.short || '').toUpperCase();
 
-  if (
-    ['FT', 'AET', 'PEN'].includes(short)
-  ) {
+  if (['FT', 'AET', 'PEN'].includes(short)) {
     return 'FULL TIME';
   }
 
@@ -222,153 +186,136 @@ const getMatchStatus = fixture => {
     return 'LIVE';
   }
 
-  if (
-    [
-      'NS',
-      'TBD'
-    ].includes(short)
-  ) {
+  if (['NS', 'TBD'].includes(short)) {
     return 'UPCOMING';
   }
 
-  return (
-    status?.long ||
-    status?.short ||
-    'UPCOMING'
-  );
+  return status.long || status.short || '';
 };
 
 /* =========================================================
-   SEASON
+   API RESPONSE HELPERS
 ========================================================= */
 
-const getSeason = () => {
-  const now = new Date();
-  const month = now.getMonth() + 1;
-
-  return month >= 8
-    ? now.getFullYear()
-    : now.getFullYear() - 1;
-};
-
-/* =========================================================
-   API HELPERS
-========================================================= */
-
-const fetchSportsFixtures = async leagueId => {
-  const response = await api.get(
-    '/sports/fixtures',
-    {
-      params: {
-        league: leagueId,
-        season: getSeason(),
-        from: getDateOffset(-2),
-        to: getDateOffset(10)
-      }
-    }
-  );
-
-  return extractResponseArray(
-    response?.data
-  );
-};
-
-const fetchSportsStandings = async leagueId => {
-  const response = await api.get(
-    '/sports/standings',
-    {
-      params: {
-        league: leagueId,
-        season: getSeason()
-      }
-    }
-  );
-
-  const data = response?.data;
-
-  if (
-    Array.isArray(data)
-  ) {
+const extractArray = (data, keys = []) => {
+  if (Array.isArray(data)) {
     return data;
   }
 
-  if (
-    Array.isArray(data?.response)
-  ) {
-    return data.response;
-  }
-
-  if (
-    Array.isArray(
-      data?.response?.league?.standings?.[0]
-    )
-  ) {
-    return data.response.league.standings[0];
-  }
-
-  if (
-    Array.isArray(
-      data?.league?.standings?.[0]
-    )
-  ) {
-    return data.league.standings[0];
-  }
-
-  if (
-    Array.isArray(
-      data?.standings?.[0]
-    )
-  ) {
-    return data.standings[0];
-  }
-
-  if (
-    Array.isArray(data?.standings)
-  ) {
-    return data.standings;
+  for (const key of keys) {
+    if (Array.isArray(data?.[key])) {
+      return data[key];
+    }
   }
 
   return [];
 };
 
-const fetchSportsTopScorers = async leagueId => {
-  const response = await api.get(
-    '/sports/topscorers',
-    {
-      params: {
-        league: leagueId,
-        season: getSeason()
-      }
+/* =========================================================
+   SPORTS API
+========================================================= */
+
+const fetchSportsFixtures = async (leagueId) => {
+  const response = await api.get('/sports/fixtures', {
+    params: {
+      league: leagueId,
+      season: getSeason(),
+      from: getDateOffset(-2),
+      to: getDateOffset(10)
     }
-  );
+  });
 
   const data = response?.data;
 
-  if (
-    Array.isArray(data)
-  ) {
-    return data;
+  return extractArray(
+    data?.response ?? data,
+    [
+      'fixtures',
+      'matches',
+      'data'
+    ]
+  );
+};
+
+const fetchSportsStandings = async (leagueId) => {
+  const response = await api.get('/sports/standings', {
+    params: {
+      league: leagueId,
+      season: getSeason()
+    }
+  });
+
+  const data = response?.data;
+  const raw = data?.response ?? data;
+
+  if (Array.isArray(raw)) {
+    return raw;
   }
 
   if (
-    Array.isArray(data?.response)
+    Array.isArray(
+      raw?.league?.standings?.[0]
+    )
   ) {
-    return data.response;
+    return raw.league.standings[0];
   }
 
   if (
-    Array.isArray(data?.topScorers)
+    Array.isArray(
+      raw?.standings?.[0]
+    )
   ) {
-    return data.topScorers;
+    return raw.standings[0];
   }
 
-  if (
-    Array.isArray(data?.scorers)
-  ) {
-    return data.scorers;
+  return extractArray(
+    raw,
+    [
+      'standings',
+      'table',
+      'data'
+    ]
+  );
+};
+
+const fetchSportsTopScorers = async (leagueId) => {
+  const response = await api.get('/sports/topscorers', {
+    params: {
+      league: leagueId,
+      season: getSeason()
+    }
+  });
+
+  const data = response?.data;
+  const raw = data?.response ?? data;
+
+  if (Array.isArray(raw)) {
+    return raw;
   }
 
-  return [];
+  return extractArray(
+    raw,
+    [
+      'topScorers',
+      'topscorers',
+      'scorers',
+      'players',
+      'data'
+    ]
+  );
+};
+
+/* =========================================================
+   IMAGE ERROR HANDLER
+========================================================= */
+
+const handleImageError = (event) => {
+  if (!event?.currentTarget) {
+    return;
+  }
+
+  event.currentTarget.onerror = null;
+  event.currentTarget.src = '/placeholder.jpg';
 };
 
 /* =========================================================
@@ -383,18 +330,13 @@ function SportMatchCard({
   const away = fixture?.teams?.away || {};
   const goals = fixture?.goals || {};
 
-  const status = getMatchStatus(
-    fixture
-  );
+  const status = getMatchStatus(fixture);
 
-  const isLive =
-    status === 'LIVE';
+  const isLive = status === 'LIVE';
+  const isFinished = status === 'FULL TIME';
 
-  const isFinished =
-    status === 'FULL TIME';
-
-  const matchDate =
-    fixture?.fixture?.date;
+  const homeScore = goals?.home;
+  const awayScore = goals?.away;
 
   return (
     <article className="sports-match-card">
@@ -412,7 +354,7 @@ function SportMatchCard({
               : 'sports-status'
           }
         >
-          {status}
+          {status || 'UPCOMING'}
         </div>
 
       </div>
@@ -424,15 +366,9 @@ function SportMatchCard({
           {home?.logo ? (
             <img
               src={home.logo}
-              alt={
-                home?.name ||
-                'Home team'
-              }
+              alt={home?.name || 'Home team'}
               loading="lazy"
-              onError={event => {
-                event.currentTarget.style.display =
-                  'none';
-              }}
+              onError={handleImageError}
             />
           ) : (
             <div className="sports-team-placeholder">
@@ -449,34 +385,30 @@ function SportMatchCard({
         <div className="sports-score">
 
           {isFinished || isLive ? (
-            <div className="sports-score-number">
-
+            <>
               <strong>
-                {goals?.home ?? 0}
+                {homeScore ?? 0}
               </strong>
 
               <span>:</span>
 
               <strong>
-                {goals?.away ?? 0}
+                {awayScore ?? 0}
               </strong>
-
-            </div>
+            </>
           ) : (
-            <div className="sports-time">
-
+            <div>
               <span className="sports-vs">
                 {formatMatchTime(
-                  matchDate
+                  fixture?.fixture?.date
                 )}
               </span>
 
               <small>
                 {formatShortDate(
-                  matchDate
+                  fixture?.fixture?.date
                 )}
               </small>
-
             </div>
           )}
 
@@ -487,15 +419,9 @@ function SportMatchCard({
           {away?.logo ? (
             <img
               src={away.logo}
-              alt={
-                away?.name ||
-                'Away team'
-              }
+              alt={away?.name || 'Away team'}
               loading="lazy"
-              onError={event => {
-                event.currentTarget.style.display =
-                  'none';
-              }}
+              onError={handleImageError}
             />
           ) : (
             <div className="sports-team-placeholder">
@@ -515,15 +441,13 @@ function SportMatchCard({
 
         <span>
           {fixture?.fixture?.venue?.name ||
-            'Football Stadium'}
+            'Football'}
         </span>
 
         <span>
-          {matchDate
-            ? formatShortDate(
-                matchDate
-              )
-            : ''}
+          {formatShortDate(
+            fixture?.fixture?.date
+          )}
         </span>
 
       </div>
@@ -540,7 +464,7 @@ function SportsStandings({
   rows,
   league
 }) {
-  if (!rows?.length) {
+  if (!Array.isArray(rows) || rows.length === 0) {
     return (
       <div className="sports-empty">
 
@@ -553,8 +477,8 @@ function SportsStandings({
         </strong>
 
         <span>
-          No table data is available
-          for {league?.short || 'this league'}.
+          No table data is available for{' '}
+          {league?.short || 'this league'}.
         </span>
 
       </div>
@@ -572,8 +496,7 @@ function SportsStandings({
           </span>
 
           <h3>
-            {league?.name ||
-              'Standings'}
+            {league?.name || 'Standings'}
           </h3>
         </div>
 
@@ -602,10 +525,7 @@ function SportsStandings({
               .slice(0, 20)
               .map((row, index) => {
 
-                const team =
-                  row?.team ||
-                  row?.teams ||
-                  {};
+                const team = row?.team || {};
 
                 const rank =
                   row?.rank ??
@@ -620,19 +540,16 @@ function SportsStandings({
                 const wins =
                   row?.all?.win ??
                   row?.wins ??
-                  row?.win ??
                   0;
 
                 const draws =
                   row?.all?.draw ??
                   row?.draws ??
-                  row?.draw ??
                   0;
 
                 const losses =
                   row?.all?.lose ??
                   row?.losses ??
-                  row?.lose ??
                   0;
 
                 const goalsFor =
@@ -652,10 +569,7 @@ function SportsStandings({
                 const goalDifference =
                   row?.goalsDiff ??
                   row?.goalDifference ??
-                  (
-                    goalsFor -
-                    goalsAgainst
-                  );
+                  goalsFor - goalsAgainst;
 
                 const points =
                   row?.points ??
@@ -675,7 +589,6 @@ function SportsStandings({
                     </td>
 
                     <td>
-
                       <div className="sports-table-team">
 
                         {team?.logo ? (
@@ -686,15 +599,12 @@ function SportsStandings({
                               'Team'
                             }
                             loading="lazy"
-                            onError={event => {
-                              event.currentTarget.style.display =
-                                'none';
-                            }}
+                            onError={
+                              handleImageError
+                            }
                           />
                         ) : (
-                          <span>
-                            ⚽
-                          </span>
+                          <span>⚽</span>
                         )}
 
                         <strong>
@@ -703,28 +613,13 @@ function SportsStandings({
                         </strong>
 
                       </div>
-
                     </td>
 
-                    <td>
-                      {played}
-                    </td>
-
-                    <td>
-                      {wins}
-                    </td>
-
-                    <td>
-                      {draws}
-                    </td>
-
-                    <td>
-                      {losses}
-                    </td>
-
-                    <td>
-                      {goalDifference}
-                    </td>
+                    <td>{played}</td>
+                    <td>{wins}</td>
+                    <td>{draws}</td>
+                    <td>{losses}</td>
+                    <td>{goalDifference}</td>
 
                     <td>
                       <strong>
@@ -754,7 +649,7 @@ function SportsTopScorers({
   players,
   league
 }) {
-  if (!players?.length) {
+  if (!Array.isArray(players) || players.length === 0) {
     return (
       <div className="sports-empty">
 
@@ -767,8 +662,8 @@ function SportsTopScorers({
         </strong>
 
         <span>
-          No scorer data is available
-          for {league?.short || 'this league'}.
+          No scorer data is available for{' '}
+          {league?.short || 'this league'}.
         </span>
 
       </div>
@@ -781,16 +676,13 @@ function SportsTopScorers({
       <div className="sports-panel-title">
 
         <div>
-
           <span>
             🏆 TOP SCORERS
           </span>
 
           <h3>
-            {league?.name ||
-              'Top Scorers'}
+            {league?.name || 'Top Scorers'}
           </h3>
-
         </div>
 
       </div>
@@ -805,23 +697,25 @@ function SportsTopScorers({
               item?.player ||
               {};
 
-            const stats =
-              item?.statistics?.[0] ||
-              {};
+            const statistics =
+              Array.isArray(
+                item?.statistics
+              )
+                ? item.statistics[0] || {}
+                : item?.statistics || {};
 
             const team =
-              stats?.team ||
+              statistics?.team ||
               item?.team ||
               {};
 
             const goals =
-              stats?.goals?.total ??
+              statistics?.goals?.total ??
               item?.goals ??
-              item?.totalGoals ??
               0;
 
             const assists =
-              stats?.goals?.assists ??
+              statistics?.goals?.assists ??
               item?.assists ??
               0;
 
@@ -846,10 +740,9 @@ function SportsTopScorers({
                       'Player'
                     }
                     loading="lazy"
-                    onError={event => {
-                      event.currentTarget.style.display =
-                        'none';
-                    }}
+                    onError={
+                      handleImageError
+                    }
                   />
                 ) : (
                   <div className="sports-scorer-placeholder">
@@ -861,7 +754,6 @@ function SportsTopScorers({
 
                   <strong>
                     {player?.name ||
-                      item?.name ||
                       'Unknown player'}
                   </strong>
 
@@ -940,218 +832,174 @@ function SportsUpdates() {
 
       try {
 
-        /* ---------------------------------------------------
-           CACHE
-        --------------------------------------------------- */
+        let cachedData = null;
 
-        const stored =
-          localStorage.getItem(
-            SPORTS_STORAGE_KEY
-          );
+        try {
 
-        const storedTime =
-          localStorage.getItem(
-            SPORTS_STORAGE_TIME_KEY
-          );
-
-        const now = Date.now();
-
-        if (
-          stored &&
-          storedTime &&
-          now -
-            Number(storedTime) <
-            SPORTS_CACHE_DURATION
-        ) {
-
-          try {
-
-            const parsed =
-              JSON.parse(stored);
-
-            if (
-              parsed &&
-              !cancelled
-            ) {
-
-              setSports(
-                Array.isArray(
-                  parsed.sports
-                )
-                  ? parsed.sports
-                  : []
-              );
-
-              setStandings(
-                parsed.standings &&
-                typeof parsed.standings ===
-                  'object'
-                  ? parsed.standings
-                  : {}
-              );
-
-              setTopScorers(
-                parsed.topScorers &&
-                typeof parsed.topScorers ===
-                  'object'
-                  ? parsed.topScorers
-                  : {}
-              );
-
-              setSportsLoading(false);
-
-              return;
-            }
-
-          } catch (cacheError) {
-
-            console.warn(
-              'Invalid sports cache:',
-              cacheError
-            );
-
-            localStorage.removeItem(
+          const stored =
+            localStorage.getItem(
               SPORTS_STORAGE_KEY
             );
 
-            localStorage.removeItem(
+          const storedTime =
+            localStorage.getItem(
               SPORTS_STORAGE_TIME_KEY
             );
+
+          if (
+            stored &&
+            storedTime &&
+            Date.now() -
+              Number(storedTime) <
+              SPORTS_CACHE_DURATION
+          ) {
+
+            cachedData =
+              JSON.parse(stored);
+
           }
+
+        } catch (cacheError) {
+
+          console.warn(
+            'Sports cache error:',
+            cacheError
+          );
+
         }
 
-        /* ---------------------------------------------------
-           FETCH
-        --------------------------------------------------- */
+        if (
+          cachedData &&
+          !cancelled
+        ) {
+
+          setSports(
+            Array.isArray(
+              cachedData.sports
+            )
+              ? cachedData.sports
+              : []
+          );
+
+          setStandings(
+            cachedData.standings || {}
+          );
+
+          setTopScorers(
+            cachedData.topScorers || {}
+          );
+
+          setSportsLoading(false);
+
+          return;
+        }
 
         const allFixtures = [];
         const nextStandings = {};
         const nextTopScorers = {};
 
-        await Promise.all(
-          SPORTS_LEAGUES.map(
-            async league => {
+        /* =================================================
+           FETCH LEAGUES
+        ================================================= */
 
-              try {
+        const results =
+          await Promise.allSettled(
 
-                const results =
-                  await Promise.allSettled([
+            SPORTS_LEAGUES.map(
+              async (league) => {
+
+                const [
+                  fixtures,
+                  table,
+                  scorers
+                ] =
+                  await Promise.all([
                     fetchSportsFixtures(
                       league.id
                     ),
-
                     fetchSportsStandings(
                       league.id
                     ),
-
                     fetchSportsTopScorers(
                       league.id
                     )
                   ]);
 
-                const fixturesResult =
-                  results[0];
+                return {
+                  league,
+                  fixtures,
+                  table,
+                  scorers
+                };
+              }
+            )
 
-                const standingsResult =
-                  results[1];
+          );
 
-                const scorersResult =
-                  results[2];
+        /* =================================================
+           PROCESS RESULTS
+        ================================================= */
 
-                const fixtures =
-                  fixturesResult.status ===
-                  'fulfilled'
-                    ? fixturesResult.value
-                    : [];
+        results.forEach(result => {
 
-                const table =
-                  standingsResult.status ===
-                  'fulfilled'
-                    ? standingsResult.value
-                    : [];
+          if (
+            result.status !==
+            'fulfilled'
+          ) {
+            return;
+          }
 
-                const scorers =
-                  scorersResult.status ===
-                  'fulfilled'
-                    ? scorersResult.value
-                    : [];
+          const {
+            league,
+            fixtures,
+            table,
+            scorers
+          } = result.value;
 
-                /* FIXTURES */
+          if (
+            Array.isArray(fixtures)
+          ) {
 
-                if (
-                  Array.isArray(
-                    fixtures
-                  )
-                {
+            fixtures.forEach(
+              fixture => {
 
-                  fixtures.forEach(
-                    fixture => {
+                allFixtures.push({
+                  ...fixture,
 
-                      if (!fixture) {
-                        return;
-                      }
+                  mfnLeagueKey:
+                    league.key,
 
-                      allFixtures.push({
+                  mfnLeagueName:
+                    league.name,
 
-                        ...fixture,
-
-                        mfnLeagueKey:
-                          league.key,
-
-                        mfnLeagueName:
-                          league.name,
-
-                        mfnLeagueShort:
-                          league.short
-
-                      });
-
-                    }
-                  );
-                }
-
-                /* STANDINGS */
-
-                nextStandings[
-                  league.key
-                ] =
-                  Array.isArray(table)
-                    ? table
-                    : [];
-
-                /* TOP SCORERS */
-
-                nextTopScorers[
-                  league.key
-                ] =
-                  Array.isArray(scorers)
-                    ? scorers
-                    : [];
-
-              } catch (error) {
-
-                console.error(
-                  `Sports data failed for ${league.name}:`,
-                  error
-                );
-
-                nextStandings[
-                  league.key
-                ] = [];
-
-                nextTopScorers[
-                  league.key
-                ] = [];
+                  mfnLeagueShort:
+                    league.short
+                });
 
               }
+            );
 
-            }
-          )
-        );
+          }
 
-        /* ---------------------------------------------------
+          nextStandings[
+            league.key
+          ] =
+            Array.isArray(table)
+              ? table
+              : [];
+
+          nextTopScorers[
+            league.key
+          ] =
+            Array.isArray(scorers)
+              ? scorers
+              : [];
+
+        });
+
+        /* =================================================
            REMOVE DUPLICATES
-        --------------------------------------------------- */
+        ================================================= */
 
         const uniqueFixtures =
           Array.from(
@@ -1159,12 +1007,12 @@ function SportsUpdates() {
               allFixtures.map(
                 fixture => {
 
-                  const key =
+                  const fixtureId =
                     fixture?.fixture?.id ||
                     `${fixture?.mfnLeagueKey}-${fixture?.fixture?.date}-${fixture?.teams?.home?.id}-${fixture?.teams?.away?.id}`;
 
                   return [
-                    key,
+                    fixtureId,
                     fixture
                   ];
                 }
@@ -1172,30 +1020,23 @@ function SportsUpdates() {
             ).values()
           );
 
-        /* ---------------------------------------------------
+        /* =================================================
            SORT
-        --------------------------------------------------- */
+        ================================================= */
 
         uniqueFixtures.sort(
-          (a, b) => {
-
-            const dateA =
-              new Date(
-                a?.fixture?.date || 0
-              ).getTime();
-
-            const dateB =
-              new Date(
-                b?.fixture?.date || 0
-              ).getTime();
-
-            return dateA - dateB;
-          }
+          (a, b) =>
+            new Date(
+              a?.fixture?.date || 0
+            ) -
+            new Date(
+              b?.fixture?.date || 0
+            )
         );
 
-        /* ---------------------------------------------------
-           CACHE PAYLOAD
-        --------------------------------------------------- */
+        /* =================================================
+           CACHE
+        ================================================= */
 
         const payload = {
           sports:
@@ -1223,7 +1064,7 @@ function SportsUpdates() {
         } catch (storageError) {
 
           console.warn(
-            'Unable to save sports cache:',
+            'Sports cache save failed:',
             storageError
           );
 
@@ -1242,6 +1083,17 @@ function SportsUpdates() {
           setTopScorers(
             nextTopScorers
           );
+
+          if (
+            uniqueFixtures.length === 0 &&
+            Object.keys(nextStandings).length === 0
+          ) {
+
+            setSportsError(
+              'Sports data is currently unavailable.'
+            );
+
+          }
 
         }
 
@@ -1285,12 +1137,11 @@ function SportsUpdates() {
   const selectedLeague =
     SPORTS_LEAGUES.find(
       league =>
-        league.key ===
-        activeLeague
+        league.key === activeLeague
     );
 
   /* =======================================================
-     FILTER FIXTURES
+     FILTER
   ======================================================= */
 
   const filteredSports =
@@ -1302,52 +1153,39 @@ function SportsUpdates() {
             activeLeague
         );
 
-  /* =======================================================
-     STANDINGS
-  ======================================================= */
-
   const displayedStandings =
     activeLeague === 'ALL'
       ? []
-      : standings?.[activeLeague] ||
-        [];
-
-  /* =======================================================
-     TOP SCORERS
-  ======================================================= */
+      : standings?.[activeLeague] || [];
 
   const displayedScorers =
     activeLeague === 'ALL'
       ? []
-      : topScorers?.[activeLeague] ||
-        [];
+      : topScorers?.[activeLeague] || [];
 
   /* =======================================================
-     MATCH STATUS
+     COUNTS
   ======================================================= */
 
   const liveMatches =
     filteredSports.filter(
       fixture =>
-        getMatchStatus(
-          fixture
-        ) === 'LIVE'
+        getMatchStatus(fixture) ===
+        'LIVE'
     );
 
   const upcomingMatches =
     filteredSports.filter(
       fixture =>
-        getMatchStatus(
-          fixture
-        ) === 'UPCOMING'
+        getMatchStatus(fixture) ===
+        'UPCOMING'
     );
 
   const finishedMatches =
     filteredSports.filter(
       fixture =>
-        getMatchStatus(
-          fixture
-        ) === 'FULL TIME'
+        getMatchStatus(fixture) ===
+        'FULL TIME'
     );
 
   /* =======================================================
@@ -1381,7 +1219,7 @@ function SportsUpdates() {
 
           <div className="sports-live-badge">
             <span />
-            UPDATING
+            LOADING
           </div>
 
         </div>
@@ -1417,7 +1255,8 @@ function SportsUpdates() {
             Live scores, fixtures,
             standings and top
             scorers from major
-            leagues and Rwanda.
+            football leagues and
+            Rwanda's football league.
           </p>
 
         </div>
@@ -1430,25 +1269,25 @@ function SportsUpdates() {
       </div>
 
       {sportsError && (
-        <div className="sports-empty sports-error-box">
-
-          <div className="sports-empty-icon">
-            ⚠️
-          </div>
+        <div className="sports-error">
 
           <strong>
-            {sportsError}
+            ⚠️ {sportsError}
           </strong>
 
           <span>
-            The football service may
-            currently be unavailable.
+            Stories are still available
+            below. Sports information
+            will appear when the backend
+            sports service responds.
           </span>
 
         </div>
       )}
 
-      {/* LEAGUES */}
+      {/* =================================================
+          LEAGUES
+      ================================================= */}
 
       <div className="sports-leagues">
 
@@ -1469,6 +1308,7 @@ function SportsUpdates() {
 
         {SPORTS_LEAGUES.map(
           league => (
+
             <button
               type="button"
               key={league.key}
@@ -1479,37 +1319,40 @@ function SportsUpdates() {
                   : ''
               }
               onClick={() => {
+
                 setActiveLeague(
                   league.key
                 );
+
                 setActiveTab(
                   'matches'
                 );
+
               }}
             >
               {league.short}
             </button>
+
           )
         )}
 
       </div>
 
-      {/* TABS */}
+      {/* =================================================
+          TABS
+      ================================================= */}
 
       <div className="sports-tabs">
 
         <button
           type="button"
           className={
-            activeTab ===
-            'matches'
+            activeTab === 'matches'
               ? 'active'
               : ''
           }
           onClick={() =>
-            setActiveTab(
-              'matches'
-            )
+            setActiveTab('matches')
           }
         >
           ⚽ Matches
@@ -1518,19 +1361,15 @@ function SportsUpdates() {
         <button
           type="button"
           className={
-            activeTab ===
-            'standings'
+            activeTab === 'standings'
               ? 'active'
               : ''
           }
           onClick={() =>
-            setActiveTab(
-              'standings'
-            )
+            setActiveTab('standings')
           }
           disabled={
-            activeLeague ===
-            'ALL'
+            activeLeague === 'ALL'
           }
         >
           📊 Standings
@@ -1539,19 +1378,15 @@ function SportsUpdates() {
         <button
           type="button"
           className={
-            activeTab ===
-            'scorers'
+            activeTab === 'scorers'
               ? 'active'
               : ''
           }
           onClick={() =>
-            setActiveTab(
-              'scorers'
-            )
+            setActiveTab('scorers')
           }
           disabled={
-            activeLeague ===
-            'ALL'
+            activeLeague === 'ALL'
           }
         >
           🏆 Top Scorers
@@ -1559,7 +1394,9 @@ function SportsUpdates() {
 
       </div>
 
-      {/* MATCHES */}
+      {/* =================================================
+          MATCHES
+      ================================================= */}
 
       {activeTab === 'matches' && (
         <>
@@ -1570,6 +1407,7 @@ function SportsUpdates() {
               <strong>
                 {liveMatches.length}
               </strong>
+
               <span>
                 LIVE
               </span>
@@ -1579,6 +1417,7 @@ function SportsUpdates() {
               <strong>
                 {upcomingMatches.length}
               </strong>
+
               <span>
                 UPCOMING
               </span>
@@ -1588,6 +1427,7 @@ function SportsUpdates() {
               <strong>
                 {finishedMatches.length}
               </strong>
+
               <span>
                 FINISHED
               </span>
@@ -1597,6 +1437,7 @@ function SportsUpdates() {
               <strong>
                 {filteredSports.length}
               </strong>
+
               <span>
                 TOTAL
               </span>
@@ -1619,7 +1460,7 @@ function SportsUpdates() {
               <span>
                 No fixtures are currently
                 available for the selected
-                league and period.
+                leagues and dates.
               </span>
 
             </div>
@@ -1641,12 +1482,11 @@ function SportsUpdates() {
                         fixture?.fixture?.id ||
                         `${fixture?.mfnLeagueKey}-${index}`
                       }
-                      fixture={
-                        fixture
-                      }
+                      fixture={fixture}
                       league={{
                         short:
-                          fixture?.mfnLeagueShort
+                          fixture?.mfnLeagueShort ||
+                          'Football'
                       }}
                     />
 
@@ -1660,10 +1500,11 @@ function SportsUpdates() {
         </>
       )}
 
-      {/* STANDINGS */}
+      {/* =================================================
+          STANDINGS
+      ================================================= */}
 
-      {activeTab ===
-        'standings' &&
+      {activeTab === 'standings' &&
         selectedLeague && (
 
           <SportsStandings
@@ -1677,10 +1518,11 @@ function SportsUpdates() {
 
         )}
 
-      {/* TOP SCORERS */}
+      {/* =================================================
+          TOP SCORERS
+      ================================================= */}
 
-      {activeTab ===
-        'scorers' &&
+      {activeTab === 'scorers' &&
         selectedLeague && (
 
           <SportsTopScorers
@@ -1696,13 +1538,10 @@ function SportsUpdates() {
 
       <div className="sports-cache-info">
 
-        <span>
-          ●
-        </span>
+        <span>●</span>
 
         Sports data refreshes
-        automatically every 30
-        minutes.
+        automatically every 30 minutes.
 
       </div>
 
@@ -1716,105 +1555,105 @@ function SportsUpdates() {
 
 export default function CategoryPage() {
 
-  const { category } =
-    useParams();
+  const { category } = useParams();
 
   /* =======================================================
-     NORMALIZE CATEGORY
+     DECODE CATEGORY
   ======================================================= */
 
-  const decodedCategory =
-    (() => {
+  const decodedCategory = useMemo(() => {
 
-      try {
+    try {
 
-        return decodeURIComponent(
-          category || ''
-        );
+      return decodeURIComponent(
+        category || ''
+      ).trim();
 
-      } catch {
+    } catch {
 
-        return category || '';
+      return String(
+        category || ''
+      ).trim();
 
-      }
+    }
 
-    })();
+  }, [category]);
+
+  /* =======================================================
+     CATEGORY KEY
+  ======================================================= */
+
+  const categoryKey =
+    decodedCategory
+      .toLowerCase()
+      .replace(/[-_]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+  /*
+    Important:
+    Sport / sport / SPORTS / sports
+    all become Sport.
+  */
+
+  const isSport =
+    categoryKey === 'sport' ||
+    categoryKey === 'sports';
+
+  const normalizedCategory =
+    isSport
+      ? 'Sport'
+      : decodedCategory;
 
   /* =======================================================
      STATE
   ======================================================= */
 
-  const [
-    stories,
-    setStories
-  ] = useState([]);
+  const [stories, setStories] =
+    useState([]);
 
-  const [
-    popular,
-    setPopular
-  ] = useState([]);
+  const [popular, setPopular] =
+    useState([]);
 
-  const [
-    ads,
-    setAds
-  ] = useState([]);
+  const [ads, setAds] =
+    useState([]);
 
-  const [
-    page,
-    setPage
-  ] = useState(1);
+  const [page, setPage] =
+    useState(1);
 
-  const [
-    totalPages,
-    setTotalPages
-  ] = useState(1);
+  const [totalPages, setTotalPages] =
+    useState(1);
 
-  const [
-    total,
-    setTotal
-  ] = useState(0);
+  const [total, setTotal] =
+    useState(0);
 
-  const [
-    loading,
-    setLoading
-  ] = useState(true);
+  const [loading, setLoading] =
+    useState(true);
 
-  const [
-    error,
-    setError
-  ] = useState('');
+  const [error, setError] =
+    useState('');
 
   /* =======================================================
      COLOR
   ======================================================= */
 
   const accent =
-    CAT_COLORS[
-      decodedCategory
-    ] || '#c0392b';
-
-  /* =======================================================
-     SPORT CHECK
-  ======================================================= */
-
-  const isSport =
-    decodedCategory
-      .toLowerCase()
-      .trim() ===
-    'sport';
+    CAT_COLORS[normalizedCategory] ||
+    CAT_COLORS[decodedCategory] ||
+    '#c0392b';
 
   /* =======================================================
      RESET PAGE
   ======================================================= */
 
   useEffect(() => {
+
     setPage(1);
-  }, [
-    decodedCategory
-  ]);
+
+  }, [normalizedCategory]);
 
   /* =======================================================
-     LOAD CATEGORY
+     LOAD CATEGORY DATA
   ======================================================= */
 
   useEffect(() => {
@@ -1829,23 +1668,22 @@ export default function CategoryPage() {
       try {
 
         const [
-          sRes,
-          pRes,
-          aRes
-        ] = await Promise.all([
+          storiesResult,
+          popularResult,
+          adsResult
+        ] = await Promise.allSettled([
 
           storiesAPI.getAll({
             category:
-              decodedCategory,
+              normalizedCategory,
             page,
             limit: 12,
-            status:
-              'published'
+            status: 'published'
           }),
 
           storiesAPI.getPopular({
             category:
-              decodedCategory,
+              normalizedCategory,
             limit: 5
           }),
 
@@ -1857,86 +1695,153 @@ export default function CategoryPage() {
           return;
         }
 
-        /* STORIES */
+        /* =================================================
+           STORIES
+        ================================================= */
 
-        const storiesData =
-          sRes?.data;
+        if (
+          storiesResult.status ===
+          'fulfilled'
+        ) {
 
-        const storiesList =
-          Array.isArray(
-            storiesData?.stories
-          )
-            ? storiesData.stories
-            : Array.isArray(
-                storiesData
-              )
-              ? storiesData
+          const storiesData =
+            storiesResult.value?.data;
+
+          const storiesList =
+            Array.isArray(
+              storiesData?.stories
+            )
+              ? storiesData.stories
               : Array.isArray(
                   storiesData?.data
                 )
                 ? storiesData.data
-                : [];
+                : Array.isArray(
+                    storiesData
+                  )
+                  ? storiesData
+                  : [];
 
-        setStories(
-          storiesList
-        );
+          setStories(
+            storiesList
+          );
 
-        setTotalPages(
-          Number(
-            storiesData?.pages ??
-            storiesData?.totalPages
-          ) || 1
-        );
+          setTotalPages(
+            Number(
+              storiesData?.pages ??
+              storiesData?.totalPages
+            ) || 1
+          );
 
-        setTotal(
-          Number(
-            storiesData?.total
-          ) ||
-          storiesList.length ||
-          0
-        );
+          setTotal(
+            Number(
+              storiesData?.total ??
+              storiesData?.count
+            ) ||
+            storiesList.length ||
+            0
+          );
 
-        /* POPULAR */
+        } else {
 
-        const popularData =
-          pRes?.data;
+          console.error(
+            'Stories API error:',
+            storiesResult.reason
+          );
 
-        setPopular(
-          Array.isArray(
-            popularData
-          )
-            ? popularData
-            : Array.isArray(
-                popularData?.stories
-              )
-              ? popularData.stories
+          setStories([]);
+          setTotal(0);
+          setTotalPages(1);
+
+          setError(
+            'Unable to load category stories.'
+          );
+
+        }
+
+        /* =================================================
+           POPULAR
+        ================================================= */
+
+        if (
+          popularResult.status ===
+          'fulfilled'
+        ) {
+
+          const popularData =
+            popularResult.value?.data;
+
+          const popularList =
+            Array.isArray(
+              popularData
+            )
+              ? popularData
               : Array.isArray(
-                  popularData?.data
+                  popularData?.stories
                 )
-                ? popularData.data
-                : []
-        );
+                ? popularData.stories
+                : Array.isArray(
+                    popularData?.data
+                  )
+                  ? popularData.data
+                  : [];
 
-        /* ADS */
+          setPopular(
+            popularList
+          );
 
-        const adsData =
-          aRes?.data;
+        } else {
 
-        setAds(
-          Array.isArray(
-            adsData
-          )
-            ? adsData
-            : Array.isArray(
-                adsData?.ads
-              )
-              ? adsData.ads
+          console.warn(
+            'Popular stories unavailable:',
+            popularResult.reason
+          );
+
+          setPopular([]);
+
+        }
+
+        /* =================================================
+           ADS
+        ================================================= */
+
+        if (
+          adsResult.status ===
+          'fulfilled'
+        ) {
+
+          const adsData =
+            adsResult.value?.data;
+
+          const adsList =
+            Array.isArray(
+              adsData
+            )
+              ? adsData
               : Array.isArray(
-                  adsData?.data
+                  adsData?.ads
                 )
-                ? adsData.data
-                : []
-        );
+                ? adsData.ads
+                : Array.isArray(
+                    adsData?.data
+                  )
+                  ? adsData.data
+                  : [];
+
+          setAds(
+            adsList
+          );
+
+        } else {
+
+          console.warn(
+            'Ads unavailable:',
+            adsResult.reason
+          );
+
+          setAds([]);
+
+        }
 
       } catch (err) {
 
@@ -1950,7 +1855,6 @@ export default function CategoryPage() {
           setStories([]);
           setPopular([]);
           setAds([]);
-
           setTotal(0);
           setTotalPages(1);
 
@@ -1977,7 +1881,7 @@ export default function CategoryPage() {
     };
 
   }, [
-    decodedCategory,
+    normalizedCategory,
     page
   ]);
 
@@ -2001,9 +1905,11 @@ export default function CategoryPage() {
               ${accent},
               #071827
             );
+
           padding: 22px 0 0;
           position: relative;
           overflow: hidden;
+
           box-shadow:
             0 8px 30px
             rgba(0,0,0,.12);
@@ -2011,30 +1917,43 @@ export default function CategoryPage() {
 
         .cat-header-wrap::after {
           content: '';
+
           position: absolute;
+
           width: 420px;
           height: 420px;
+
           right: -180px;
           top: -260px;
+
           border-radius: 50%;
-          border: 1px solid
+
+          border:
+            1px solid
             rgba(255,255,255,.12);
+
           pointer-events: none;
         }
 
         .cat-watermark {
           position: absolute;
+
           right: -20px;
           top: -20px;
+
           font-family:
             'Barlow Condensed',
             sans-serif;
+
           font-size: 140px;
           font-weight: 900;
+
           color:
             rgba(255,255,255,.04);
+
           letter-spacing: -6px;
           line-height: 1;
+
           pointer-events: none;
           text-transform: uppercase;
           user-select: none;
@@ -2042,30 +1961,45 @@ export default function CategoryPage() {
 
         .cat-content-wrap {
           max-width: 1260px;
+
           margin: 0 auto;
-          padding: 32px 20px 60px;
+
+          padding:
+            32px 20px 60px;
         }
 
         .cat-main-grid {
           display: grid;
+
           grid-template-columns:
-            minmax(0,1fr) 340px;
+            minmax(0,1fr)
+            340px;
+
           gap: 32px;
+
           align-items: start;
         }
 
         .cat-featured-story {
           display: block;
+
           position: relative;
           overflow: hidden;
+
           background: #000;
+
           height: 390px;
+
           margin-bottom: 28px;
+
           text-decoration: none;
+
           border-radius: 4px;
+
           box-shadow:
             0 18px 45px
             rgba(0,0,0,.12);
+
           transform: translateZ(0);
         }
 
@@ -2082,12 +2016,15 @@ export default function CategoryPage() {
 
         .cat-card-grid {
           display: grid;
+
           grid-template-columns:
             repeat(
               auto-fill,
               minmax(230px,1fr)
             );
+
           gap: 20px;
+
           margin-bottom: 28px;
         }
 
@@ -2096,97 +2033,150 @@ export default function CategoryPage() {
           top: 72px;
         }
 
-        /* SPORTS */
+        /* =================================================
+           SPORTS
+        ================================================= */
 
         .sports-section {
           margin: 34px 0 38px;
+
           padding: 26px;
+
           background: #f7f8fa;
-          border: 1px solid #e6e9ed;
-          border-top: 4px solid #0d3b6e;
+
+          border:
+            1px solid #e6e9ed;
+
+          border-top:
+            4px solid #0d3b6e;
+
           position: relative;
+
           overflow: hidden;
         }
 
         .sports-section::before {
           content: 'SPORT';
+
           position: absolute;
+
           right: -15px;
           top: -35px;
+
           font-family:
             'Barlow Condensed',
             sans-serif;
+
           font-size: 110px;
           font-weight: 900;
+
           color:
             rgba(13,59,110,.035);
+
           pointer-events: none;
         }
 
         .sports-heading {
           display: flex;
+
           align-items: flex-start;
-          justify-content: space-between;
+
+          justify-content:
+            space-between;
+
           gap: 20px;
+
           margin-bottom: 22px;
+
           position: relative;
           z-index: 1;
         }
 
         .sports-kicker {
           display: block;
+
           font-family:
             'Barlow Condensed',
             sans-serif;
+
           font-size: 11px;
           font-weight: 800;
+
           letter-spacing: 2px;
+
           color: #0d3b6e;
+
           margin-bottom: 5px;
         }
 
         .sports-heading h2 {
           margin: 0;
+
           font-family:
             'Barlow Condensed',
             sans-serif;
+
           font-size:
-            clamp(1.8rem,4vw,2.5rem);
+            clamp(
+              1.8rem,
+              4vw,
+              2.5rem
+            );
+
           font-weight: 900;
+
           text-transform: uppercase;
+
           color: #101820;
+
           letter-spacing: -.5px;
         }
 
         .sports-heading p {
           margin: 5px 0 0;
+
           color: #69727d;
+
           font-size: 13px;
+
           max-width: 600px;
+
           line-height: 1.5;
         }
 
         .sports-live-badge {
           display: flex;
+
           align-items: center;
+
           gap: 7px;
+
           background: #101820;
+
           color: #fff;
+
           padding: 7px 11px;
+
           font-family:
             'Barlow Condensed',
             sans-serif;
+
           font-size: 10px;
           font-weight: 800;
+
           letter-spacing: 1px;
+
           white-space: nowrap;
         }
 
         .sports-live-badge span {
           width: 7px;
           height: 7px;
+
           background: #e53935;
+
           border-radius: 50%;
+
           animation:
             sportsPulse 1.5s infinite;
         }
@@ -2212,28 +2202,44 @@ export default function CategoryPage() {
 
         .sports-leagues {
           display: flex;
+
           gap: 7px;
+
           overflow-x: auto;
+
           padding-bottom: 12px;
+
           margin-bottom: 17px;
+
           scrollbar-width: thin;
+
           position: relative;
           z-index: 2;
         }
 
         .sports-leagues button {
-          border: 1px solid #d8dde3;
+          border:
+            1px solid #d8dde3;
+
           background: #fff;
+
           color: #48515a;
+
           padding: 8px 12px;
+
           font-family:
             'Barlow Condensed',
             sans-serif;
+
           font-size: 10px;
           font-weight: 800;
+
           letter-spacing: .8px;
+
           white-space: nowrap;
+
           cursor: pointer;
+
           transition: all .2s ease;
         }
 
@@ -2250,24 +2256,36 @@ export default function CategoryPage() {
 
         .sports-tabs {
           display: flex;
+
           gap: 8px;
+
           margin-bottom: 18px;
+
           position: relative;
           z-index: 2;
-          border-bottom: 1px solid #e1e5e9;
+
+          border-bottom:
+            1px solid #e1e5e9;
         }
 
         .sports-tabs button {
           border: 0;
+
           background: transparent;
+
           color: #69727d;
+
           padding: 10px 14px;
+
           font-family:
             'Barlow Condensed',
             sans-serif;
+
           font-size: 11px;
           font-weight: 800;
+
           cursor: pointer;
+
           transition: all .2s ease;
         }
 
@@ -2277,7 +2295,9 @@ export default function CategoryPage() {
 
         .sports-tabs button.active {
           color: #0d3b6e;
-          border-bottom: 3px solid #0d3b6e;
+
+          border-bottom:
+            3px solid #0d3b6e;
         }
 
         .sports-tabs button:disabled {
@@ -2287,20 +2307,31 @@ export default function CategoryPage() {
 
         .sports-summary-grid {
           display: grid;
+
           grid-template-columns:
             repeat(4,1fr);
+
           gap: 10px;
+
           margin-bottom: 18px;
         }
 
         .sports-summary-grid > div {
           background: #fff;
-          border: 1px solid #e2e6ea;
+
+          border:
+            1px solid #e2e6ea;
+
           padding: 14px;
+
           display: flex;
+
           flex-direction: column;
+
           align-items: center;
+
           justify-content: center;
+
           gap: 3px;
         }
 
@@ -2308,8 +2339,10 @@ export default function CategoryPage() {
           font-family:
             'Barlow Condensed',
             sans-serif;
+
           font-size: 25px;
           font-weight: 900;
+
           color: #101820;
         }
 
@@ -2317,26 +2350,35 @@ export default function CategoryPage() {
           font-family:
             'Barlow Condensed',
             sans-serif;
+
           font-size: 9px;
           font-weight: 800;
+
           letter-spacing: 1px;
+
           color: #7c858e;
         }
 
         .sports-grid {
           display: grid;
+
           grid-template-columns:
             repeat(
               3,
               minmax(0,1fr)
             );
+
           gap: 13px;
         }
 
         .sports-match-card {
           background: #fff;
-          border: 1px solid #e2e6ea;
+
+          border:
+            1px solid #e2e6ea;
+
           padding: 14px;
+
           transition:
             transform .25s ease,
             box-shadow .25s ease;
@@ -2344,6 +2386,7 @@ export default function CategoryPage() {
 
         .sports-match-card:hover {
           transform: translateY(-3px);
+
           box-shadow:
             0 10px 25px
             rgba(0,0,0,.08);
@@ -2351,9 +2394,14 @@ export default function CategoryPage() {
 
         .sports-match-top {
           display: flex;
+
           align-items: center;
-          justify-content: space-between;
+
+          justify-content:
+            space-between;
+
           gap: 8px;
+
           margin-bottom: 13px;
         }
 
@@ -2361,10 +2409,14 @@ export default function CategoryPage() {
           font-family:
             'Barlow Condensed',
             sans-serif;
+
           font-size: 9px;
           font-weight: 800;
+
           color: #777;
+
           text-transform: uppercase;
+
           letter-spacing: .7px;
         }
 
@@ -2372,13 +2424,16 @@ export default function CategoryPage() {
           font-family:
             'Barlow Condensed',
             sans-serif;
+
           font-size: 9px;
           font-weight: 800;
+
           color: #78818b;
         }
 
         .sports-status.live {
           color: #d32f2f;
+
           animation:
             sportsTextPulse
             1.5s infinite;
@@ -2394,18 +2449,26 @@ export default function CategoryPage() {
 
         .sports-teams {
           display: grid;
+
           grid-template-columns:
             1fr 55px 1fr;
+
           align-items: center;
+
           gap: 8px;
         }
 
         .sports-team {
           display: flex;
+
           flex-direction: column;
+
           align-items: center;
+
           text-align: center;
+
           gap: 6px;
+
           min-width: 0;
         }
 
@@ -2413,13 +2476,16 @@ export default function CategoryPage() {
         .sports-team-placeholder {
           width: 30px;
           height: 30px;
+
           object-fit: contain;
         }
 
         .sports-team-placeholder {
           display: flex;
+
           align-items: center;
           justify-content: center;
+
           font-size: 22px;
         }
 
@@ -2427,99 +2493,131 @@ export default function CategoryPage() {
           font-family:
             'Barlow Condensed',
             sans-serif;
+
           font-size: 12px;
           font-weight: 700;
+
           color: #20262c;
+
           line-height: 1.15;
+
           overflow: hidden;
+
           text-overflow: ellipsis;
+
           display: -webkit-box;
+
           -webkit-line-clamp: 2;
+
           -webkit-box-orient: vertical;
         }
 
         .sports-score {
           display: flex;
+
           justify-content: center;
+
           align-items: center;
+
+          gap: 5px;
+
           font-family:
             'Barlow Condensed',
             sans-serif;
+
+          font-size: 20px;
+
           color: #101820;
         }
 
-        .sports-score-number {
-          display: flex;
-          justify-content: center;
-          align-items: center;
-          gap: 5px;
-          font-size: 20px;
-        }
-
-        .sports-time {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-        }
-
         .sports-vs {
+          display: block;
+
           font-size: 11px;
           font-weight: 800;
+
           color: #0d3b6e;
+
+          text-align: center;
         }
 
         .sports-score small {
           display: block;
+
           margin-top: 2px;
+
           font-size: 8px;
+
           color: #9299a1;
+
           text-align: center;
         }
 
         .sports-match-footer {
-          border-top: 1px solid #edf0f2;
+          border-top:
+            1px solid #edf0f2;
+
           margin-top: 13px;
+
           padding-top: 9px;
+
           display: flex;
-          justify-content: space-between;
+
+          justify-content:
+            space-between;
+
           gap: 10px;
+
           color: #9299a1;
+
           font-family:
             'Barlow Condensed',
             sans-serif;
+
           font-size: 9px;
         }
 
         .sports-panel {
           background: #fff;
-          border: 1px solid #e2e6ea;
+
+          border:
+            1px solid #e2e6ea;
+
           position: relative;
+
           z-index: 2;
         }
 
         .sports-panel-title {
           padding: 18px;
-          border-bottom: 1px solid #edf0f2;
+
+          border-bottom:
+            1px solid #edf0f2;
         }
 
         .sports-panel-title span {
           font-family:
             'Barlow Condensed',
             sans-serif;
+
           font-size: 9px;
           font-weight: 800;
+
           color: #0d3b6e;
+
           letter-spacing: 1.5px;
         }
 
         .sports-panel-title h3 {
           margin: 4px 0 0;
+
           font-family:
             'Barlow Condensed',
             sans-serif;
+
           font-size: 21px;
           font-weight: 900;
+
           color: #101820;
         }
 
@@ -2530,31 +2628,45 @@ export default function CategoryPage() {
 
         .sports-table {
           width: 100%;
+
           border-collapse: collapse;
+
           min-width: 650px;
         }
 
         .sports-table th {
           background: #f5f7f8;
+
           color: #727b84;
+
           font-family:
             'Barlow Condensed',
             sans-serif;
+
           font-size: 10px;
           font-weight: 800;
+
           letter-spacing: .7px;
+
           padding: 11px 10px;
+
           text-align: center;
         }
 
         .sports-table td {
           padding: 11px 10px;
-          border-top: 1px solid #edf0f2;
+
+          border-top:
+            1px solid #edf0f2;
+
           color: #333b42;
+
           font-family:
             'Barlow Condensed',
             sans-serif;
+
           font-size: 12px;
+
           text-align: center;
         }
 
@@ -2564,13 +2676,16 @@ export default function CategoryPage() {
 
         .sports-table-team {
           display: flex;
+
           align-items: center;
+
           gap: 9px;
         }
 
         .sports-table-team img {
           width: 25px;
           height: 25px;
+
           object-fit: contain;
         }
 
@@ -2580,40 +2695,58 @@ export default function CategoryPage() {
 
         .sports-scorers-grid {
           display: grid;
+
           grid-template-columns:
             repeat(
               2,
               minmax(0,1fr)
             );
+
           gap: 10px;
+
           padding: 16px;
         }
 
         .sports-scorer-card {
           display: grid;
+
           grid-template-columns:
-            28px 48px
+            28px
+            48px
             minmax(0,1fr)
             60px;
+
           align-items: center;
+
           gap: 10px;
+
           background: #f8f9fa;
-          border: 1px solid #e9ecef;
+
+          border:
+            1px solid #e9ecef;
+
           padding: 10px;
         }
 
         .sports-scorer-rank {
           width: 28px;
           height: 28px;
+
           border-radius: 50%;
+
           display: flex;
+
           align-items: center;
           justify-content: center;
+
           background: #0d3b6e;
+
           color: #fff;
+
           font-family:
             'Barlow Condensed',
             sans-serif;
+
           font-size: 11px;
           font-weight: 900;
         }
@@ -2622,22 +2755,30 @@ export default function CategoryPage() {
         .sports-scorer-placeholder {
           width: 48px;
           height: 48px;
+
           border-radius: 50%;
+
           object-fit: cover;
         }
 
         .sports-scorer-placeholder {
           display: flex;
+
           align-items: center;
           justify-content: center;
+
           background: #e9edf1;
+
           font-size: 23px;
         }
 
         .sports-scorer-info {
           min-width: 0;
+
           display: flex;
+
           flex-direction: column;
+
           gap: 3px;
         }
 
@@ -2645,10 +2786,14 @@ export default function CategoryPage() {
           font-family:
             'Barlow Condensed',
             sans-serif;
+
           font-size: 14px;
           color: #182027;
+
           overflow: hidden;
+
           text-overflow: ellipsis;
+
           white-space: nowrap;
         }
 
@@ -2656,16 +2801,22 @@ export default function CategoryPage() {
           font-family:
             'Barlow Condensed',
             sans-serif;
+
           font-size: 10px;
           color: #858e97;
+
           overflow: hidden;
+
           text-overflow: ellipsis;
+
           white-space: nowrap;
         }
 
         .sports-scorer-stats {
           text-align: right;
+
           display: flex;
+
           flex-direction: column;
         }
 
@@ -2673,8 +2824,10 @@ export default function CategoryPage() {
           font-family:
             'Barlow Condensed',
             sans-serif;
+
           font-size: 22px;
           font-weight: 900;
+
           color: #0d3b6e;
         }
 
@@ -2682,8 +2835,10 @@ export default function CategoryPage() {
           font-family:
             'Barlow Condensed',
             sans-serif;
+
           font-size: 8px;
           font-weight: 800;
+
           color: #737d86;
         }
 
@@ -2691,20 +2846,30 @@ export default function CategoryPage() {
           font-family:
             'Barlow Condensed',
             sans-serif;
+
           font-size: 8px;
+
           color: #999;
         }
 
         .sports-empty {
           min-height: 130px;
+
           display: flex;
+
           align-items: center;
           justify-content: center;
+
           flex-direction: column;
+
           gap: 6px;
+
           color: #89919a;
+
           text-align: center;
+
           font-size: 13px;
+
           padding: 25px;
         }
 
@@ -2717,19 +2882,17 @@ export default function CategoryPage() {
           padding: 20px 0;
         }
 
-        .sports-error-box {
-          background: #fff8f8;
-          border: 1px solid #f0d5d5;
-          margin-bottom: 18px;
-        }
-
         .sports-cache-info {
           margin-top: 16px;
+
           color: #8a929b;
+
           font-size: 10px;
+
           font-family:
             'Barlow Condensed',
             sans-serif;
+
           letter-spacing: .6px;
         }
 
@@ -2738,11 +2901,41 @@ export default function CategoryPage() {
           margin-right: 5px;
         }
 
+        .sports-error {
+          display: flex;
+
+          flex-direction: column;
+
+          gap: 4px;
+
+          margin-bottom: 15px;
+
+          padding: 12px 14px;
+
+          background: #fff7ed;
+
+          border:
+            1px solid #fed7aa;
+
+          color: #9a3412;
+
+          font-family:
+            'Barlow Condensed',
+            sans-serif;
+
+          font-size: 12px;
+        }
+
         .category-error {
           padding: 25px;
+
           background: #fff5f5;
-          border: 1px solid #f1d1d1;
+
+          border:
+            1px solid #f1d1d1;
+
           color: #9b2c2c;
+
           margin-bottom: 25px;
         }
 
@@ -2779,6 +2972,7 @@ export default function CategoryPage() {
 
           .cat-watermark {
             font-size: 90px;
+
             right: -10px;
             top: -10px;
           }
@@ -2824,6 +3018,7 @@ export default function CategoryPage() {
           .cat-featured-title {
             font-size:
               1.2rem !important;
+
             line-height:
               1.2 !important;
           }
@@ -2831,6 +3026,7 @@ export default function CategoryPage() {
           .cat-card-grid {
             grid-template-columns:
               1fr !important;
+
             gap: 16px !important;
           }
 
@@ -2857,9 +3053,11 @@ export default function CategoryPage() {
 
           .sports-scorer-card {
             grid-template-columns:
-              25px 42px
+              25px
+              42px
               minmax(0,1fr)
               50px;
+
             gap: 7px;
           }
 
@@ -2880,10 +3078,7 @@ export default function CategoryPage() {
       <div className="cat-header-wrap">
 
         <div className="cat-watermark">
-          {decodedCategory.substring(
-            0,
-            8
-          )}
+          {normalizedCategory.substring(0, 8)}
         </div>
 
         <div
@@ -2915,8 +3110,7 @@ export default function CategoryPage() {
               style={{
                 color:
                   'rgba(255,255,255,.5)',
-                textDecoration:
-                  'none'
+                textDecoration: 'none'
               }}
             >
               Home
@@ -2930,7 +3124,7 @@ export default function CategoryPage() {
                   'rgba(255,255,255,.8)'
               }}
             >
-              {decodedCategory}
+              {normalizedCategory}
             </span>
 
           </div>
@@ -2949,7 +3143,7 @@ export default function CategoryPage() {
             }}
           >
 
-            {decodedCategory}
+            {normalizedCategory}
 
             <span
               style={{
@@ -2992,7 +3186,7 @@ export default function CategoryPage() {
                   'rgba(255,255,255,.1)'
               }}
             >
-              {decodedCategory}
+              {normalizedCategory}
             </span>
 
             <Link
@@ -3008,8 +3202,7 @@ export default function CategoryPage() {
                   'rgba(255,255,255,.55)',
                 padding:
                   '12px 18px',
-                textDecoration:
-                  'none'
+                textDecoration: 'none'
               }}
             >
               All Stories
@@ -3032,13 +3225,13 @@ export default function CategoryPage() {
           height={110}
         />
 
-        {/* SPORTS */}
+        {/* =================================================
+            SPORT
+        ================================================= */}
 
         {isSport && (
           <SportsUpdates />
         )}
-
-        {/* ERROR */}
 
         {error && (
           <div className="category-error">
@@ -3046,11 +3239,11 @@ export default function CategoryPage() {
           </div>
         )}
 
-        {/* MAIN */}
-
         <div className="cat-main-grid">
 
-          {/* STORIES */}
+          {/* =================================================
+              STORIES
+          ================================================= */}
 
           <div>
 
@@ -3063,7 +3256,7 @@ export default function CategoryPage() {
               <EmptyState
                 icon="📰"
                 title={
-                  `No ${decodedCategory} stories yet`
+                  `No ${normalizedCategory} stories yet`
                 }
                 message={
                   'Check back soon for the latest updates.'
@@ -3073,8 +3266,6 @@ export default function CategoryPage() {
             ) : (
 
               <>
-
-                {/* FEATURED */}
 
                 <Link
                   to={`/story/${
@@ -3093,15 +3284,9 @@ export default function CategoryPage() {
                       'Featured story'
                     }
                     loading="eager"
-                    onError={event => {
-
-                      event.currentTarget.onerror =
-                        null;
-
-                      event.currentTarget.src =
-                        '/placeholder.jpg';
-
-                    }}
+                    onError={
+                      handleImageError
+                    }
                     style={{
                       width: '100%',
                       height: '100%',
@@ -3113,8 +3298,7 @@ export default function CategoryPage() {
                   <div
                     className="cat-featured-overlay"
                     style={{
-                      position:
-                        'absolute',
+                      position: 'absolute',
                       bottom: 0,
                       left: 0,
                       right: 0,
@@ -3127,8 +3311,7 @@ export default function CategoryPage() {
 
                     <div
                       style={{
-                        background:
-                          accent,
+                        background: accent,
                         display:
                           'inline-block',
                         padding:
@@ -3139,12 +3322,11 @@ export default function CategoryPage() {
                         fontSize: 10,
                         letterSpacing: 2,
                         color: '#fff',
-                        marginBottom:
-                          10
+                        marginBottom: 10
                       }}
                     >
                       {stories[0]?.category ||
-                        decodedCategory}
+                        normalizedCategory}
                     </div>
 
                     <h2
@@ -3167,8 +3349,6 @@ export default function CategoryPage() {
 
                 </Link>
 
-                {/* STORY GRID */}
-
                 <div className="cat-card-grid">
 
                   {stories
@@ -3189,12 +3369,8 @@ export default function CategoryPage() {
 
                 <Pagination
                   page={page}
-                  totalPages={
-                    totalPages
-                  }
-                  onChange={
-                    setPage
-                  }
+                  totalPages={totalPages}
+                  onChange={setPage}
                 />
 
               </>
@@ -3203,7 +3379,9 @@ export default function CategoryPage() {
 
           </div>
 
-          {/* SIDEBAR */}
+          {/* =================================================
+              SIDEBAR
+          ================================================= */}
 
           <aside>
 
@@ -3211,8 +3389,7 @@ export default function CategoryPage() {
 
               <div
                 style={{
-                  background:
-                    '#fff',
+                  background: '#fff',
                   border:
                     '1px solid #e8e4d8',
                   padding: 20,
@@ -3236,29 +3413,22 @@ export default function CategoryPage() {
                         i
                       }
                       story={p}
-                      rank={
-                        i + 1
-                      }
+                      rank={i + 1}
                     />
 
                   )
                 )}
 
-                {popular.length ===
-                  0 && (
+                {popular.length === 0 && (
 
                   <p
                     style={{
-                      color:
-                        '#bbb',
-                      fontStyle:
-                        'italic',
-                      fontSize:
-                        13
+                      color: '#bbb',
+                      fontStyle: 'italic',
+                      fontSize: 13
                     }}
                   >
-                    No popular
-                    stories yet.
+                    No popular stories yet.
                   </p>
 
                 )}
@@ -3280,4 +3450,3 @@ export default function CategoryPage() {
     </PublicLayout>
   );
 }
-
