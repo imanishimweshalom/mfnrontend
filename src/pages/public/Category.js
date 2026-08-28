@@ -84,9 +84,14 @@ const SPORTS_LEAGUES = [
    SPORTS CACHE
 ========================================================= */
 
-const SPORTS_STORAGE_KEY = 'mfn_sports_dashboard_v3';
-const SPORTS_STORAGE_TIME_KEY = 'mfn_sports_dashboard_timestamp_v3';
-const SPORTS_CACHE_DURATION = 30 * 60 * 1000;
+const SPORTS_STORAGE_KEY =
+  'mfn_sports_dashboard_v3';
+
+const SPORTS_STORAGE_TIME_KEY =
+  'mfn_sports_dashboard_timestamp_v3';
+
+const SPORTS_CACHE_DURATION =
+  30 * 60 * 1000;
 
 /* =========================================================
    DATE HELPERS
@@ -94,12 +99,19 @@ const SPORTS_CACHE_DURATION = 30 * 60 * 1000;
 
 const getDateString = (date = new Date()) => {
   const d = new Date(date);
-  return d.toISOString().split('T')[0];
+
+  return d
+    .toISOString()
+    .split('T')[0];
 };
 
 const getDateOffset = days => {
   const d = new Date();
-  d.setDate(d.getDate() + days);
+
+  d.setDate(
+    d.getDate() + days
+  );
+
   return getDateString(d);
 };
 
@@ -107,10 +119,13 @@ const formatMatchTime = date => {
   if (!date) return '';
 
   try {
-    return new Date(date).toLocaleTimeString([], {
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+    return new Date(date).toLocaleTimeString(
+      [],
+      {
+        hour: '2-digit',
+        minute: '2-digit'
+      }
+    );
   } catch {
     return '';
   }
@@ -120,37 +135,59 @@ const formatShortDate = date => {
   if (!date) return '';
 
   try {
-    return new Date(date).toLocaleDateString([], {
-      day: '2-digit',
-      month: 'short'
-    });
+    return new Date(date).toLocaleDateString(
+      [],
+      {
+        day: '2-digit',
+        month: 'short'
+      }
+    );
   } catch {
     return '';
   }
 };
 
 const getMatchStatus = fixture => {
-  const status = fixture?.fixture?.status;
+  const status =
+    fixture?.fixture?.status;
 
   if (!status) return '';
 
-  if (['FT', 'AET', 'PEN'].includes(status.short)) {
+  if (
+    ['FT', 'AET', 'PEN'].includes(
+      status.short
+    )
+  ) {
     return 'FULL TIME';
   }
 
   if (
-    ['LIVE', '1H', '2H', 'ET', 'BT', 'P', 'HT'].includes(
-      status.short
-    )
+    [
+      'LIVE',
+      '1H',
+      '2H',
+      'ET',
+      'BT',
+      'P',
+      'HT'
+    ].includes(status.short)
   ) {
     return 'LIVE';
   }
 
-  if (['NS', 'TBD'].includes(status.short)) {
+  if (
+    ['NS', 'TBD'].includes(
+      status.short
+    )
+  ) {
     return 'UPCOMING';
   }
 
-  return status.long || status.short || '';
+  return (
+    status.long ||
+    status.short ||
+    ''
+  );
 };
 
 const getSeason = () => {
@@ -161,7 +198,9 @@ const getSeason = () => {
     August-December => current year
     January-July => previous year
   */
-  const month = now.getMonth() + 1;
+
+  const month =
+    now.getMonth() + 1;
 
   return month >= 8
     ? now.getFullYear()
@@ -172,84 +211,112 @@ const getSeason = () => {
    API HELPERS
 ========================================================= */
 
-const fetchSportsFixtures = async leagueId => {
-  const response = await api.get('/sports/fixtures', {
-    params: {
-      league: leagueId,
-      season: getSeason(),
-      from: getDateOffset(-2),
-      to: getDateOffset(10)
+const fetchSportsFixtures =
+  async leagueId => {
+    const response =
+      await api.get(
+        '/sports/fixtures',
+        {
+          params: {
+            league: leagueId,
+            season: getSeason(),
+            from: getDateOffset(-2),
+            to: getDateOffset(10)
+          }
+        }
+      );
+
+    return (
+      response?.data?.response ||
+      []
+    );
+  };
+
+const fetchSportsStandings =
+  async leagueId => {
+    const response =
+      await api.get(
+        '/sports/standings',
+        {
+          params: {
+            league: leagueId,
+            season: getSeason()
+          }
+        }
+      );
+
+    const raw =
+      response?.data?.response;
+
+    if (Array.isArray(raw)) {
+      return raw;
     }
-  });
 
-  return response?.data?.response || [];
-};
-
-const fetchSportsStandings = async leagueId => {
-  const response = await api.get('/sports/standings', {
-    params: {
-      league: leagueId,
-      season: getSeason()
+    if (
+      Array.isArray(
+        raw?.league?.standings?.[0]
+      )
+    ) {
+      return raw.league.standings[0];
     }
-  });
 
-  const raw = response?.data?.response;
-
-  if (Array.isArray(raw)) {
-    return raw;
-  }
-
-  if (
-    Array.isArray(
-      raw?.league?.standings?.[0]
-    )
-  ) {
-    return raw.league.standings[0];
-  }
-
-  if (
-    Array.isArray(
-      raw?.standings?.[0]
-    )
-  ) {
-    return raw.standings[0];
-  }
-
-  if (
-    Array.isArray(
-      response?.data?.standings
-    )
-  ) {
-    return response.data.standings;
-  }
-
-  return [];
-};
-
-const fetchSportsTopScorers = async leagueId => {
-  const response = await api.get('/sports/topscorers', {
-    params: {
-      league: leagueId,
-      season: getSeason()
+    if (
+      Array.isArray(
+        raw?.standings?.[0]
+      )
+    ) {
+      return raw.standings[0];
     }
-  });
 
-  const raw = response?.data?.response;
+    if (
+      Array.isArray(
+        response?.data?.standings
+      )
+    ) {
+      return response.data.standings;
+    }
 
-  if (Array.isArray(raw)) {
-    return raw;
-  }
+    return [];
+  };
 
-  if (Array.isArray(response?.data?.topScorers)) {
-    return response.data.topScorers;
-  }
+const fetchSportsTopScorers =
+  async leagueId => {
+    const response =
+      await api.get(
+        '/sports/topscorers',
+        {
+          params: {
+            league: leagueId,
+            season: getSeason()
+          }
+        }
+      );
 
-  if (Array.isArray(response?.data?.scorers)) {
-    return response.data.scorers;
-  }
+    const raw =
+      response?.data?.response;
 
-  return [];
-};
+    if (Array.isArray(raw)) {
+      return raw;
+    }
+
+    if (
+      Array.isArray(
+        response?.data?.topScorers
+      )
+    ) {
+      return response.data.topScorers;
+    }
+
+    if (
+      Array.isArray(
+        response?.data?.scorers
+      )
+    ) {
+      return response.data.scorers;
+    }
+
+    return [];
+  };
 
 /* =========================================================
    MATCH CARD
@@ -259,14 +326,23 @@ function SportMatchCard({
   fixture,
   league
 }) {
-  const home = fixture?.teams?.home;
-  const away = fixture?.teams?.away;
-  const goals = fixture?.goals;
+  const home =
+    fixture?.teams?.home;
 
-  const status = getMatchStatus(fixture);
+  const away =
+    fixture?.teams?.away;
 
-  const isLive = status === 'LIVE';
-  const isFinished = status === 'FULL TIME';
+  const goals =
+    fixture?.goals;
+
+  const status =
+    getMatchStatus(fixture);
+
+  const isLive =
+    status === 'LIVE';
+
+  const isFinished =
+    status === 'FULL TIME';
 
   return (
     <div className="sports-match-card">
@@ -274,7 +350,8 @@ function SportMatchCard({
       <div className="sports-match-top">
 
         <div className="sports-league-name">
-          {league?.short || 'Football'}
+          {league?.short ||
+            'Football'}
         </div>
 
         <div
@@ -296,10 +373,14 @@ function SportMatchCard({
           {home?.logo ? (
             <img
               src={home.logo}
-              alt={home?.name || 'Home team'}
+              alt={
+                home?.name ||
+                'Home team'
+              }
               loading="lazy"
               onError={e => {
-                e.currentTarget.style.display = 'none';
+                e.currentTarget.style.display =
+                  'none';
               }}
             />
           ) : (
@@ -309,14 +390,16 @@ function SportMatchCard({
           )}
 
           <span>
-            {home?.name || 'Home'}
+            {home?.name ||
+              'Home'}
           </span>
 
         </div>
 
         <div className="sports-score">
 
-          {isFinished || isLive ? (
+          {isFinished ||
+          isLive ? (
             <>
               <strong>
                 {goals?.home ?? 0}
@@ -353,10 +436,14 @@ function SportMatchCard({
           {away?.logo ? (
             <img
               src={away.logo}
-              alt={away?.name || 'Away team'}
+              alt={
+                away?.name ||
+                'Away team'
+              }
               loading="lazy"
               onError={e => {
-                e.currentTarget.style.display = 'none';
+                e.currentTarget.style.display =
+                  'none';
               }}
             />
           ) : (
@@ -366,7 +453,8 @@ function SportMatchCard({
           )}
 
           <span>
-            {away?.name || 'Away'}
+            {away?.name ||
+              'Away'}
           </span>
 
         </div>
@@ -402,7 +490,6 @@ function SportsStandings({
   rows,
   league
 }) {
-
   if (!rows?.length) {
     return (
       <div className="sports-empty">
@@ -416,8 +503,10 @@ function SportsStandings({
         </strong>
 
         <span>
-          No table data is available for{' '}
-          {league?.short || 'this league'}.
+          No table data is available
+          for{' '}
+          {league?.short ||
+            'this league'}.
         </span>
 
       </div>
@@ -436,7 +525,8 @@ function SportsStandings({
           </span>
 
           <h3>
-            {league?.name || 'Standings'}
+            {league?.name ||
+              'Standings'}
           </h3>
 
         </div>
@@ -466,115 +556,137 @@ function SportsStandings({
 
             {rows
               .slice(0, 20)
-              .map((row, index) => {
+              .map(
+                (row, index) => {
+                  const team =
+                    row?.team || {};
 
-                const team =
-                  row?.team || {};
+                  const rank =
+                    row?.rank ??
+                    row?.position ??
+                    index + 1;
 
-                const rank =
-                  row?.rank ??
-                  row?.position ??
-                  index + 1;
+                  const played =
+                    row?.all?.played ??
+                    row?.played ??
+                    0;
 
-                const played =
-                  row?.all?.played ??
-                  row?.played ??
-                  0;
+                  const wins =
+                    row?.all?.win ??
+                    row?.wins ??
+                    0;
 
-                const wins =
-                  row?.all?.win ??
-                  row?.wins ??
-                  0;
+                  const draws =
+                    row?.all?.draw ??
+                    row?.draws ??
+                    0;
 
-                const draws =
-                  row?.all?.draw ??
-                  row?.draws ??
-                  0;
+                  const losses =
+                    row?.all?.lose ??
+                    row?.losses ??
+                    0;
 
-                const losses =
-                  row?.all?.lose ??
-                  row?.losses ??
-                  0;
+                  /*
+                    FIX:
+                    Do not mix nullable values
+                    with arithmetic directly.
+                  */
 
-                const goalDifference =
-                  row?.goalsDiff ??
-                  row?.goalDifference ??
-                  row?.goals?.for -
+                  const goalsFor =
+                    row?.goals?.for ??
+                    0;
+
+                  const goalsAgainst =
                     row?.goals?.against ??
-                  0;
+                    0;
 
-                const points =
-                  row?.points ??
-                  row?.pts ??
-                  0;
+                  const goalDifference =
+                    row?.goalsDiff ??
+                    row?.goalDifference ??
+                    (
+                      goalsFor -
+                      goalsAgainst
+                    );
 
-                return (
-                  <tr
-                    key={
-                      team?.id ||
-                      `${league?.key}-${index}`
-                    }
-                  >
+                  const points =
+                    row?.points ??
+                    row?.pts ??
+                    0;
 
-                    <td>
-                      {rank}
-                    </td>
+                  return (
+                    <tr
+                      key={
+                        team?.id ||
+                        `${league?.key}-${index}`
+                      }
+                    >
 
-                    <td>
+                      <td>
+                        {rank}
+                      </td>
 
-                      <div className="sports-table-team">
+                      <td>
 
-                        {team?.logo ? (
-                          <img
-                            src={team.logo}
-                            alt={
-                              team.name ||
-                              'Team'
-                            }
-                            loading="lazy"
-                          />
-                        ) : (
-                          <span>⚽</span>
-                        )}
+                        <div className="sports-table-team">
 
+                          {team?.logo ? (
+                            <img
+                              src={team.logo}
+                              alt={
+                                team.name ||
+                                'Team'
+                              }
+                              loading="lazy"
+                              onError={e => {
+                                e.currentTarget.style.display =
+                                  'none';
+                              }}
+                            />
+                          ) : (
+                            <span>
+                              ⚽
+                            </span>
+                          )}
+
+                          <strong>
+                            {team?.name ||
+                              'Unknown team'}
+                          </strong>
+
+                        </div>
+
+                      </td>
+
+                      <td>
+                        {played}
+                      </td>
+
+                      <td>
+                        {wins}
+                      </td>
+
+                      <td>
+                        {draws}
+                      </td>
+
+                      <td>
+                        {losses}
+                      </td>
+
+                      <td>
+                        {goalDifference}
+                      </td>
+
+                      <td>
                         <strong>
-                          {team?.name ||
-                            'Unknown team'}
+                          {points}
                         </strong>
+                      </td>
 
-                      </div>
-
-                    </td>
-
-                    <td>
-                      {played}
-                    </td>
-
-                    <td>
-                      {wins}
-                    </td>
-
-                    <td>
-                      {draws}
-                    </td>
-
-                    <td>
-                      {losses}
-                    </td>
-
-                    <td>
-                      {goalDifference}
-                    </td>
-
-                    <td>
-                      <strong>
-                        {points}
-                      </strong>
-                    </td>
-
-                  </tr>
-                );
-              })}
+                    </tr>
+                  );
+                }
+              )}
 
           </tbody>
 
@@ -594,7 +706,6 @@ function SportsTopScorers({
   players,
   league
 }) {
-
   if (!players?.length) {
     return (
       <div className="sports-empty">
@@ -608,8 +719,10 @@ function SportsTopScorers({
         </strong>
 
         <span>
-          No scorer data is available for{' '}
-          {league?.short || 'this league'}.
+          No scorer data is available
+          for{' '}
+          {league?.short ||
+            'this league'}.
         </span>
 
       </div>
@@ -628,7 +741,8 @@ function SportsTopScorers({
           </span>
 
           <h3>
-            {league?.name || 'Top Scorers'}
+            {league?.name ||
+              'Top Scorers'}
           </h3>
 
         </div>
@@ -639,90 +753,96 @@ function SportsTopScorers({
 
         {players
           .slice(0, 10)
-          .map((item, index) => {
+          .map(
+            (item, index) => {
+              const player =
+                item?.player || {};
 
-            const player =
-              item?.player || {};
+              const stats =
+                item?.statistics?.[0] ||
+                {};
 
-            const stats =
-              item?.statistics?.[0] || {};
+              const team =
+                stats?.team ||
+                item?.team ||
+                {};
 
-            const team =
-              stats?.team ||
-              item?.team ||
-              {};
+              const goals =
+                stats?.goals?.total ??
+                item?.goals ??
+                0;
 
-            const goals =
-              stats?.goals?.total ??
-              item?.goals ??
-              0;
+              const assists =
+                stats?.goals?.assists ??
+                item?.assists ??
+                0;
 
-            const assists =
-              stats?.goals?.assists ??
-              item?.assists ??
-              0;
+              return (
+                <div
+                  className="sports-scorer-card"
+                  key={
+                    player?.id ||
+                    `${league?.key}-${index}`
+                  }
+                >
 
-            return (
-              <div
-                className="sports-scorer-card"
-                key={
-                  player?.id ||
-                  `${league?.key}-${index}`
-                }
-              >
-
-                <div className="sports-scorer-rank">
-                  {index + 1}
-                </div>
-
-                {player?.photo ? (
-                  <img
-                    src={player.photo}
-                    alt={
-                      player?.name ||
-                      'Player'
-                    }
-                    loading="lazy"
-                  />
-                ) : (
-                  <div className="sports-scorer-placeholder">
-                    👤
+                  <div className="sports-scorer-rank">
+                    {index + 1}
                   </div>
-                )}
 
-                <div className="sports-scorer-info">
+                  {player?.photo ? (
+                    <img
+                      src={player.photo}
+                      alt={
+                        player?.name ||
+                        'Player'
+                      }
+                      loading="lazy"
+                      onError={e => {
+                        e.currentTarget.style.display =
+                          'none';
+                      }}
+                    />
+                  ) : (
+                    <div className="sports-scorer-placeholder">
+                      👤
+                    </div>
+                  )}
 
-                  <strong>
-                    {player?.name ||
-                      'Unknown player'}
-                  </strong>
+                  <div className="sports-scorer-info">
 
-                  <span>
-                    {team?.name ||
-                      'Unknown team'}
-                  </span>
+                    <strong>
+                      {player?.name ||
+                        'Unknown player'}
+                    </strong>
+
+                    <span>
+                      {team?.name ||
+                        'Unknown team'}
+                    </span>
+
+                  </div>
+
+                  <div className="sports-scorer-stats">
+
+                    <strong>
+                      {goals}
+                    </strong>
+
+                    <span>
+                      GOALS
+                    </span>
+
+                    <small>
+                      {assists} assists
+                    </small>
+
+                  </div>
 
                 </div>
-
-                <div className="sports-scorer-stats">
-
-                  <strong>
-                    {goals}
-                  </strong>
-
-                  <span>
-                    GOALS
-                  </span>
-
-                  <small>
-                    {assists} assists
-                  </small>
-
-                </div>
-
-              </div>
-            );
-          })}
+              );
+            }
+          )}
 
       </div>
 
@@ -735,7 +855,6 @@ function SportsTopScorers({
 ========================================================= */
 
 function SportsUpdates() {
-
   const [sports, setSports] =
     useState([]);
 
@@ -762,16 +881,13 @@ function SportsUpdates() {
   ======================================================= */
 
   useEffect(() => {
-
     let cancelled = false;
 
     const loadSports = async () => {
-
       setSportsLoading(true);
       setSportsError('');
 
       try {
-
         const stored =
           localStorage.getItem(
             SPORTS_STORAGE_KEY
@@ -782,7 +898,8 @@ function SportsUpdates() {
             SPORTS_STORAGE_TIME_KEY
           );
 
-        const now = Date.now();
+        const now =
+          Date.now();
 
         /* ---------------------------------------------------
            CACHE
@@ -795,9 +912,7 @@ function SportsUpdates() {
             Number(storedTime) <
             SPORTS_CACHE_DURATION
         ) {
-
           try {
-
             const parsed =
               JSON.parse(stored);
 
@@ -805,7 +920,6 @@ function SportsUpdates() {
               parsed &&
               !cancelled
             ) {
-
               setSports(
                 Array.isArray(
                   parsed.sports
@@ -824,13 +938,13 @@ function SportsUpdates() {
                   {}
               );
 
-              setSportsLoading(false);
+              setSportsLoading(
+                false
+              );
 
               return;
             }
-
           } catch (cacheError) {
-
             console.warn(
               'Invalid sports cache:',
               cacheError
@@ -855,12 +969,9 @@ function SportsUpdates() {
         const nextTopScorers = {};
 
         await Promise.all(
-
           SPORTS_LEAGUES.map(
             async league => {
-
               try {
-
                 const [
                   fixtures,
                   table,
@@ -886,11 +997,9 @@ function SportsUpdates() {
                   Array.isArray(
                     fixtures
                   )
-                {
-
+                ) {
                   fixtures.forEach(
                     fixture => {
-
                       allFixtures.push({
                         ...fixture,
 
@@ -903,10 +1012,8 @@ function SportsUpdates() {
                         mfnLeagueShort:
                           league.short
                       });
-
                     }
                   );
-
                 }
 
                 /* STANDINGS */
@@ -923,12 +1030,12 @@ function SportsUpdates() {
                 nextTopScorers[
                   league.key
                 ] =
-                  Array.isArray(scorers)
+                  Array.isArray(
+                    scorers
+                  )
                     ? scorers
                     : [];
-
               } catch (error) {
-
                 console.error(
                   `Sports data failed for ${league.name}:`,
                   error
@@ -942,7 +1049,6 @@ function SportsUpdates() {
                   league.key
                 ] = [];
               }
-
             }
           )
         );
@@ -956,12 +1062,9 @@ function SportsUpdates() {
             new Map(
               allFixtures.map(
                 fixture => [
-
                   fixture?.fixture?.id ||
                     `${fixture?.mfnLeagueKey}-${fixture?.fixture?.date}-${fixture?.teams?.home?.id}-${fixture?.teams?.away?.id}`,
-
                   fixture
-
                 ]
               )
             ).values()
@@ -986,7 +1089,6 @@ function SportsUpdates() {
         --------------------------------------------------- */
 
         const payload = {
-
           sports:
             uniqueFixtures,
 
@@ -995,32 +1097,30 @@ function SportsUpdates() {
 
           topScorers:
             nextTopScorers
-
         };
 
         try {
-
           localStorage.setItem(
             SPORTS_STORAGE_KEY,
-            JSON.stringify(payload)
+            JSON.stringify(
+              payload
+            )
           );
 
           localStorage.setItem(
             SPORTS_STORAGE_TIME_KEY,
-            String(Date.now())
+            String(
+              Date.now()
+            )
           );
-
         } catch (storageError) {
-
           console.warn(
             'Unable to save sports cache:',
             storageError
           );
-
         }
 
         if (!cancelled) {
-
           setSports(
             uniqueFixtures
           );
@@ -1032,44 +1132,32 @@ function SportsUpdates() {
           setTopScorers(
             nextTopScorers
           );
-
         }
-
       } catch (error) {
-
         console.error(
           'Sports dashboard error:',
           error
         );
 
         if (!cancelled) {
-
           setSportsError(
             'Unable to load sports data from the server.'
           );
-
         }
-
       } finally {
-
         if (!cancelled) {
-
-          setSportsLoading(false);
-
+          setSportsLoading(
+            false
+          );
         }
-
       }
-
     };
 
     loadSports();
 
     return () => {
-
       cancelled = true;
-
     };
-
   }, []);
 
   /* =======================================================
@@ -1079,7 +1167,8 @@ function SportsUpdates() {
   const selectedLeague =
     SPORTS_LEAGUES.find(
       league =>
-        league.key === activeLeague
+        league.key ===
+        activeLeague
     );
 
   /* =======================================================
@@ -1150,7 +1239,6 @@ function SportsUpdates() {
   ======================================================= */
 
   if (sportsLoading) {
-
     return (
       <section className="sports-section">
 
@@ -1262,10 +1350,13 @@ function SportsUpdates() {
               : ''
           }
           onClick={() => {
+            setActiveLeague(
+              'ALL'
+            );
 
-            setActiveLeague('ALL');
-            setActiveTab('matches');
-
+            setActiveTab(
+              'matches'
+            );
           }}
         >
           ALL
@@ -1273,7 +1364,6 @@ function SportsUpdates() {
 
         {SPORTS_LEAGUES.map(
           league => (
-
             <button
               type="button"
               key={league.key}
@@ -1284,7 +1374,6 @@ function SportsUpdates() {
                   : ''
               }
               onClick={() => {
-
                 setActiveLeague(
                   league.key
                 );
@@ -1292,12 +1381,10 @@ function SportsUpdates() {
                 setActiveTab(
                   'matches'
                 );
-
               }}
             >
               {league.short}
             </button>
-
           )
         )}
 
@@ -1310,7 +1397,8 @@ function SportsUpdates() {
         <button
           type="button"
           className={
-            activeTab === 'matches'
+            activeTab ===
+            'matches'
               ? 'active'
               : ''
           }
@@ -1367,7 +1455,8 @@ function SportsUpdates() {
 
       {/* MATCHES */}
 
-      {activeTab === 'matches' && (
+      {activeTab ===
+        'matches' && (
         <>
 
           <div className="sports-summary-grid">
@@ -1376,6 +1465,7 @@ function SportsUpdates() {
               <strong>
                 {liveMatches.length}
               </strong>
+
               <span>
                 LIVE
               </span>
@@ -1385,6 +1475,7 @@ function SportsUpdates() {
               <strong>
                 {upcomingMatches.length}
               </strong>
+
               <span>
                 UPCOMING
               </span>
@@ -1394,6 +1485,7 @@ function SportsUpdates() {
               <strong>
                 {finishedMatches.length}
               </strong>
+
               <span>
                 FINISHED
               </span>
@@ -1403,6 +1495,7 @@ function SportsUpdates() {
               <strong>
                 {filteredSports.length}
               </strong>
+
               <span>
                 TOTAL
               </span>
@@ -1410,8 +1503,8 @@ function SportsUpdates() {
 
           </div>
 
-          {filteredSports.length === 0 ? (
-
+          {filteredSports.length ===
+          0 ? (
             <div className="sports-empty">
 
               <div className="sports-empty-icon">
@@ -1429,9 +1522,7 @@ function SportsUpdates() {
               </span>
 
             </div>
-
           ) : (
-
             <div className="sports-grid">
 
               {filteredSports
@@ -1441,24 +1532,23 @@ function SportsUpdates() {
                     fixture,
                     index
                   ) => (
-
                     <SportMatchCard
                       key={
                         fixture?.fixture?.id ||
                         `${fixture?.mfnLeagueKey}-${index}`
                       }
-                      fixture={fixture}
+                      fixture={
+                        fixture
+                      }
                       league={{
                         short:
-                          fixture.mfnLeagueShort
+                          fixture?.mfnLeagueShort
                       }}
                     />
-
                   )
                 )}
 
             </div>
-
           )}
 
         </>
@@ -1466,9 +1556,9 @@ function SportsUpdates() {
 
       {/* STANDINGS */}
 
-      {activeTab === 'standings' &&
+      {activeTab ===
+        'standings' &&
         selectedLeague && (
-
           <SportsStandings
             rows={
               displayedStandings
@@ -1477,14 +1567,13 @@ function SportsUpdates() {
               selectedLeague
             }
           />
-
         )}
 
       {/* TOP SCORERS */}
 
-      {activeTab === 'scorers' &&
+      {activeTab ===
+        'scorers' &&
         selectedLeague && (
-
           <SportsTopScorers
             players={
               displayedScorers
@@ -1493,7 +1582,6 @@ function SportsUpdates() {
               selectedLeague
             }
           />
-
         )}
 
       {/* CACHE */}
@@ -1519,7 +1607,6 @@ function SportsUpdates() {
 ========================================================= */
 
 export default function CategoryPage() {
-
   const { category } =
     useParams();
 
@@ -1529,19 +1616,13 @@ export default function CategoryPage() {
 
   const decodedCategory =
     (() => {
-
       try {
-
         return decodeURIComponent(
           category || ''
         );
-
       } catch {
-
         return category || '';
-
       }
-
     })();
 
   /* =======================================================
@@ -1611,9 +1692,7 @@ export default function CategoryPage() {
   ======================================================= */
 
   useEffect(() => {
-
     setPage(1);
-
   }, [
     decodedCategory
   ]);
@@ -1623,44 +1702,40 @@ export default function CategoryPage() {
   ======================================================= */
 
   useEffect(() => {
-
     let cancelled = false;
 
     const load = async () => {
-
       setLoading(true);
       setError('');
 
       try {
-
         const [
           sRes,
           pRes,
           aRes
-        ] = await Promise.all([
+        ] =
+          await Promise.all([
+            storiesAPI.getAll({
+              category:
+                decodedCategory,
 
-          storiesAPI.getAll({
-            category:
-              decodedCategory,
+              page,
 
-            page,
+              limit: 12,
 
-            limit: 12,
+              status:
+                'published'
+            }),
 
-            status:
-              'published'
-          }),
+            storiesAPI.getPopular({
+              category:
+                decodedCategory,
 
-          storiesAPI.getPopular({
-            category:
-              decodedCategory,
+              limit: 5
+            }),
 
-            limit: 5
-          }),
-
-          adsAPI.getAll()
-
-        ]);
+            adsAPI.getAll()
+          ]);
 
         if (cancelled) {
           return;
@@ -1710,7 +1785,6 @@ export default function CategoryPage() {
           pRes?.data;
 
         setPopular(
-
           Array.isArray(
             popularData
           )
@@ -1720,7 +1794,6 @@ export default function CategoryPage() {
               )
               ? popularData.stories
               : []
-
         );
 
         /* =================================================
@@ -1731,7 +1804,6 @@ export default function CategoryPage() {
           aRes?.data;
 
         setAds(
-
           Array.isArray(
             adsData
           )
@@ -1741,18 +1813,14 @@ export default function CategoryPage() {
               )
               ? adsData.ads
               : []
-
         );
-
       } catch (err) {
-
         console.error(
           'Category loading error:',
           err
         );
 
         if (!cancelled) {
-
           setStories([]);
           setPopular([]);
           setAds([]);
@@ -1763,27 +1831,19 @@ export default function CategoryPage() {
           setError(
             'Unable to load this category right now.'
           );
-
         }
-
       } finally {
-
         if (!cancelled) {
           setLoading(false);
         }
-
       }
-
     };
 
     load();
 
     return () => {
-
       cancelled = true;
-
     };
-
   }, [
     decodedCategory,
     page
@@ -3451,11 +3511,13 @@ export default function CategoryPage() {
                 "'Barlow Condensed',sans-serif",
               fontSize: 11,
               letterSpacing: 2,
-              textTransform: 'uppercase',
+              textTransform:
+                'uppercase',
               color:
                 'rgba(255,255,255,.5)',
               display: 'flex',
-              alignItems: 'center',
+              alignItems:
+                'center',
               gap: 8,
               marginBottom: 14
             }}
@@ -3498,7 +3560,8 @@ export default function CategoryPage() {
               fontSize:
                 'clamp(1.6rem,4vw,3rem)',
               letterSpacing: 4,
-              textTransform: 'uppercase',
+              textTransform:
+                'uppercase',
               color: '#fff',
               marginBottom: 16
             }}
@@ -3539,7 +3602,8 @@ export default function CategoryPage() {
                 fontSize: 11,
                 fontWeight: 700,
                 letterSpacing: 1.5,
-                textTransform: 'uppercase',
+                textTransform:
+                  'uppercase',
                 color: '#fff',
                 padding:
                   '12px 18px',
@@ -3560,7 +3624,8 @@ export default function CategoryPage() {
                 fontSize: 11,
                 fontWeight: 700,
                 letterSpacing: 1.5,
-                textTransform: 'uppercase',
+                textTransform:
+                  'uppercase',
                 color:
                   'rgba(255,255,255,.55)',
                 padding:
@@ -3622,23 +3687,19 @@ export default function CategoryPage() {
           <div>
 
             {loading ? (
-
               <Spinner />
-
-            ) : stories.length === 0 ? (
-
+            ) : stories.length ===
+              0 ? (
               <EmptyState
                 icon="📰"
                 title={
                   `No ${decodedCategory} stories yet`
                 }
                 message={
-                  "Check back soon for the latest updates."
+                  'Check back soon for the latest updates.'
                 }
               />
-
             ) : (
-
               <>
 
                 {/* FEATURED */}
@@ -3661,18 +3722,17 @@ export default function CategoryPage() {
                     }
                     loading="eager"
                     onError={e => {
-
                       e.currentTarget.onerror =
                         null;
 
                       e.currentTarget.src =
                         '/placeholder.jpg';
-
                     }}
                     style={{
                       width: '100%',
                       height: '100%',
-                      objectFit: 'cover',
+                      objectFit:
+                        'cover',
                       opacity: .75
                     }}
                   />
@@ -3723,7 +3783,8 @@ export default function CategoryPage() {
                           'clamp(1.3rem,2.5vw,2rem)',
                         fontWeight: 900,
                         color: '#fff',
-                        lineHeight: 1.15,
+                        lineHeight:
+                          1.15,
                         margin: 0
                       }}
                     >
@@ -3740,17 +3801,19 @@ export default function CategoryPage() {
 
                   {stories
                     .slice(1)
-                    .map(story => (
-
-                      <GridCard
-                        key={
-                          story?._id ||
-                          story?.id
-                        }
-                        story={story}
-                      />
-
-                    ))}
+                    .map(
+                      story => (
+                        <GridCard
+                          key={
+                            story?._id ||
+                            story?.id
+                          }
+                          story={
+                            story
+                          }
+                        />
+                      )
+                    )}
 
                 </div>
 
@@ -3761,11 +3824,12 @@ export default function CategoryPage() {
                   totalPages={
                     totalPages
                   }
-                  onChange={setPage}
+                  onChange={
+                    setPage
+                  }
                 />
 
               </>
-
             )}
 
           </div>
@@ -3799,7 +3863,6 @@ export default function CategoryPage() {
 
                 {popular.map(
                   (p, i) => (
-
                     <PopularItem
                       key={
                         p?._id ||
@@ -3809,12 +3872,11 @@ export default function CategoryPage() {
                       story={p}
                       rank={i + 1}
                     />
-
                   )
                 )}
 
-                {popular.length === 0 && (
-
+                {popular.length ===
+                  0 && (
                   <p
                     style={{
                       color:
@@ -3828,7 +3890,6 @@ export default function CategoryPage() {
                     No popular
                     stories yet.
                   </p>
-
                 )}
 
               </div>
