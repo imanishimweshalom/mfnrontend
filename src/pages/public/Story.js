@@ -1,10 +1,8 @@
-
 import React, {
   useState,
   useEffect,
   useMemo
 } from 'react';
-
 import {
   useParams,
   Link
@@ -36,84 +34,152 @@ import {
 const PLACEHOLDER =
   "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='800' height='450'%3E%3Crect width='800' height='450' fill='%23e8e4d8'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='sans-serif' font-size='18' fill='%23bbb'%3ENo Image%3C/text%3E%3C/svg%3E";
 
-
 /* =============================================================
-   TRANSLATION CONFIGURATION
+   TRANSLATION LANGUAGES
 ============================================================= */
 
-const TRANSLATION_API =
-  'https://api.mymemory.translated.net/get';
-
-const TRANSLATION_LANGUAGES = {
-  original: {
-    code: 'en',
-    label: 'English',
-    flag: '🇬🇧'
-  },
-
-  rw: {
+const TRANSLATION_LANGUAGES = [
+  {
     code: 'rw',
     label: 'Kinyarwanda',
     flag: '🇷🇼'
   },
-
-  sw: {
+  {
     code: 'sw',
     label: 'Kiswahili',
     flag: '🇹🇿'
   },
-
-  fr: {
+  {
+    code: 'en',
+    label: 'English',
+    flag: '🇬🇧'
+  },
+  {
     code: 'fr',
     label: 'Français',
     flag: '🇫🇷'
   }
-};
+];
 
+/*
+  MyMemory Translation API
+
+  No API key required for the basic endpoint.
+*/
+
+const MYMEMORY_API =
+  'https://api.mymemory.translated.net/get';
 
 /* =============================================================
-   HTML → TEXT
+   LANGUAGE DETECTION
 ============================================================= */
 
-const stripHtml = (html = '') => {
-  if (!html) return '';
+const detectStoryLanguage = (story) => {
+  const language =
+    story?.language ||
+    story?.lang ||
+    story?.source_language ||
+    story?.sourceLanguage ||
+    'en';
 
-  if (typeof document === 'undefined') {
-    return String(html)
-      .replace(/<[^>]*>/g, ' ')
+  const value =
+    String(language)
+      .trim()
+      .toLowerCase();
+
+  const map = {
+    rw: 'rw',
+    kin: 'rw',
+    kinyarwanda: 'rw',
+
+    sw: 'sw',
+    swa: 'sw',
+    kiswahili: 'sw',
+    swahili: 'sw',
+
+    en: 'en',
+    eng: 'en',
+    english: 'en',
+
+    fr: 'fr',
+    fra: 'fr',
+    fre: 'fr',
+    french: 'fr',
+    français: 'fr',
+    francais: 'fr'
+  };
+
+  return map[value] || 'en';
+};
+
+/* =============================================================
+   SPLIT TEXT
+============================================================= */
+
+const splitTextForTranslation = (
+  text,
+  maxLength = 450
+) => {
+  if (!text) return [];
+
+  const normalized =
+    String(text)
       .replace(/\s+/g, ' ')
       .trim();
+
+  if (!normalized) {
+    return [];
   }
 
-  const temp =
-    document.createElement('div');
+  const words =
+    normalized.split(' ');
 
-  temp.innerHTML = html;
+  const chunks = [];
 
-  return (
-    temp.textContent ||
-    temp.innerText ||
-    ''
-  ).trim();
+  let current = '';
+
+  for (const word of words) {
+    const next =
+      current.length > 0
+        ? `${current} ${word}`
+        : word;
+
+    if (
+      next.length >
+      maxLength
+    ) {
+      if (current) {
+        chunks.push(current);
+      }
+
+      current = word;
+    } else {
+      current = next;
+    }
+  }
+
+  if (current) {
+    chunks.push(current);
+  }
+
+  return chunks;
 };
 
-
 /* =============================================================
-   TRANSLATION API
+   TRANSLATE ONE CHUNK
 ============================================================= */
 
-const translateText = async (
+const translateChunk = async (
   text,
-  sourceLanguage,
-  targetLanguage
+  source,
+  target
 ) => {
-  if (!text || !text.trim()) {
+  if (!text) {
     return '';
   }
 
   if (
-    sourceLanguage ===
-    targetLanguage
+    source === target
   ) {
     return text;
   }
@@ -122,12 +188,19 @@ const translateText = async (
     new URLSearchParams({
       q: text,
       langpair:
-        `${sourceLanguage}|${targetLanguage}`
+        `${source}|${target}`
     });
 
   const response =
     await fetch(
-      `${TRANSLATION_API}?${params.toString()}`
+      `${MYMEMORY_API}?${params.toString()}`,
+      {
+        method: 'GET',
+        headers: {
+          Accept:
+            'application/json'
+        }
+      }
     );
 
   if (!response.ok) {
@@ -139,117 +212,242 @@ const translateText = async (
   const data =
     await response.json();
 
+  const translated =
+    data?.responseData
+      ?.translatedText ||
+    data?.translatedText ||
+    data?.data
+      ?.translatedText;
+
   if (
-    data?.responseStatus &&
-    Number(data.responseStatus) !== 200
+    !translated ||
+    typeof translated !==
+      'string'
   ) {
     throw new Error(
-      data?.responseDetails ||
-      'Translation failed'
+      'Translation API returned no translated text'
     );
   }
 
-  return (
-    data?.responseData
-      ?.translatedText ||
-    text
-  );
+  return translated;
 };
 
-
 /* =============================================================
-   TRANSLATE LONG STORY
+   TRANSLATE NORMAL TEXT
 ============================================================= */
 
-const translateLongText = async (
+const translateText = async (
   text,
-  sourceLanguage,
-  targetLanguage
+  source,
+  target
 ) => {
-  if (!text) return '';
+  if (!text) {
+    return '';
+  }
 
   if (
-    sourceLanguage ===
-    targetLanguage
+    source === target
   ) {
     return text;
   }
 
-  /*
-    MyMemory has request-size limitations.
-    Split long stories into chunks.
-  */
-
-  const MAX_LENGTH = 3500;
-
-  if (text.length <= MAX_LENGTH) {
-    return translateText(
-      text,
-      sourceLanguage,
-      targetLanguage
+  const chunks =
+    splitTextForTranslation(
+      text
     );
+
+  if (!chunks.length) {
+    return '';
   }
 
-  const paragraphs =
-    text
-      .split(/\n+/)
-      .filter(Boolean);
-
-  const translatedParts = [];
-
-  let currentChunk = '';
+  const results = [];
 
   for (
-    const paragraph of paragraphs
+    const chunk of chunks
   ) {
-    const nextChunk =
-      currentChunk
-        ? `${currentChunk}\n${paragraph}`
-        : paragraph;
-
-    if (
-      nextChunk.length <=
-      MAX_LENGTH
-    ) {
-      currentChunk =
-        nextChunk;
-    } else {
-      if (currentChunk) {
-        const translated =
-          await translateText(
-            currentChunk,
-            sourceLanguage,
-            targetLanguage
-          );
-
-        translatedParts.push(
-          translated
-        );
-      }
-
-      currentChunk =
-        paragraph;
-    }
-  }
-
-  if (currentChunk) {
     const translated =
-      await translateText(
-        currentChunk,
-        sourceLanguage,
-        targetLanguage
+      await translateChunk(
+        chunk,
+        source,
+        target
       );
 
-    translatedParts.push(
+    results.push(
       translated
     );
   }
 
-  return translatedParts.join(
-    '\n\n'
-  );
+  return results.join(' ');
 };
 
+/* =============================================================
+   TRANSLATE HTML
+============================================================= */
+
+const translateHtml = async (
+  html,
+  source,
+  target
+) => {
+  if (!html) {
+    return '';
+  }
+
+  if (
+    source === target
+  ) {
+    return html;
+  }
+
+  /*
+    DOMParser is available in browser.
+  */
+
+  if (
+    typeof DOMParser ===
+      'undefined'
+  ) {
+    const plainText =
+      String(html)
+        .replace(
+          /<[^>]*>/g,
+          ' '
+        )
+        .replace(
+          /\s+/g,
+          ' '
+        )
+        .trim();
+
+    return translateText(
+      plainText,
+      source,
+      target
+    );
+  }
+
+  const parser =
+    new DOMParser();
+
+  const parsed =
+    parser.parseFromString(
+      `<div>${html}</div>`,
+      'text/html'
+    );
+
+  const root =
+    parsed.body
+      .firstElementChild;
+
+  if (!root) {
+    return html;
+  }
+
+  const walker =
+    parsed.createTreeWalker(
+      root,
+      NodeFilter.SHOW_TEXT
+    );
+
+  const textNodes = [];
+
+  let currentNode;
+
+  while (
+    (currentNode =
+      walker.nextNode())
+  ) {
+    const parent =
+      currentNode.parentElement;
+
+    if (!parent) {
+      continue;
+    }
+
+    const tag =
+      parent.tagName.toLowerCase();
+
+    /*
+      Don't translate code/script/style.
+    */
+
+    if (
+      [
+        'script',
+        'style',
+        'code',
+        'pre',
+        'svg'
+      ].includes(tag)
+    ) {
+      continue;
+    }
+
+    const value =
+      currentNode.nodeValue ||
+      '';
+
+    if (
+      value.trim()
+    ) {
+      textNodes.push(
+        currentNode
+      );
+    }
+  }
+
+  for (
+    const textNode of textNodes
+  ) {
+    const original =
+      textNode.nodeValue ||
+      '';
+
+    const leading =
+      original.match(
+        /^\s*/
+      )?.[0] || '';
+
+    const trailing =
+      original.match(
+        /\s*$/
+      )?.[0] || '';
+
+    const clean =
+      original.trim();
+
+    if (!clean) {
+      continue;
+    }
+
+    try {
+      const translated =
+        await translateText(
+          clean,
+          source,
+          target
+        );
+
+      textNode.nodeValue =
+        `${leading}${translated}${trailing}`;
+    } catch (error) {
+      /*
+        If one small section fails,
+        keep the original text.
+      */
+
+      console.error(
+        'Text translation failed:',
+        error
+      );
+
+      textNode.nodeValue =
+        original;
+    }
+  }
+
+  return root.innerHTML;
+};
 
 /* =============================================================
    AD CARD
@@ -262,7 +460,9 @@ const AdCard = React.memo(
     fluid = false,
     className = ''
   }) {
-    if (!ad) return null;
+    if (!ad) {
+      return null;
+    }
 
     const rawMedia =
       ad.image_url ||
@@ -277,9 +477,10 @@ const AdCard = React.memo(
       ad.banner_image ||
       ad.ad_image;
 
-    const media = rawMedia
-      ? imgUrl(rawMedia)
-      : null;
+    const media =
+      rawMedia
+        ? imgUrl(rawMedia)
+        : null;
 
     const isVideo =
       ad.type === 'video' ||
@@ -315,7 +516,8 @@ const AdCard = React.memo(
           height: fluid
             ? '100%'
             : height,
-          textDecoration: 'none',
+          textDecoration:
+            'none',
           background: '#fff',
           marginBottom:
             fluid ? 0 : 12,
@@ -335,8 +537,10 @@ const AdCard = React.memo(
               style={{
                 width: '100%',
                 height: '100%',
-                objectFit: 'cover',
-                display: 'block',
+                objectFit:
+                  'cover',
+                display:
+                  'block',
                 flex: 1
               }}
             />
@@ -355,8 +559,10 @@ const AdCard = React.memo(
               style={{
                 width: '100%',
                 height: '100%',
-                objectFit: 'cover',
-                display: 'block',
+                objectFit:
+                  'cover',
+                display:
+                  'block',
                 flex: 1
               }}
             />
@@ -381,7 +587,8 @@ const AdCard = React.memo(
               background:
                 '#f8f9fa',
               padding: 10,
-              textAlign: 'center'
+              textAlign:
+                'center'
             }}
           >
             <span
@@ -406,7 +613,8 @@ const AdCard = React.memo(
 
         <div
           style={{
-            padding: '4px 10px',
+            padding:
+              '4px 10px',
             fontFamily:
               "'Barlow Condensed', sans-serif",
             fontSize: 8,
@@ -427,15 +635,13 @@ const AdCard = React.memo(
   }
 );
 
-
 /* =============================================================
    STORY PAGE
 ============================================================= */
 
 export default function StoryPage() {
-
-  const { id } = useParams();
-
+  const { id } =
+    useParams();
 
   /* =============================================================
      STORY DATA
@@ -459,7 +665,6 @@ export default function StoryPage() {
   const [loading, setLoading] =
     useState(true);
 
-
   /* =============================================================
      COMMENT FORM
   ============================================================= */
@@ -482,7 +687,6 @@ export default function StoryPage() {
     setRefreshingComments
   ] = useState(false);
 
-
   /* =============================================================
      MODALS
   ============================================================= */
@@ -497,7 +701,6 @@ export default function StoryPage() {
     setShowShareMenu
   ] = useState(false);
 
-
   /* =============================================================
      ADS
   ============================================================= */
@@ -505,20 +708,22 @@ export default function StoryPage() {
   const [adIndex, setAdIndex] =
     useState(0);
 
-
   /* =============================================================
      REACTIONS
   ============================================================= */
 
-  const [reactions, setReactions] =
-    useState({
-      likes: 0,
-      dislikes: 0
-    });
+  const [
+    reactions,
+    setReactions
+  ] = useState({
+    likes: 0,
+    dislikes: 0
+  });
 
-  const [userReaction, setUserReaction] =
-    useState(null);
-
+  const [
+    userReaction,
+    setUserReaction
+  ] = useState(null);
 
   /* =============================================================
      TRANSLATION STATE
@@ -527,17 +732,12 @@ export default function StoryPage() {
   const [
     selectedLanguage,
     setSelectedLanguage
-  ] = useState('original');
+  ] = useState('en');
 
   const [
-    translatedTitle,
-    setTranslatedTitle
-  ] = useState('');
-
-  const [
-    translatedBody,
-    setTranslatedBody
-  ] = useState('');
+    translatedStory,
+    setTranslatedStory
+  ] = useState(null);
 
   const [
     translating,
@@ -550,430 +750,360 @@ export default function StoryPage() {
   ] = useState('');
 
   const [
+    showLanguageMenu,
+    setShowLanguageMenu
+  ] = useState(false);
+
+  const [
     translationCache,
     setTranslationCache
   ] = useState({});
-
 
   /* =============================================================
      LOAD STORY
   ============================================================= */
 
   useEffect(() => {
+    window.scrollTo(
+      0,
+      0
+    );
 
-    window.scrollTo(0, 0);
+    const load =
+      async () => {
+        setLoading(true);
 
-    const load = async () => {
+        try {
+          const [
+            sRes,
+            cRes,
+            pRes,
+            aRes
+          ] =
+            await Promise.all([
+              storiesAPI.getOne(id),
+              commentsAPI.getByStory(
+                id
+              ),
+              storiesAPI.getPopular({
+                limit: 5
+              }),
+              adsAPI.getAll()
+            ]);
 
-      setLoading(true);
+          const s =
+            sRes.data;
 
-      try {
+          setStory(s);
 
-        const [
-          sRes,
-          cRes,
-          pRes,
-          aRes
-        ] = await Promise.all([
+          setSelectedLanguage(
+            detectStoryLanguage(
+              s
+            )
+          );
 
-          storiesAPI.getOne(id),
-
-          commentsAPI.getByStory(id),
-
-          storiesAPI.getPopular({
-            limit: 5
-          }),
-
-          adsAPI.getAll()
-
-        ]);
-
-
-        /* STORY */
-
-        const s = sRes.data;
-
-        setStory(s);
-
-
-        /* REACTIONS */
-
-        setReactions({
-          likes: Number(
-            s.likes || 0
-          ),
-
-          dislikes: Number(
-            s.dislikes || 0
-          )
-        });
-
-
-        /* COMMENTS */
-
-        const rawComments =
-          cRes.data;
-
-        setComments(
-          Array.isArray(
-            rawComments
-          )
-            ? rawComments
-            : rawComments?.comments ||
-              rawComments?.data ||
-              []
-        );
-
-
-        /* POPULAR */
-
-        const rawPopular =
-          pRes.data;
-
-        setPopular(
-          Array.isArray(
-            rawPopular
-          )
-            ? rawPopular
-            : rawPopular?.stories ||
-              rawPopular?.data ||
-              []
-        );
-
-
-        /* ADS */
-
-        const rawAds =
-          aRes.data;
-
-        setAds(
-          Array.isArray(rawAds)
-            ? rawAds
-            : rawAds?.ads ||
-              rawAds?.data ||
-              rawAds?.items ||
-              []
-        );
-
-
-        /* RELATED STORIES */
-
-        const relRes =
-          await storiesAPI.getAll({
-            category:
-              s.category,
-
-            limit: 5,
-
-            status: 'published'
+          setTranslatedStory({
+            language:
+              detectStoryLanguage(
+                s
+              ),
+            title:
+              s.title || '',
+            description:
+              s.description ||
+              ''
           });
 
-        const relArr =
-          Array.isArray(
-            relRes.data
-          )
-            ? relRes.data
-            : relRes.data?.stories ||
-              relRes.data?.data ||
-              [];
+          setTranslationCache(
+            {}
+          );
 
-        setRelated(
-          relArr
-            .filter(
-              (r) =>
-                String(
-                  r._id || r.id
-                ) !==
-                String(id)
+          setReactions({
+            likes: Number(
+              s.likes || 0
+            ),
+            dislikes:
+              Number(
+                s.dislikes ||
+                  0
+              )
+          });
+
+          /* COMMENTS */
+
+          const rawComments =
+            cRes.data;
+
+          setComments(
+            Array.isArray(
+              rawComments
             )
-            .slice(0, 4)
-        );
+              ? rawComments
+              : rawComments
+                  ?.comments ||
+                rawComments?.data ||
+                []
+          );
 
-      } catch (error) {
+          /* POPULAR */
 
-        console.error(
-          'Story loading failed:',
-          error
-        );
+          const rawPopular =
+            pRes.data;
 
-      } finally {
+          setPopular(
+            Array.isArray(
+              rawPopular
+            )
+              ? rawPopular
+              : rawPopular
+                  ?.stories ||
+                rawPopular?.data ||
+                []
+          );
 
-        setLoading(false);
+          /* ADS */
 
-      }
-    };
+          const rawAds =
+            aRes.data;
+
+          setAds(
+            Array.isArray(
+              rawAds
+            )
+              ? rawAds
+              : rawAds?.ads ||
+                rawAds?.data ||
+                rawAds?.items ||
+                []
+          );
+
+          /* RELATED STORIES */
+
+          try {
+            const relRes =
+              await storiesAPI.getAll({
+                category:
+                  s.category,
+                limit: 5,
+                status:
+                  'published'
+              });
+
+            const relArr =
+              Array.isArray(
+                relRes.data
+              )
+                ? relRes.data
+                : relRes.data
+                    ?.stories ||
+                  relRes.data
+                    ?.data ||
+                  [];
+
+            setRelated(
+              relArr
+                .filter(
+                  (r) =>
+                    String(
+                      r._id ||
+                        r.id
+                    ) !==
+                    String(id)
+                )
+                .slice(0, 4)
+            );
+          } catch (error) {
+            console.error(
+              'Related stories failed:',
+              error
+            );
+
+            setRelated([]);
+          }
+        } catch (error) {
+          console.error(
+            'Story loading failed:',
+            error
+          );
+        } finally {
+          setLoading(false);
+        }
+      };
 
     load();
-
   }, [id]);
-
-
-  /* =============================================================
-     RESET TRANSLATION WHEN STORY CHANGES
-  ============================================================= */
-
-  useEffect(() => {
-
-    if (!story) return;
-
-    setSelectedLanguage(
-      'original'
-    );
-
-    setTranslatedTitle(
-      story.title || ''
-    );
-
-    setTranslatedBody(
-      stripHtml(
-        story.description || ''
-      )
-    );
-
-    setTranslationError('');
-
-    setTranslationCache({});
-
-  }, [story]);
-
 
   /* =============================================================
      TRANSLATE STORY
   ============================================================= */
 
-  useEffect(() => {
+  const handleTranslateStory =
+    async (
+      targetLanguage
+    ) => {
+      if (
+        !story ||
+        !targetLanguage
+      ) {
+        return;
+      }
 
-    if (!story) return;
-
-    const targetLanguage =
-      TRANSLATION_LANGUAGES[
-        selectedLanguage
-      ]?.code || 'en';
-
-    const sourceLanguage = 'en';
-
-
-    /* ORIGINAL */
-
-    if (
-      targetLanguage ===
-      sourceLanguage
-    ) {
-
-      setTranslatedTitle(
-        story.title || ''
+      setShowLanguageMenu(
+        false
       );
 
-      setTranslatedBody(
-        stripHtml(
-          story.description || ''
-        )
+      const sourceLanguage =
+        detectStoryLanguage(
+          story
+        );
+
+      setSelectedLanguage(
+        targetLanguage
       );
 
-      setTranslationError('');
+      setTranslationError(
+        ''
+      );
 
-      setTranslating(false);
+      /* SAME LANGUAGE */
 
-      return;
-    }
+      if (
+        sourceLanguage ===
+        targetLanguage
+      ) {
+        setTranslatedStory({
+          language:
+            targetLanguage,
+          title:
+            story.title || '',
+          description:
+            story.description ||
+            ''
+        });
 
+        return;
+      }
 
-    const storyId =
-      story._id || story.id;
+      /* CACHE */
 
-    const cacheKey =
-      `${storyId}_${targetLanguage}`;
-
-
-    /* CACHE */
-
-    if (
-      translationCache[
-        cacheKey
-      ]
-    ) {
-
-      setTranslatedTitle(
+      if (
         translationCache[
-          cacheKey
-        ].title
-      );
+          targetLanguage
+        ]
+      ) {
+        setTranslatedStory(
+          translationCache[
+            targetLanguage
+          ]
+        );
 
-      setTranslatedBody(
-        translationCache[
-          cacheKey
-        ].body
-      );
+        return;
+      }
 
-      setTranslationError('');
+      setTranslating(true);
 
-      setTranslating(false);
+      try {
+        /*
+          Translate title first.
+        */
 
-      return;
-    }
-
-
-    let cancelled = false;
-
-
-    const translateStory =
-      async () => {
-
-        setTranslating(true);
-
-        setTranslationError('');
-
-
-        try {
-
-          const originalTitle =
-            story.title || '';
-
-          const originalBody =
-            stripHtml(
-              story.description ||
-              ''
-            );
-
-
-          /*
-            Translate title and body.
-          */
-
-          const [
-            newTitle,
-            newBody
-          ] =
-            await Promise.all([
-
-              translateText(
-                originalTitle,
-                sourceLanguage,
-                targetLanguage
-              ),
-
-              translateLongText(
-                originalBody,
-                sourceLanguage,
-                targetLanguage
-              )
-
-            ]);
-
-
-          if (cancelled) return;
-
-
-          const finalTitle =
-            newTitle ||
-            originalTitle;
-
-          const finalBody =
-            newBody ||
-            originalBody;
-
-
-          setTranslatedTitle(
-            finalTitle
+        const translatedTitle =
+          await translateText(
+            story.title || '',
+            sourceLanguage,
+            targetLanguage
           );
 
-          setTranslatedBody(
-            finalBody
+        /*
+          Translate story description.
+        */
+
+        const translatedDescription =
+          await translateHtml(
+            story.description ||
+              '',
+            sourceLanguage,
+            targetLanguage
           );
 
+        const result = {
+          language:
+            targetLanguage,
 
-          /*
-            Save in cache.
-          */
+          title:
+            translatedTitle ||
+            story.title ||
+            '',
 
-          setTranslationCache(
-            (previous) => ({
-              ...previous,
+          description:
+            translatedDescription ||
+            story.description ||
+            ''
+        };
 
-              [cacheKey]: {
-                title:
-                  finalTitle,
+        setTranslatedStory(
+          result
+        );
 
-                body:
-                  finalBody
-              }
-            })
-          );
+        setTranslationCache(
+          previous => ({
+            ...previous,
+            [targetLanguage]:
+              result
+          })
+        );
+      } catch (error) {
+        console.error(
+          'Story translation failed:',
+          error
+        );
 
+        setTranslationError(
+          'Translation failed. Please try again.'
+        );
 
-        } catch (error) {
+        /*
+          Keep original story visible.
+        */
 
-          console.error(
-            'Story translation failed:',
-            error
-          );
+        setTranslatedStory({
+          language:
+            sourceLanguage,
 
+          title:
+            story.title || '',
 
-          if (!cancelled) {
-
-            setTranslationError(
-              'Translation failed. Please try again.'
-            );
-
-
-            setTranslatedTitle(
-              story.title || ''
-            );
-
-            setTranslatedBody(
-              stripHtml(
-                story.description ||
-                ''
-              )
-            );
-          }
-
-
-        } finally {
-
-          if (!cancelled) {
-            setTranslating(false);
-          }
-
-        }
-
-      };
-
-
-    translateStory();
-
-
-    return () => {
-      cancelled = true;
+          description:
+            story.description ||
+            ''
+        });
+      } finally {
+        setTranslating(
+          false
+        );
+      }
     };
-
-  }, [
-    story,
-    selectedLanguage,
-    translationCache
-  ]);
-
 
   /* =============================================================
      SHARE / SEO
   ============================================================= */
 
   const shareUrl =
-    typeof window !== 'undefined'
+    typeof window !==
+    'undefined'
       ? window.location.href
       : '';
 
-
   const shareTitle =
-    translatedTitle ||
+    translatedStory?.title ||
     story?.title ||
     'Mahoko Friday News';
 
-
   const cleanDescription =
     useMemo(() => {
-
-      if (!story) return '';
+      if (!story) {
+        return '';
+      }
 
       const raw =
         story.excerpt ||
@@ -995,28 +1125,27 @@ export default function StoryPage() {
           0,
           200
         );
-
     }, [story]);
-
 
   const shareText =
     cleanDescription ||
     `${shareTitle} - Mahoko Friday News`;
 
-
   const shareImage =
     story?.image
-      ? imgUrl(story.image)
+      ? imgUrl(
+          story.image
+        )
       : '';
-
 
   /* =============================================================
      SEO META
   ============================================================= */
 
   useEffect(() => {
-
-    if (!story) return;
+    if (!story) {
+      return;
+    }
 
     const image =
       shareImage;
@@ -1024,30 +1153,25 @@ export default function StoryPage() {
     const url =
       window.location.href;
 
-
     document.title =
-      translatedTitle ||
       story.title ||
       'Mahoko Friday News';
-
 
     const setMeta = (
       attribute,
       key,
       content
     ) => {
-
-      if (!content) return;
-
+      if (!content) {
+        return;
+      }
 
       let meta =
         document.head.querySelector(
           `meta[${attribute}="${key}"]`
         );
 
-
       if (!meta) {
-
         meta =
           document.createElement(
             'meta'
@@ -1063,19 +1187,16 @@ export default function StoryPage() {
         );
       }
 
-
       meta.setAttribute(
         'content',
         content
       );
-
     };
-
 
     setMeta(
       'property',
       'og:title',
-      shareTitle
+      story.title
     );
 
     setMeta(
@@ -1108,7 +1229,6 @@ export default function StoryPage() {
       'Mahoko Friday News'
     );
 
-
     setMeta(
       'name',
       'twitter:card',
@@ -1118,7 +1238,7 @@ export default function StoryPage() {
     setMeta(
       'name',
       'twitter:title',
-      shareTitle
+      story.title
     );
 
     setMeta(
@@ -1132,7 +1252,6 @@ export default function StoryPage() {
       'twitter:image',
       image
     );
-
 
     setMeta(
       'property',
@@ -1149,28 +1268,21 @@ export default function StoryPage() {
     setMeta(
       'property',
       'og:image:alt',
-      shareTitle
+      story.title
     );
 
-
     return () => {
-
       document.title =
         'Mahoko Friday News';
-
     };
-
   }, [
     story,
     shareImage,
-    shareTitle,
-    shareText,
-    translatedTitle
+    shareText
   ]);
 
-
   /* =============================================================
-     ADS
+     ACTIVE ADS
   ============================================================= */
 
   const activeAds =
@@ -1179,14 +1291,17 @@ export default function StoryPage() {
         (ads || []).filter(
           (a) =>
             a &&
-            a.is_active !== false &&
-            a.status !== 'inactive' &&
-            a.status !== 'paused' &&
-            a.status !== 'draft'
+            a.is_active !==
+              false &&
+            a.status !==
+              'inactive' &&
+            a.status !==
+              'paused' &&
+            a.status !==
+              'draft'
         ),
       [ads]
     );
-
 
   const heroAd =
     useMemo(
@@ -1195,146 +1310,138 @@ export default function StoryPage() {
           (a) =>
             String(
               a.position ||
-              a.placement ||
-              ''
+                a.placement ||
+                ''
             ).toLowerCase() ===
             'hero'
         ) || null,
       [activeAds]
     );
 
-
   const leftAds =
     useMemo(() => {
-
       const p =
         activeAds.filter(
           (a) =>
             String(
               a.position ||
-              a.placement ||
-              ''
+                a.placement ||
+                ''
             ).toLowerCase() ===
             'left'
         );
 
       return p.length > 0
         ? p.slice(0, 3)
-        : activeAds.slice(0, 3);
-
+        : activeAds.slice(
+            0,
+            3
+          );
     }, [activeAds]);
-
 
   const rightAds =
     useMemo(() => {
-
       const p =
         activeAds.filter(
           (a) =>
             String(
               a.position ||
-              a.placement ||
-              ''
+                a.placement ||
+                ''
             ).toLowerCase() ===
             'right'
         );
 
       return p.length > 0
         ? p.slice(0, 3)
-        : activeAds.slice(3, 6)
-            .length > 0
-        ? activeAds.slice(
-            3,
-            6
-          )
         : activeAds.slice(
-            0,
-            3
-          );
-
+              3,
+              6
+            ).length > 0
+          ? activeAds.slice(
+              3,
+              6
+            )
+          : activeAds.slice(
+              0,
+              3
+            );
     }, [activeAds]);
-
 
   const inlineAds =
     useMemo(() => {
-
       const p =
         activeAds.filter(
           (a) =>
             String(
               a.position ||
-              a.placement ||
-              ''
+                a.placement ||
+                ''
             ).toLowerCase() ===
             'inline'
         );
 
       return p.length > 0
         ? p.slice(0, 3)
-        : activeAds.slice(2, 5);
-
+        : activeAds.slice(
+            2,
+            5
+          );
     }, [activeAds]);
-
 
   const floatAds =
     useMemo(() => {
-
       const p =
         activeAds.filter(
           (a) =>
             String(
               a.position ||
-              a.placement ||
-              ''
+                a.placement ||
+                ''
             ).toLowerCase() ===
             'bottom'
         );
 
       return p.length > 0
         ? p.slice(0, 3)
-        : activeAds.slice(0, 3);
-
+        : activeAds.slice(
+            0,
+            3
+          );
     }, [activeAds]);
-
 
   /* =============================================================
      AD CAROUSEL
   ============================================================= */
 
   useEffect(() => {
-
     if (
-      floatAds.length === 0
+      floatAds.length ===
+      0
     ) {
       return;
     }
 
     const timer =
       setInterval(() => {
-
         setAdIndex(
-          (previous) =>
-            (
-              previous + 1
-            ) %
+          previous =>
+            (previous + 1) %
             floatAds.length
         );
-
       }, 8000);
 
-
     return () =>
-      clearInterval(timer);
-
+      clearInterval(
+        timer
+      );
   }, [floatAds]);
 
-
   /* =============================================================
-     MODAL BODY LOCK
+     MODAL BODY SCROLL
   ============================================================= */
 
   useEffect(() => {
-
     document.body.style.overflow =
       showCommentModal
         ? 'hidden'
@@ -1344,24 +1451,21 @@ export default function StoryPage() {
       document.body.style.overflow =
         '';
     };
-
-  }, [showCommentModal]);
-
+  }, [
+    showCommentModal
+  ]);
 
   /* =============================================================
-     ESCAPE KEY
+     ESCAPE
   ============================================================= */
 
   useEffect(() => {
-
     const handleKeyDown =
-      (event) => {
-
+      event => {
         if (
           event.key ===
           'Escape'
         ) {
-
           setShowCommentModal(
             false
           );
@@ -1370,43 +1474,40 @@ export default function StoryPage() {
             false
           );
 
+          setShowLanguageMenu(
+            false
+          );
         }
-
       };
-
 
     if (
       showCommentModal ||
-      showShareMenu
+      showShareMenu ||
+      showLanguageMenu
     ) {
-
       window.addEventListener(
         'keydown',
         handleKeyDown
       );
-
     }
-
 
     return () =>
       window.removeEventListener(
         'keydown',
         handleKeyDown
       );
-
   }, [
     showCommentModal,
-    showShareMenu
+    showShareMenu,
+    showLanguageMenu
   ]);
-
 
   /* =============================================================
      REACTIONS
   ============================================================= */
 
   const handleReact =
-    async (type) => {
-
+    async type => {
       if (
         !type ||
         userReaction ===
@@ -1415,80 +1516,62 @@ export default function StoryPage() {
         return;
       }
 
-
       const previousReaction =
         userReaction;
 
-
       setReactions(
-        (prev) => ({
-          ...prev,
-
+        previous => ({
+          ...previous,
           [type]:
-            (
-              prev[type] ||
-              0
-            ) + 1
+            (previous[
+              type
+            ] || 0) + 1
         })
       );
 
-
-      setUserReaction(type);
-
+      setUserReaction(
+        type
+      );
 
       try {
-
         const res =
           await storiesAPI.react(
             id,
             type
           );
 
-
         if (res?.data) {
-
           setReactions(
-            (prev) => ({
-              ...prev,
+            previous => ({
+              ...previous,
               ...res.data
             })
           );
-
         }
-
-
       } catch (error) {
-
         setReactions(
-          (prev) => ({
-            ...prev,
-
+          previous => ({
+            ...previous,
             [type]:
               Math.max(
                 0,
-                (
-                  prev[type] ||
-                  0
-                ) - 1
+                (previous[
+                  type
+                ] || 0) - 1
               )
           })
         );
-
 
         setUserReaction(
           previousReaction
         );
 
-
         console.error(
           'Reaction save failed:',
           error
         );
-
       }
-
     };
-
 
   /* =============================================================
      COPY LINK
@@ -1496,21 +1579,15 @@ export default function StoryPage() {
 
   const handleCopyLink =
     async () => {
-
       try {
-
         if (
           navigator.clipboard &&
           window.isSecureContext
         ) {
-
-          await navigator.clipboard
-            .writeText(
-              shareUrl
-            );
-
+          await navigator.clipboard.writeText(
+            shareUrl
+          );
         } else {
-
           const textarea =
             document.createElement(
               'textarea'
@@ -1530,7 +1607,6 @@ export default function StoryPage() {
           );
 
           textarea.focus();
-
           textarea.select();
 
           document.execCommand(
@@ -1540,45 +1616,38 @@ export default function StoryPage() {
           document.body.removeChild(
             textarea
           );
-
         }
-
 
         setCommentMsg(
           '🔗 Link copied successfully!'
         );
 
-
         setTimeout(
           () =>
-            setCommentMsg(''),
+            setCommentMsg(
+              ''
+            ),
           2500
         );
-
-
       } catch (error) {
-
         console.error(
           'Copy failed:',
           error
         );
 
-
         setCommentMsg(
           '❌ Failed to copy link.'
         );
 
-
         setTimeout(
           () =>
-            setCommentMsg(''),
+            setCommentMsg(
+              ''
+            ),
           3000
         );
-
       }
-
     };
-
 
   /* =============================================================
      NATIVE SHARE
@@ -1586,53 +1655,38 @@ export default function StoryPage() {
 
   const handleNativeShare =
     async () => {
-
       try {
-
         if (
           navigator.share &&
           typeof navigator.share ===
             'function'
         ) {
-
           await navigator.share({
             title:
               shareTitle,
-
             text:
               shareText,
-
             url:
               shareUrl
           });
-
         } else {
-
           await handleCopyLink();
-
         }
-
       } catch (error) {
-
         if (
           error?.name !==
           'AbortError'
         ) {
-
           console.error(
             'Native share failed:',
             error
           );
-
         }
-
       }
-
     };
 
-
   /* =============================================================
-     SHARE WINDOW
+     POPUP
   ============================================================= */
 
   const openShareWindow =
@@ -1640,11 +1694,11 @@ export default function StoryPage() {
       url,
       name
     ) => {
+      const width =
+        650;
 
-      const width = 650;
-
-      const height = 650;
-
+      const height =
+        650;
 
       const left =
         window.screenX +
@@ -1656,7 +1710,6 @@ export default function StoryPage() {
           ) / 2
         );
 
-
       const top =
         window.screenY +
         Math.max(
@@ -1667,7 +1720,6 @@ export default function StoryPage() {
           ) / 2
         );
 
-
       const popup =
         window.open(
           url,
@@ -1675,13 +1727,10 @@ export default function StoryPage() {
           `width=${width},height=${height},left=${left},top=${top},noopener,noreferrer`
         );
 
-
       if (popup) {
         popup.focus();
       }
-
     };
-
 
   /* =============================================================
      SOCIAL SHARE
@@ -1689,20 +1738,16 @@ export default function StoryPage() {
 
   const shareToFacebook =
     () => {
-
       openShareWindow(
         `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(
           shareUrl
         )}`,
         'facebook-share'
       );
-
     };
-
 
   const shareToX =
     () => {
-
       openShareWindow(
         `https://twitter.com/intent/tweet?url=${encodeURIComponent(
           shareUrl
@@ -1711,13 +1756,10 @@ export default function StoryPage() {
         )}`,
         'x-share'
       );
-
     };
-
 
   const shareToWhatsApp =
     () => {
-
       const message =
         `${shareTitle}\n\n${shareUrl}`;
 
@@ -1728,13 +1770,10 @@ export default function StoryPage() {
         '_blank',
         'noopener,noreferrer'
       );
-
     };
-
 
   const shareToTelegram =
     () => {
-
       window.open(
         `https://t.me/share/url?url=${encodeURIComponent(
           shareUrl
@@ -1744,73 +1783,56 @@ export default function StoryPage() {
         '_blank',
         'noopener,noreferrer'
       );
-
     };
-
 
   const shareToLinkedIn =
     () => {
-
       openShareWindow(
         `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(
           shareUrl
         )}`,
         'linkedin-share'
       );
-
     };
-
 
   const shareByEmail =
     () => {
-
       window.location.href =
         `mailto:?subject=${encodeURIComponent(
           shareTitle
         )}&body=${encodeURIComponent(
           `${shareTitle}\n\n${shareText}\n\n${shareUrl}`
         )}`;
-
     };
-
 
   const shareBySMS =
     () => {
-
       window.location.href =
         `sms:?body=${encodeURIComponent(
           `${shareTitle}\n\n${shareUrl}`
         )}`;
-
     };
-
 
   /* =============================================================
      COMMENTS
   ============================================================= */
 
   const handleComment =
-    async (event) => {
-
+    async event => {
       event.preventDefault();
 
       setSubmitting(true);
-
       setCommentMsg('');
 
-
       try {
-
         await commentsAPI.create({
           story_id: id,
           ...form
         });
 
-
         setCommentMsg(
           '✅ Comment submitted for review!'
         );
-
 
         setForm({
           name: '',
@@ -1818,14 +1840,11 @@ export default function StoryPage() {
           comment: ''
         });
 
-
         setRefreshingComments(
           true
         );
 
-
         try {
-
           const cRes =
             await commentsAPI.getByStory(
               id
@@ -1834,73 +1853,62 @@ export default function StoryPage() {
           const data =
             cRes.data;
 
-
           setComments(
-            Array.isArray(data)
+            Array.isArray(
+              data
+            )
               ? data
               : data?.comments ||
                 data?.data ||
                 []
           );
-
-
         } catch (error) {
-
           console.error(
             'Comments refresh failed:',
             error
           );
-
         } finally {
-
           setRefreshingComments(
             false
           );
-
         }
-
 
         setTimeout(
           () =>
-            setCommentMsg(''),
+            setCommentMsg(
+              ''
+            ),
           4000
         );
-
-
       } catch (error) {
-
         console.error(
           'Comment failed:',
           error
         );
 
-
         setCommentMsg(
           '❌ Error submitting. Please try again.'
         );
-
       } finally {
-
-        setSubmitting(false);
-
+        setSubmitting(
+          false
+        );
       }
-
     };
-
 
   /* =============================================================
      LOADING
   ============================================================= */
 
   if (loading) {
-
     return (
       <PublicLayout>
-
         <div
           style={{
-            minHeight: '60vh',
-            display: 'flex',
+            minHeight:
+              '60vh',
+            display:
+              'flex',
             alignItems:
               'center',
             justifyContent:
@@ -1909,53 +1917,59 @@ export default function StoryPage() {
         >
           <Spinner />
         </div>
-
       </PublicLayout>
     );
-
   }
 
-
   /* =============================================================
-     STORY NOT FOUND
+     EMPTY
   ============================================================= */
 
   if (!story) {
-
     return (
       <PublicLayout>
         <EmptyState />
       </PublicLayout>
     );
-
   }
 
-
   /* =============================================================
-     AUTHOR
+     STORY VARIABLES
   ============================================================= */
 
   const authorAvatar =
     story.author_avatar ||
     story.author_image;
 
+  const reactionButtons =
+    [
+      {
+        type: 'likes',
+        emoji: '👍'
+      },
+      {
+        type: 'dislikes',
+        emoji: '👎'
+      }
+    ];
 
-  /* =============================================================
-     REACTION BUTTONS
-  ============================================================= */
+  const currentTitle =
+    translatedStory?.title ||
+    story.title ||
+    '';
 
-  const reactionButtons = [
-    {
-      type: 'likes',
-      emoji: '👍'
-    },
+  const currentDescription =
+    translatedStory?.description ||
+    story.description ||
+    '';
 
-    {
-      type: 'dislikes',
-      emoji: '👎'
-    }
-  ];
-
+  const currentLanguage =
+    TRANSLATION_LANGUAGES.find(
+      language =>
+        language.code ===
+        selectedLanguage
+    ) ||
+    TRANSLATION_LANGUAGES[2];
 
   /* =============================================================
      RENDER
@@ -1963,7 +1977,6 @@ export default function StoryPage() {
 
   return (
     <PublicLayout>
-
       <style>{`
 
         @keyframes mhkFade {
@@ -1975,7 +1988,6 @@ export default function StoryPage() {
             opacity: 1;
           }
         }
-
 
         @keyframes mhkPop {
           from {
@@ -1995,7 +2007,6 @@ export default function StoryPage() {
           }
         }
 
-
         @keyframes mhkSpin {
           to {
             transform:
@@ -2003,30 +2014,25 @@ export default function StoryPage() {
           }
         }
 
-
         @keyframes mhkAdFade {
           from {
             opacity: 0;
-
             transform:
               translateY(10px);
           }
 
           to {
             opacity: 1;
-
             transform:
               translateY(0);
           }
         }
-
 
         .mhk-modal-bg {
           animation:
             mhkFade .25s ease-out
             forwards;
         }
-
 
         .mhk-modal-card {
           animation:
@@ -2035,323 +2041,255 @@ export default function StoryPage() {
             forwards;
         }
 
-
         .mhk-spin {
           display: inline-block;
-
           width: 14px;
           height: 14px;
-
           border:
             2px solid #fff;
-
           border-top-color:
             transparent;
-
           border-radius:
             50%;
-
           animation:
             mhkSpin .6s
             linear infinite;
         }
 
+        .mhk-translation-spin {
+          width: 15px;
+          height: 15px;
+          border:
+            2px solid #c0392b;
+          border-top-color:
+            transparent;
+          border-radius:
+            50%;
+          display:
+            inline-block;
+          animation:
+            mhkSpin .7s
+            linear infinite;
+        }
 
         .story-container {
           max-width:
             1200px;
-
           margin:
             0 auto;
-
           padding:
             24px 16px;
         }
 
-
         .story-grid {
           display:
             grid;
-
           grid-template-columns:
             1fr;
-
           gap:
             32px;
         }
-
 
         .story-left-col {
           display:
             none;
         }
 
-
         .story-main-col {
           min-width:
             0;
         }
-
 
         .story-right-col {
           display:
             none;
         }
 
-
         .story-body-text::first-letter {
           float:
             left;
-
           font-size:
             4em;
-
           line-height:
             .8;
-
           padding-right:
             10px;
-
           padding-top:
             6px;
-
           font-family:
             'Playfair Display',
             serif;
-
           color:
             #c0392b;
-
           font-weight:
             900;
         }
 
-
         .mhk-react-btn {
           transition:
             all .2s ease;
-
           user-select:
             none;
-
           display:
             inline-flex;
-
           align-items:
             center;
-
           gap:
             6px;
-
           padding:
             6px 12px;
-
           background:
             #f0ece0;
-
           border:
             1px solid #e8e4d8;
-
           border-radius:
             4px;
-
           cursor:
             pointer;
-
           font-family:
             'Barlow Condensed',
             sans-serif;
-
           font-weight:
             700;
-
           font-size:
             13px;
         }
 
-
         .mhk-react-btn:hover {
           background:
             #e8e4d8 !important;
-
           transform:
             translateY(-1px);
         }
-
 
         .mhk-react-btn:active {
           transform:
             scale(.96);
         }
 
-
         .mhk-react-btn.active {
           background:
             #fdf0ee !important;
-
           border-color:
             #c0392b !important;
-
           color:
             #c0392b !important;
         }
-
 
         .mhk-share-wrapper {
           position:
             relative;
         }
 
-
         .mhk-share-main-btn {
           transition:
             all .2s ease;
-
           white-space:
             nowrap;
         }
 
-
         .mhk-share-main-btn:hover {
           transform:
             translateY(-2px);
-
           box-shadow:
             0 6px 14px
             rgba(0,0,0,.18);
         }
-
 
         .mhk-share-main-btn:active {
           transform:
             scale(.96);
         }
 
-
         .mhk-share-dropdown {
           position:
             absolute;
-
           bottom:
             calc(100% + 8px);
-
           right:
             0;
-
           background:
             #fff;
-
           border:
             1px solid #e8e4d8;
-
           border-radius:
             8px;
-
           box-shadow:
             0 12px 30px
             rgba(0,0,0,.15);
-
           z-index:
             100;
-
           min-width:
             210px;
-
           padding:
             6px 0;
-
           animation:
             mhkFade .15s
             ease-out;
         }
 
-
         .mhk-share-option {
           width:
             100%;
-
           display:
             flex;
-
           align-items:
             center;
-
           gap:
             10px;
-
           padding:
             10px 16px;
-
           border:
             none;
-
           background:
             transparent;
-
           cursor:
             pointer;
-
           text-decoration:
             none;
-
           color:
             #0d0d0d;
-
           font-family:
             'Barlow Condensed',
             sans-serif;
-
           font-size:
             13px;
-
           font-weight:
             600;
-
           text-align:
             left;
-
           transition:
             background .15s;
         }
-
 
         .mhk-share-option:hover {
           background:
             #f5f3ec;
         }
 
-
         .mhk-ad-card {
           transition:
             transform .3s ease,
             box-shadow .3s ease;
-
           border:
             1px solid #e8e4d8;
-
           border-radius:
             6px;
-
           overflow:
             hidden;
-
           display:
             flex;
-
           flex-direction:
             column;
         }
 
-
         .mhk-ad-card:hover {
           transform:
             translateY(-3px);
-
           box-shadow:
             0 8px 18px
             rgba(0,0,0,.1);
         }
-
 
         .mhk-ad-card img,
         .mhk-ad-card video {
@@ -2359,121 +2297,102 @@ export default function StoryPage() {
             transform .4s ease;
         }
 
-
         .mhk-ad-card:hover img,
         .mhk-ad-card:hover video {
           transform:
             scale(1.04);
         }
 
-
         .mhk-float-fade {
           animation:
             mhkAdFade .5s ease;
-
           display:
             flex;
-
           gap:
             16px;
-
           width:
             100%;
-
           align-items:
             stretch;
         }
 
-
         .mhk-float-extra {
           display:
             none;
-
           flex:
             1;
         }
-
 
         .mhk-related-card {
           transition:
             transform .25s ease,
             box-shadow .25s ease;
-
           border-radius:
             6px;
-
           overflow:
             hidden;
-
           border:
             1px solid #e8e4d8;
-
           background:
             #fff;
         }
 
-
         .mhk-related-card:hover {
           transform:
             translateY(-4px);
-
           box-shadow:
             0 12px 24px
             rgba(0,0,0,.08);
         }
-
 
         .mhk-related-card img {
           transition:
             transform .4s ease;
         }
 
-
         .mhk-related-card:hover img {
           transform:
             scale(1.05);
         }
-
 
         .mhk-comment-row {
           transition:
             background .2s;
         }
 
-
         .mhk-comment-row:hover {
           background:
             rgba(240,236,224,.5);
         }
 
-
         .mhk-comment-form-grid {
           display:
             grid;
-
           grid-template-columns:
             1fr;
-
           gap:
             12px;
         }
 
-
-        .mhk-language-select {
+        .mhk-language-button {
           transition:
             all .2s ease;
         }
 
-
-        .mhk-language-select:focus {
-          border-color:
-            #c0392b !important;
-
-          box-shadow:
-            0 0 0 2px
-            rgba(192,57,43,.08);
+        .mhk-language-button:hover {
+          transform:
+            translateY(-1px);
         }
 
+        .mhk-language-option {
+          transition:
+            background .15s ease;
+        }
+
+        .mhk-language-option:hover {
+          background:
+            #f5f3ec !important;
+        }
 
         @media (min-width: 768px) {
 
@@ -2482,85 +2401,63 @@ export default function StoryPage() {
               1fr 300px;
           }
 
-
           .story-right-col {
             display:
               flex;
-
             flex-direction:
               column;
-
             gap:
               20px;
-
             position:
               sticky;
-
             top:
               80px;
-
             align-self:
               start;
-
             max-height:
               calc(100vh - 100px);
-
             overflow-y:
               auto;
           }
-
 
           .mhk-comment-form-grid {
             grid-template-columns:
               1fr 1fr;
           }
 
-
           .mhk-float-extra {
             display:
               flex;
           }
-
         }
-
 
         @media (min-width: 1080px) {
 
           .story-grid {
             grid-template-columns:
               200px 1fr 300px;
-
             gap:
               40px;
           }
 
-
           .story-left-col {
             display:
               flex;
-
             flex-direction:
               column;
-
             gap:
               16px;
-
             position:
               sticky;
-
             top:
               80px;
-
             align-self:
               start;
-
             max-height:
               calc(100vh - 100px);
-
             overflow-y:
               auto;
           }
-
 
           .story-left-col::-webkit-scrollbar,
           .story-right-col::-webkit-scrollbar {
@@ -2568,36 +2465,45 @@ export default function StoryPage() {
               4px;
           }
 
-
           .story-left-col::-webkit-scrollbar-thumb,
           .story-right-col::-webkit-scrollbar-thumb {
             background:
               #ddd;
-
             border-radius:
               2px;
           }
-
         }
-
 
         @media (max-width: 767px) {
 
           .mhk-share-dropdown {
             right:
               0;
-
             max-width:
               calc(100vw - 32px);
           }
 
+          .mhk-translation-bar {
+            align-items:
+              stretch !important;
+          }
+
+          .mhk-translation-control {
+            width:
+              100%;
+          }
+
+          .mhk-language-button {
+            width:
+              100%;
+            justify-content:
+              space-between;
+          }
         }
 
       `}</style>
 
-
       <div className="story-container">
-
 
         {/* =====================================================
             HERO AD
@@ -2606,55 +2512,61 @@ export default function StoryPage() {
         {heroAd && (
           <div
             style={{
-              marginBottom: 24,
-              borderRadius: 8,
-              overflow: 'hidden',
+              marginBottom:
+                24,
+              borderRadius:
+                8,
+              overflow:
+                'hidden',
               border:
                 '1px solid #e8e4d8'
             }}
           >
-
             <AdCard
               ad={heroAd}
               height={110}
             />
-
           </div>
         )}
 
-
         <div className="story-grid">
 
-
-          {/* ===================================================
+          {/* =================================================
               LEFT ADS
-          =================================================== */}
+          ================================================= */}
 
-          {leftAds.length > 0 && (
-
+          {leftAds.length >
+            0 && (
             <aside className="story-left-col">
 
               <div
                 style={{
                   fontFamily:
                     "'Barlow Condensed', sans-serif",
-                  fontSize: 8,
-                  fontWeight: 800,
-                  letterSpacing: 2,
+                  fontSize:
+                    8,
+                  fontWeight:
+                    800,
+                  letterSpacing:
+                    2,
                   textTransform:
                     'uppercase',
-                  color: '#bbb',
-                  marginBottom: 8,
-                  textAlign: 'center'
+                  color:
+                    '#bbb',
+                  marginBottom:
+                    8,
+                  textAlign:
+                    'center'
                 }}
               >
                 Sponsors
               </div>
 
-
               {leftAds.map(
-                (ad, index) => (
-
+                (
+                  ad,
+                  index
+                ) => (
                   <AdCard
                     key={
                       ad._id ||
@@ -2664,45 +2576,44 @@ export default function StoryPage() {
                     ad={ad}
                     height={220}
                   />
-
                 )
               )}
-
             </aside>
-
           )}
 
-
-          {/* ===================================================
+          {/* =================================================
               MAIN
-          =================================================== */}
+          ================================================= */}
 
           <main className="story-main-col">
 
-
-            {/* =================================================
-                BREADCRUMB
-            ================================================= */}
+            {/* BREADCRUMB */}
 
             <nav
               style={{
-                display: 'flex',
-                gap: 8,
+                display:
+                  'flex',
+                gap:
+                  8,
                 fontFamily:
                   "'Barlow Condensed', sans-serif",
-                fontSize: 11,
-                letterSpacing: 1.5,
+                fontSize:
+                  11,
+                letterSpacing:
+                  1.5,
                 textTransform:
                   'uppercase',
-                color: '#999',
-                marginBottom: 16
+                color:
+                  '#999',
+                marginBottom:
+                  16
               }}
             >
-
               <Link
                 to="/"
                 style={{
-                  color: '#999',
+                  color:
+                    '#999',
                   textDecoration:
                     'none'
                 }}
@@ -2710,7 +2621,9 @@ export default function StoryPage() {
                 Home
               </Link>
 
-              <span>›</span>
+              <span>
+                ›
+              </span>
 
               <Link
                 to={`/category/${story.category}`}
@@ -2719,175 +2632,15 @@ export default function StoryPage() {
                     '#c0392b',
                   textDecoration:
                     'none',
-                  fontWeight: 700
+                  fontWeight:
+                    700
                 }}
               >
                 {story.category}
               </Link>
-
             </nav>
 
-
-            {/* =================================================
-                TRANSLATION SELECTOR
-            ================================================= */}
-
-            <div
-              style={{
-                display: 'flex',
-                alignItems:
-                  'center',
-                justifyContent:
-                  'space-between',
-                gap: 12,
-                flexWrap: 'wrap',
-                padding:
-                  '12px 14px',
-                marginBottom: 20,
-                background:
-                  '#f5f3ec',
-                border:
-                  '1px solid #e8e4d8',
-                borderRadius: 8
-              }}
-            >
-
-              <div>
-
-                <div
-                  style={{
-                    fontFamily:
-                      "'Barlow Condensed', sans-serif",
-                    fontSize: 10,
-                    fontWeight: 800,
-                    letterSpacing: 1.8,
-                    textTransform:
-                      'uppercase',
-                    color: '#555'
-                  }}
-                >
-                  🌐 Read this story in
-                </div>
-
-                {translating && (
-                  <div
-                    style={{
-                      marginTop: 4,
-                      color:
-                        '#c0392b',
-                      fontFamily:
-                        "'Barlow Condensed', sans-serif",
-                      fontSize: 11,
-                      fontWeight: 700
-                    }}
-                  >
-                    Translating...
-                  </div>
-                )}
-
-              </div>
-
-
-              <select
-                value={
-                  selectedLanguage
-                }
-                onChange={(e) =>
-                  setSelectedLanguage(
-                    e.target.value
-                  )
-                }
-                disabled={
-                  translating
-                }
-                aria-label=
-                  "Select story language"
-                className=
-                  "mhk-language-select"
-                style={{
-                  minWidth: 175,
-                  padding:
-                    '9px 12px',
-                  border:
-                    '1px solid #d8d2c4',
-                  borderRadius: 6,
-                  background:
-                    '#fff',
-                  color: '#111',
-                  fontFamily:
-                    "'Barlow Condensed', sans-serif",
-                  fontSize: 13,
-                  fontWeight: 700,
-                  cursor:
-                    translating
-                      ? 'wait'
-                      : 'pointer',
-                  outline: 'none'
-                }}
-              >
-
-                {Object.entries(
-                  TRANSLATION_LANGUAGES
-                ).map(
-                  ([
-                    key,
-                    language
-                  ]) => (
-
-                    <option
-                      key={key}
-                      value={key}
-                    >
-                      {
-                        language.flag
-                      }{' '}
-                      {
-                        language.label
-                      }
-                    </option>
-
-                  )
-                )}
-
-              </select>
-
-            </div>
-
-
-            {/* =================================================
-                TRANSLATION ERROR
-            ================================================= */}
-
-            {translationError && (
-
-              <div
-                style={{
-                  padding:
-                    '10px 14px',
-                  marginBottom: 18,
-                  background:
-                    '#fff5f5',
-                  border:
-                    '1px solid #f3caca',
-                  borderRadius: 6,
-                  color:
-                    '#c0392b',
-                  fontFamily:
-                    "'Barlow Condensed', sans-serif",
-                  fontSize: 12,
-                  fontWeight: 700
-                }}
-              >
-                ⚠️{' '}
-                {translationError}
-              </div>
-
-            )}
-
-
-            {/* =================================================
-                TITLE
-            ================================================= */}
+            {/* TITLE */}
 
             <h1
               style={{
@@ -2895,49 +2648,54 @@ export default function StoryPage() {
                   "'Playfair Display', Georgia, serif",
                 fontSize:
                   'clamp(1.8rem, 4vw, 2.8rem)',
-                fontWeight: 900,
-                lineHeight: 1.15,
+                fontWeight:
+                  900,
+                lineHeight:
+                  1.15,
                 margin:
                   '0 0 16px',
                 color:
                   '#0d0d0d'
               }}
             >
-              {translatedTitle ||
-                story.title}
+              {currentTitle}
             </h1>
 
-
-            {/* =================================================
-                AUTHOR
-            ================================================= */}
+            {/* AUTHOR */}
 
             <div
               style={{
-                display: 'flex',
-                gap: 12,
+                display:
+                  'flex',
+                gap:
+                  12,
                 alignItems:
                   'center',
                 fontFamily:
                   "'Barlow Condensed', sans-serif",
-                fontSize: 12,
-                color: '#666',
-                paddingBottom: 20,
-                marginBottom: 24,
+                fontSize:
+                  12,
+                color:
+                  '#666',
+                paddingBottom:
+                  20,
+                marginBottom:
+                  24,
                 borderBottom:
                   '1px solid #e8e4d8',
-                flexWrap: 'wrap'
+                flexWrap:
+                  'wrap'
               }}
             >
-
               {authorAvatar && (
-
                 <img
                   src={imgUrl(
                     authorAvatar
                   )}
                   alt=""
-                  onError={(e) => {
+                  onError={(
+                    e
+                  ) => {
                     e.target.onerror =
                       null;
 
@@ -2945,8 +2703,10 @@ export default function StoryPage() {
                       PLACEHOLDER;
                   }}
                   style={{
-                    width: 40,
-                    height: 40,
+                    width:
+                      40,
+                    height:
+                      40,
                     borderRadius:
                       '50%',
                     objectFit:
@@ -2955,78 +2715,422 @@ export default function StoryPage() {
                       '2px solid #e8e4d8'
                   }}
                 />
-
               )}
 
-
               <div>
-
                 <Link
                   to={`/author/${encodeURIComponent(
                     story.author
                   )}`}
                   style={{
-                    fontWeight: 700,
+                    fontWeight:
+                      700,
                     textDecoration:
                       'none',
                     color:
                       '#0d0d0d',
-                    fontSize: 14
+                    fontSize:
+                      14
                   }}
                 >
                   {story.author}
                 </Link>
 
-
                 <div
                   style={{
-                    display: 'flex',
-                    gap: 10,
-                    marginTop: 2,
-                    color: '#888'
+                    display:
+                      'flex',
+                    gap:
+                      10,
+                    marginTop:
+                      2,
+                    color:
+                      '#888'
                   }}
                 >
-
                   <span>
                     {timeAgo(
                       story.created_at ||
-                      story.createdAt
+                        story.createdAt
                     )}
                   </span>
 
-                  <span>·</span>
+                  <span>
+                    ·
+                  </span>
 
                   <span>
                     👁{' '}
                     {Number(
                       story.views ||
-                      0
+                        0
                     ).toLocaleString()}{' '}
                     views
                   </span>
-
                 </div>
-
               </div>
-
             </div>
 
-
             {/* =================================================
-                MAIN IMAGE
+                TRANSLATION BAR
             ================================================= */}
+
+            <div
+              className="mhk-translation-bar"
+              style={{
+                display:
+                  'flex',
+                alignItems:
+                  'center',
+                justifyContent:
+                  'space-between',
+                gap:
+                  12,
+                flexWrap:
+                  'wrap',
+                padding:
+                  '10px 14px',
+                marginBottom:
+                  20,
+                background:
+                  '#f5f3ec',
+                border:
+                  '1px solid #e8e4d8',
+                borderRadius:
+                  8
+              }}
+            >
+
+              <div
+                style={{
+                  display:
+                    'flex',
+                  alignItems:
+                    'center',
+                  gap:
+                    8,
+                  fontFamily:
+                    "'Barlow Condensed', sans-serif",
+                  fontSize:
+                    12,
+                  fontWeight:
+                    700
+                }}
+              >
+                <span
+                  style={{
+                    fontSize:
+                      18
+                  }}
+                >
+                  🌐
+                </span>
+
+                <span>
+                  Translate story
+                </span>
+
+                {translating && (
+                  <>
+                    <span
+                      className="mhk-translation-spin"
+                    />
+
+                    <span
+                      style={{
+                        color:
+                          '#c0392b',
+                        fontSize:
+                          11
+                      }}
+                    >
+                      Translating...
+                    </span>
+                  </>
+                )}
+              </div>
+
+              <div
+                className="mhk-translation-control"
+                style={{
+                  position:
+                    'relative'
+                }}
+              >
+
+                <button
+                  type="button"
+                  className="mhk-language-button"
+                  onClick={() =>
+                    setShowLanguageMenu(
+                      previous =>
+                        !previous
+                    )
+                  }
+                  disabled={
+                    translating
+                  }
+                  style={{
+                    display:
+                      'flex',
+                    alignItems:
+                      'center',
+                    gap:
+                      8,
+                    padding:
+                      '8px 14px',
+                    background:
+                      '#0d0d0d',
+                    color:
+                      '#fff',
+                    border:
+                      'none',
+                    borderRadius:
+                      5,
+                    cursor:
+                      translating
+                        ? 'not-allowed'
+                        : 'pointer',
+                    fontFamily:
+                      "'Barlow Condensed', sans-serif",
+                    fontWeight:
+                      700,
+                    fontSize:
+                      12,
+                    opacity:
+                      translating
+                        ? 0.7
+                        : 1
+                  }}
+                >
+                  <span>
+                    {
+                      currentLanguage.flag
+                    }
+                  </span>
+
+                  <span>
+                    {
+                      currentLanguage.label
+                    }
+                  </span>
+
+                  <span>
+                    ▾
+                  </span>
+                </button>
+
+                {showLanguageMenu && (
+                  <>
+                    <div
+                      onClick={() =>
+                        setShowLanguageMenu(
+                          false
+                        )
+                      }
+                      style={{
+                        position:
+                          'fixed',
+                        inset:
+                          0,
+                        zIndex:
+                          90
+                      }}
+                    />
+
+                    <div
+                      style={{
+                        position:
+                          'absolute',
+                        right:
+                          0,
+                        top:
+                          'calc(100% + 6px)',
+                        minWidth:
+                          190,
+                        background:
+                          '#fff',
+                        border:
+                          '1px solid #e8e4d8',
+                        borderRadius:
+                          8,
+                        boxShadow:
+                          '0 10px 30px rgba(0,0,0,.15)',
+                        zIndex:
+                          100,
+                        overflow:
+                          'hidden'
+                      }}
+                    >
+                      {TRANSLATION_LANGUAGES.map(
+                        language => (
+                          <button
+                            key={
+                              language.code
+                            }
+                            type="button"
+                            disabled={
+                              translating
+                            }
+                            className="mhk-language-option"
+                            onClick={() =>
+                              handleTranslateStory(
+                                language.code
+                              )
+                            }
+                            style={{
+                              width:
+                                '100%',
+                              display:
+                                'flex',
+                              alignItems:
+                                'center',
+                              gap:
+                                10,
+                              padding:
+                                '11px 14px',
+                              border:
+                                'none',
+                              borderBottom:
+                                '1px solid #f0ece0',
+                              background:
+                                selectedLanguage ===
+                                language.code
+                                  ? '#f5f3ec'
+                                  : '#fff',
+                              cursor:
+                                translating
+                                  ? 'not-allowed'
+                                  : 'pointer',
+                              fontFamily:
+                                "'Barlow Condensed', sans-serif",
+                              fontSize:
+                                13,
+                              fontWeight:
+                                selectedLanguage ===
+                                language.code
+                                  ? 800
+                                  : 600,
+                              textAlign:
+                                'left',
+                              color:
+                                selectedLanguage ===
+                                language.code
+                                  ? '#c0392b'
+                                  : '#222'
+                            }}
+                          >
+                            <span
+                              style={{
+                                fontSize:
+                                  18
+                              }}
+                            >
+                              {
+                                language.flag
+                              }
+                            </span>
+
+                            <span>
+                              {
+                                language.label
+                              }
+                            </span>
+
+                            {selectedLanguage ===
+                              language.code && (
+                              <span
+                                style={{
+                                  marginLeft:
+                                    'auto'
+                                }}
+                              >
+                                ✓
+                              </span>
+                            )}
+                          </button>
+                        )
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+
+            {/* TRANSLATION ERROR */}
+
+            {translationError && (
+              <div
+                style={{
+                  marginBottom:
+                    20,
+                  padding:
+                    '10px 14px',
+                  background:
+                    'rgba(192,57,43,.08)',
+                  border:
+                    '1px solid rgba(192,57,43,.2)',
+                  color:
+                    '#c0392b',
+                  borderRadius:
+                    6,
+                  fontFamily:
+                    "'Barlow Condensed', sans-serif",
+                  fontSize:
+                    12
+                }}
+              >
+                ❌{' '}
+                {
+                  translationError
+                }
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    handleTranslateStory(
+                      selectedLanguage
+                    )
+                  }
+                  disabled={
+                    translating
+                  }
+                  style={{
+                    marginLeft:
+                      10,
+                    border:
+                      'none',
+                    background:
+                      'transparent',
+                    color:
+                      '#c0392b',
+                    textDecoration:
+                      'underline',
+                    cursor:
+                      translating
+                        ? 'not-allowed'
+                        : 'pointer',
+                    fontWeight:
+                      700
+                  }}
+                >
+                  Retry
+                </button>
+              </div>
+            )}
+
+            {/* MAIN IMAGE */}
 
             <img
               src={
                 shareImage ||
                 PLACEHOLDER
               }
-              alt={
-                translatedTitle ||
-                story.title
-              }
+              alt={story.title}
               loading="eager"
-              onError={(e) => {
+              onError={(
+                e
+              ) => {
                 e.target.onerror =
                   null;
 
@@ -3034,50 +3138,47 @@ export default function StoryPage() {
                   PLACEHOLDER;
               }}
               style={{
-                width: '100%',
-                height: 'auto',
+                width:
+                  '100%',
+                height:
+                  'auto',
                 aspectRatio:
                   '16/9',
                 objectFit:
                   'cover',
-                borderRadius: 10,
-                marginBottom: 28,
-                display: 'block'
+                borderRadius:
+                  10,
+                marginBottom:
+                  28,
+                display:
+                  'block'
               }}
             />
 
-
-            {/* =================================================
-                INLINE AD 1
-            ================================================= */}
+            {/* INLINE AD 1 */}
 
             {inlineAds[0] && (
-
               <div
                 style={{
-                  marginBottom: 28
+                  marginBottom:
+                    28
                 }}
               >
-
                 <AdCard
                   ad={
                     inlineAds[0]
                   }
                   height={90}
                 />
-
               </div>
-
             )}
-
 
             {/* =================================================
                 STORY BODY
             ================================================= */}
 
             <div
-              className=
-                "story-body-text"
+              className="story-body-text"
               style={{
                 fontSize:
                   '1.1rem',
@@ -3088,70 +3189,57 @@ export default function StoryPage() {
                 color:
                   '#1a1a1a',
                 marginBottom:
-                  10,
-                whiteSpace:
-                  'pre-wrap'
+                  10
               }}
-            >
-              {translatedBody ||
-                stripHtml(
-                  story.description ||
-                  ''
-                )}
-            </div>
+              dangerouslySetInnerHTML={{
+                __html:
+                  currentDescription
+              }}
+            />
 
-
-            {/* =================================================
-                INLINE AD 2
-            ================================================= */}
+            {/* INLINE AD 2 */}
 
             {inlineAds[1] && (
-
               <div
                 style={{
                   margin:
                     '28px 0'
                 }}
               >
-
                 <AdCard
                   ad={
                     inlineAds[1]
                   }
                   height={90}
                 />
-
               </div>
-
             )}
 
-
-            {/* =================================================
-                TAGS
-            ================================================= */}
+            {/* TAGS */}
 
             {story.tags && (
-
               <div
                 style={{
-                  display: 'flex',
-                  gap: 8,
+                  display:
+                    'flex',
+                  gap:
+                    8,
                   flexWrap:
                     'wrap',
                   margin:
                     '24px 0 32px'
                 }}
               >
-
                 {String(
                   story.tags
                 )
                   .split(',')
                   .map(
-                    (tag) => (
-
+                    tag => (
                       <Link
-                        key={tag}
+                        key={
+                          tag
+                        }
                         to={`/search?q=${encodeURIComponent(
                           tag.trim()
                         )}`}
@@ -3162,8 +3250,10 @@ export default function StoryPage() {
                             '5px 14px',
                           fontFamily:
                             "'Barlow Condensed', sans-serif",
-                          fontSize: 11,
-                          fontWeight: 700,
+                          fontSize:
+                            11,
+                          fontWeight:
+                            700,
                           border:
                             '1px solid #e8e4d8',
                           textDecoration:
@@ -3177,39 +3267,28 @@ export default function StoryPage() {
                         #
                         {tag.trim()}
                       </Link>
-
                     )
                   )}
-
               </div>
-
             )}
 
-
-            {/* =================================================
-                INLINE AD 3
-            ================================================= */}
+            {/* INLINE AD 3 */}
 
             {inlineAds[2] && (
-
               <div
                 style={{
                   marginBottom:
                     32
                 }}
               >
-
                 <AdCard
                   ad={
                     inlineAds[2]
                   }
                   height={90}
                 />
-
               </div>
-
             )}
-
 
             {/* =================================================
                 REACTIONS + SHARE
@@ -3217,8 +3296,10 @@ export default function StoryPage() {
 
             <div
               style={{
-                display: 'flex',
-                gap: 10,
+                display:
+                  'flex',
+                gap:
+                  10,
                 padding:
                   '14px 0',
                 borderTop:
@@ -3233,10 +3314,8 @@ export default function StoryPage() {
                   'center'
               }}
             >
-
               {reactionButtons.map(
-                (reaction) => (
-
+                reaction => (
                   <button
                     key={
                       reaction.type
@@ -3260,7 +3339,6 @@ export default function StoryPage() {
                       reaction.type
                     }
                   >
-
                     <span
                       style={{
                         fontSize:
@@ -3275,47 +3353,40 @@ export default function StoryPage() {
                     <span>
                       {Number(
                         reactions[
-                          reaction.type
-                        ] ||
-                        0
+                          reaction
+                            .type
+                        ] || 0
                       ).toLocaleString()}
                     </span>
-
                   </button>
-
                 )
               )}
 
-
               <div
                 style={{
-                  flex: 1
+                  flex:
+                    1
                 }}
               />
 
-
               {/* SHARE */}
 
-              <div className=
-                "mhk-share-wrapper"
-              >
+              <div className="mhk-share-wrapper">
 
                 <button
                   type="button"
-                  className=
-                    "mhk-share-main-btn"
+                  className="mhk-share-main-btn"
                   onClick={() =>
                     setShowShareMenu(
-                      (previous) =>
+                      previous =>
                         !previous
                     )
                   }
-                  title=
-                    "Share this story"
-                  aria-label=
-                    "Share this story"
-                  aria-expanded=
-                    {showShareMenu}
+                  title="Share this story"
+                  aria-label="Share this story"
+                  aria-expanded={
+                    showShareMenu
+                  }
                   style={{
                     padding:
                       '7px 16px',
@@ -3342,16 +3413,14 @@ export default function StoryPage() {
                   📤 Share
                 </button>
 
-
                 {showShareMenu && (
-
                   <>
-
                     <div
                       style={{
                         position:
                           'fixed',
-                        inset: 0,
+                        inset:
+                          0,
                         zIndex:
                           99
                       }}
@@ -3362,10 +3431,8 @@ export default function StoryPage() {
                       }
                     />
 
-
                     <div
-                      className=
-                        "mhk-share-dropdown"
+                      className="mhk-share-dropdown"
                       style={{
                         zIndex:
                           101
@@ -3374,8 +3441,7 @@ export default function StoryPage() {
 
                       <button
                         type="button"
-                        className=
-                          "mhk-share-option"
+                        className="mhk-share-option"
                         onClick={() => {
                           handleNativeShare();
 
@@ -3387,11 +3453,9 @@ export default function StoryPage() {
                         📱 Share via Apps
                       </button>
 
-
                       <button
                         type="button"
-                        className=
-                          "mhk-share-option"
+                        className="mhk-share-option"
                         onClick={() => {
                           shareToFacebook();
 
@@ -3403,11 +3467,9 @@ export default function StoryPage() {
                         🔵 Facebook
                       </button>
 
-
                       <button
                         type="button"
-                        className=
-                          "mhk-share-option"
+                        className="mhk-share-option"
                         onClick={() => {
                           shareToX();
 
@@ -3419,11 +3481,9 @@ export default function StoryPage() {
                         ⚫ X (Twitter)
                       </button>
 
-
                       <button
                         type="button"
-                        className=
-                          "mhk-share-option"
+                        className="mhk-share-option"
                         onClick={() => {
                           shareToWhatsApp();
 
@@ -3435,11 +3495,9 @@ export default function StoryPage() {
                         🟢 WhatsApp
                       </button>
 
-
                       <button
                         type="button"
-                        className=
-                          "mhk-share-option"
+                        className="mhk-share-option"
                         onClick={() => {
                           shareToTelegram();
 
@@ -3451,11 +3509,9 @@ export default function StoryPage() {
                         ✈️ Telegram
                       </button>
 
-
                       <button
                         type="button"
-                        className=
-                          "mhk-share-option"
+                        className="mhk-share-option"
                         onClick={() => {
                           shareToLinkedIn();
 
@@ -3467,11 +3523,9 @@ export default function StoryPage() {
                         🔷 LinkedIn
                       </button>
 
-
                       <button
                         type="button"
-                        className=
-                          "mhk-share-option"
+                        className="mhk-share-option"
                         onClick={() => {
                           shareByEmail();
 
@@ -3483,11 +3537,9 @@ export default function StoryPage() {
                         ✉️ Email
                       </button>
 
-
                       <button
                         type="button"
-                        className=
-                          "mhk-share-option"
+                        className="mhk-share-option"
                         onClick={() => {
                           shareBySMS();
 
@@ -3499,10 +3551,10 @@ export default function StoryPage() {
                         💬 SMS
                       </button>
 
-
                       <div
                         style={{
-                          height: 1,
+                          height:
+                            1,
                           background:
                             '#e8e4d8',
                           margin:
@@ -3510,11 +3562,9 @@ export default function StoryPage() {
                         }}
                       />
 
-
                       <button
                         type="button"
-                        className=
-                          "mhk-share-option"
+                        className="mhk-share-option"
                         onClick={() => {
                           handleCopyLink();
 
@@ -3527,19 +3577,12 @@ export default function StoryPage() {
                       </button>
 
                     </div>
-
                   </>
-
                 )}
-
               </div>
-
             </div>
 
-
-            {/* =================================================
-                SHARE TOAST
-            ================================================= */}
+            {/* SHARE TOAST */}
 
             {commentMsg &&
               (
@@ -3550,7 +3593,6 @@ export default function StoryPage() {
                   'Failed to copy'
                 )
               ) && (
-
                 <div
                   style={{
                     marginTop:
@@ -3581,11 +3623,11 @@ export default function StoryPage() {
                       'right'
                   }}
                 >
-                  {commentMsg}
+                  {
+                    commentMsg
+                  }
                 </div>
-
               )}
-
 
             {/* =================================================
                 AUTHOR BOX
@@ -3593,9 +3635,12 @@ export default function StoryPage() {
 
             <div
               style={{
-                display: 'flex',
-                gap: 20,
-                padding: 24,
+                display:
+                  'flex',
+                gap:
+                  20,
+                padding:
+                  24,
                 background:
                   'linear-gradient(135deg, #f5f3ec 0%, #eee9dc 100%)',
                 borderRadius:
@@ -3606,15 +3651,15 @@ export default function StoryPage() {
                   40
               }}
             >
-
               {authorAvatar && (
-
                 <img
                   src={imgUrl(
                     authorAvatar
                   )}
                   alt=""
-                  onError={(e) => {
+                  onError={(
+                    e
+                  ) => {
                     e.target.onerror =
                       null;
 
@@ -3622,8 +3667,10 @@ export default function StoryPage() {
                       PLACEHOLDER;
                   }}
                   style={{
-                    width: 70,
-                    height: 70,
+                    width:
+                      70,
+                    height:
+                      70,
                     borderRadius:
                       '50%',
                     objectFit:
@@ -3636,9 +3683,7 @@ export default function StoryPage() {
                       0
                   }}
                 />
-
               )}
-
 
               <div>
 
@@ -3646,7 +3691,8 @@ export default function StoryPage() {
                   style={{
                     fontFamily:
                       "'Barlow Condensed', sans-serif",
-                    fontSize: 9,
+                    fontSize:
+                      9,
                     letterSpacing:
                       2.5,
                     textTransform:
@@ -3661,7 +3707,6 @@ export default function StoryPage() {
                 >
                   Written By
                 </div>
-
 
                 <Link
                   to={`/author/${encodeURIComponent(
@@ -3680,9 +3725,10 @@ export default function StoryPage() {
                       '#0d0d0d'
                   }}
                 >
-                  {story.author}
+                  {
+                    story.author
+                  }
                 </Link>
-
 
                 <p
                   style={{
@@ -3692,12 +3738,10 @@ export default function StoryPage() {
                       '#555',
                     fontStyle:
                       'italic',
-                    marginTop:
-                      6,
-                    lineHeight:
-                      1.6,
                     margin:
-                      '6px 0 0'
+                      '6px 0 0',
+                    lineHeight:
+                      1.6
                   }}
                 >
                   {story.author_bio_full ||
@@ -3706,9 +3750,7 @@ export default function StoryPage() {
                 </p>
 
               </div>
-
             </div>
-
 
             {/* =================================================
                 RELATED STORIES
@@ -3716,7 +3758,6 @@ export default function StoryPage() {
 
             {related.length >
               0 && (
-
               <section
                 style={{
                   marginBottom:
@@ -3728,22 +3769,18 @@ export default function StoryPage() {
                   Related Stories
                 </SectionLabel>
 
-
                 <div
                   style={{
                     display:
                       'grid',
                     gridTemplateColumns:
                       'repeat(auto-fill, minmax(200px, 1fr))',
-                    gap: 20
+                    gap:
+                      20
                   }}
                 >
-
                   {related.map(
-                    (
-                      relatedStory
-                    ) => (
-
+                    relatedStory => (
                       <Link
                         key={
                           relatedStory._id ||
@@ -3753,8 +3790,7 @@ export default function StoryPage() {
                           relatedStory._id ||
                           relatedStory.id
                         }`}
-                        className=
-                          "mhk-related-card"
+                        className="mhk-related-card"
                         style={{
                           textDecoration:
                             'none',
@@ -3769,7 +3805,6 @@ export default function StoryPage() {
                               'hidden'
                           }}
                         >
-
                           <img
                             src={
                               relatedStory.image
@@ -3783,13 +3818,11 @@ export default function StoryPage() {
                             onError={(
                               e
                             ) => {
-
                               e.target.onerror =
                                 null;
 
                               e.target.src =
                                 PLACEHOLDER;
-
                             }}
                             style={{
                               width:
@@ -3804,9 +3837,7 @@ export default function StoryPage() {
                                 'block'
                             }}
                           />
-
                         </div>
-
 
                         <div
                           style={{
@@ -3836,7 +3867,6 @@ export default function StoryPage() {
                             }
                           </div>
 
-
                           <div
                             style={{
                               fontFamily:
@@ -3859,18 +3889,12 @@ export default function StoryPage() {
                           </div>
 
                         </div>
-
                       </Link>
-
                     )
                   )}
-
                 </div>
-
               </section>
-
             )}
-
 
             {/* =================================================
                 DISCUSSION
@@ -3880,10 +3904,11 @@ export default function StoryPage() {
 
               <SectionLabel>
                 Discussion (
-                {comments.length}
+                {
+                  comments.length
+                }
                 )
               </SectionLabel>
-
 
               <div
                 style={{
@@ -3911,7 +3936,6 @@ export default function StoryPage() {
                   💬
                 </div>
 
-
                 <h3
                   style={{
                     fontFamily:
@@ -3924,13 +3948,14 @@ export default function StoryPage() {
                       8
                   }}
                 >
-                  {comments.length}{' '}
+                  {
+                    comments.length
+                  }{' '}
                   {comments.length ===
                   1
                     ? 'Comment'
                     : 'Comments'}
                 </h3>
-
 
                 <p
                   style={{
@@ -3949,7 +3974,6 @@ export default function StoryPage() {
                     ? 'Join the conversation and share your thoughts.'
                     : 'Be the first to comment on this story.'}
                 </p>
-
 
                 <button
                   type="button"
@@ -3990,19 +4014,15 @@ export default function StoryPage() {
                 </button>
 
               </div>
-
             </section>
 
           </main>
 
-
-          {/* ===================================================
+          {/* =================================================
               RIGHT SIDEBAR
-          =================================================== */}
+          ================================================= */}
 
-          <aside className=
-            "story-right-col"
-          >
+          <aside className="story-right-col">
 
             <div
               style={{
@@ -4042,13 +4062,11 @@ export default function StoryPage() {
                 🔥 Most Read
               </div>
 
-
               {popular.map(
                 (
                   popularStory,
                   index
                 ) => (
-
                   <PopularItem
                     key={
                       popularStory._id ||
@@ -4061,19 +4079,15 @@ export default function StoryPage() {
                       index + 1
                     }
                   />
-
                 )
               )}
 
             </div>
 
-
             <NewsletterWidget />
-
 
             {rightAds.length >
               0 && (
-
               <div>
 
                 <div
@@ -4099,13 +4113,11 @@ export default function StoryPage() {
                   Sponsors
                 </div>
 
-
                 {rightAds.map(
                   (
                     ad,
                     index
                   ) => (
-
                     <AdCard
                       key={
                         ad._id ||
@@ -4115,21 +4127,16 @@ export default function StoryPage() {
                       ad={ad}
                       height={220}
                     />
-
                   )
                 )}
 
               </div>
-
             )}
-
 
             <WhatsAppCTA />
 
           </aside>
-
         </div>
-
 
         {/* =====================================================
             BOTTOM SPONSORS
@@ -4137,7 +4144,6 @@ export default function StoryPage() {
 
         {floatAds.length >
           0 && (
-
           <div
             style={{
               marginTop:
@@ -4149,11 +4155,11 @@ export default function StoryPage() {
               Our Sponsors
             </SectionLabel>
 
-
             <div
-              key={adIndex}
-              className=
-                "mhk-float-fade"
+              key={
+                adIndex
+              }
+              className="mhk-float-fade"
               style={{
                 minHeight:
                   180
@@ -4164,80 +4170,61 @@ export default function StoryPage() {
                 ad={
                   floatAds[
                     adIndex %
-                    floatAds.length
+                      floatAds.length
                   ]
                 }
                 fluid
               />
 
-
               <AdCard
                 ad={
                   floatAds[
-                    (
-                      adIndex +
-                      1
-                    ) %
-                    floatAds.length
+                    (adIndex + 1) %
+                      floatAds.length
                   ]
                 }
                 fluid
-                className=
-                  "mhk-float-extra"
+                className="mhk-float-extra"
               />
 
-
               <AdCard
                 ad={
                   floatAds[
-                    (
-                      adIndex +
-                      2
-                    ) %
-                    floatAds.length
+                    (adIndex + 2) %
+                      floatAds.length
                   ]
                 }
                 fluid
-                className=
-                  "mhk-float-extra"
+                className="mhk-float-extra"
               />
 
             </div>
-
           </div>
-
         )}
-
       </div>
-
 
       {/* =========================================================
           COMMENT MODAL
       ========================================================= */}
 
       {showCommentModal && (
-
         <div
-          className=
-            "mhk-modal-bg"
-          onClick={(e) => {
-
+          className="mhk-modal-bg"
+          onClick={e => {
             if (
               e.target ===
               e.currentTarget
             ) {
-
               setShowCommentModal(
                 false
               );
-
             }
-
           }}
           style={{
             position:
               'fixed',
-            inset: 0,
+            inset:
+              0,
             background:
               'rgba(0,0,0,.6)',
             zIndex:
@@ -4258,8 +4245,7 @@ export default function StoryPage() {
         >
 
           <div
-            className=
-              "mhk-modal-card"
+            className="mhk-modal-card"
             style={{
               background:
                 '#fff',
@@ -4280,10 +4266,7 @@ export default function StoryPage() {
             }}
           >
 
-
-            {/* =================================================
-                MODAL HEADER
-            ================================================= */}
+            {/* MODAL HEADER */}
 
             <div
               style={{
@@ -4303,7 +4286,8 @@ export default function StoryPage() {
                   '#fff',
                 position:
                   'sticky',
-                top: 0,
+                top:
+                  0,
                 zIndex:
                   2
               }}
@@ -4330,7 +4314,6 @@ export default function StoryPage() {
                   Discussion
                 </div>
 
-
                 <h3
                   style={{
                     fontFamily:
@@ -4355,12 +4338,9 @@ export default function StoryPage() {
                   }
                   )
 
-
                   {refreshingComments && (
-
                     <span
-                      className=
-                        "mhk-spin"
+                      className="mhk-spin"
                       style={{
                         width:
                           12,
@@ -4370,13 +4350,10 @@ export default function StoryPage() {
                           2
                       }}
                     />
-
                   )}
-
                 </h3>
 
               </div>
-
 
               <button
                 type="button"
@@ -4415,10 +4392,7 @@ export default function StoryPage() {
 
             </div>
 
-
-            {/* =================================================
-                COMMENTS
-            ================================================= */}
+            {/* COMMENTS LIST */}
 
             <div
               style={{
@@ -4431,7 +4405,6 @@ export default function StoryPage() {
 
               {comments.length >
               0 ? (
-
                 <div
                   style={{
                     padding:
@@ -4440,17 +4413,13 @@ export default function StoryPage() {
                 >
 
                   {comments.map(
-                    (
-                      comment
-                    ) => (
-
+                    comment => (
                       <div
                         key={
                           comment._id ||
                           comment.id
                         }
-                        className=
-                          "mhk-comment-row"
+                        className="mhk-comment-row"
                         style={{
                           padding:
                             '14px 0',
@@ -4510,7 +4479,6 @@ export default function StoryPage() {
                               .toUpperCase()}
                           </div>
 
-
                           <div>
 
                             <div
@@ -4528,7 +4496,6 @@ export default function StoryPage() {
                               }
                             </div>
 
-
                             <div
                               style={{
                                 fontFamily:
@@ -4541,14 +4508,12 @@ export default function StoryPage() {
                             >
                               {timeAgo(
                                 comment.created_at ||
-                                comment.createdAt
+                                  comment.createdAt
                               )}
                             </div>
 
                           </div>
-
                         </div>
-
 
                         <p
                           style={{
@@ -4570,14 +4535,11 @@ export default function StoryPage() {
                         </p>
 
                       </div>
-
                     )
                   )}
 
                 </div>
-
               ) : (
-
                 <div
                   style={{
                     padding:
@@ -4598,7 +4560,6 @@ export default function StoryPage() {
                     💬
                   </div>
 
-
                   <p
                     style={{
                       color:
@@ -4613,11 +4574,9 @@ export default function StoryPage() {
                   </p>
 
                 </div>
-
               )}
 
             </div>
-
 
             {/* =================================================
                 COMMENT FORM
@@ -4649,7 +4608,6 @@ export default function StoryPage() {
                 Leave a Comment
               </h4>
 
-
               <form
                 onSubmit={
                   handleComment
@@ -4664,11 +4622,7 @@ export default function StoryPage() {
                 }}
               >
 
-
-                <div className=
-                  "mhk-comment-form-grid"
-                >
-
+                <div className="mhk-comment-form-grid">
 
                   {/* NAME */}
 
@@ -4697,16 +4651,13 @@ export default function StoryPage() {
                       Name
                     </label>
 
-
                     <input
                       value={
                         form.name
                       }
-                      onChange={(e) =>
+                      onChange={e =>
                         setForm(
-                          (
-                            previous
-                          ) => ({
+                          previous => ({
                             ...previous,
                             name:
                               e.target
@@ -4714,8 +4665,7 @@ export default function StoryPage() {
                           })
                         )
                       }
-                      placeholder=
-                        "Your name…"
+                      placeholder="Your name…"
                       required
                       style={{
                         width:
@@ -4738,7 +4688,6 @@ export default function StoryPage() {
                     />
 
                   </div>
-
 
                   {/* EMAIL */}
 
@@ -4767,17 +4716,14 @@ export default function StoryPage() {
                       Email (optional)
                     </label>
 
-
                     <input
                       type="email"
                       value={
                         form.email
                       }
-                      onChange={(e) =>
+                      onChange={e =>
                         setForm(
-                          (
-                            previous
-                          ) => ({
+                          previous => ({
                             ...previous,
                             email:
                               e.target
@@ -4785,8 +4731,7 @@ export default function StoryPage() {
                           })
                         )
                       }
-                      placeholder=
-                        "your@email.com"
+                      placeholder="your@email.com"
                       style={{
                         width:
                           '100%',
@@ -4810,7 +4755,6 @@ export default function StoryPage() {
                   </div>
 
                 </div>
-
 
                 {/* COMMENT */}
 
@@ -4839,16 +4783,13 @@ export default function StoryPage() {
                     Comment *
                   </label>
 
-
                   <textarea
                     value={
                       form.comment
                     }
-                    onChange={(e) =>
+                    onChange={e =>
                       setForm(
-                        (
-                          previous
-                        ) => ({
+                        previous => ({
                           ...previous,
                           comment:
                             e.target
@@ -4858,8 +4799,7 @@ export default function StoryPage() {
                     }
                     rows={4}
                     required
-                    placeholder=
-                      "Share your thoughts…"
+                    placeholder="Share your thoughts…"
                     style={{
                       width:
                         '100%',
@@ -4884,6 +4824,7 @@ export default function StoryPage() {
 
                 </div>
 
+                {/* SUBMIT */}
 
                 <div
                   style={{
@@ -4944,25 +4885,15 @@ export default function StoryPage() {
                   >
 
                     {submitting ? (
-
                       <>
-
-                        <span className=
-                          "mhk-spin"
-                        />
-
+                        <span className="mhk-spin" />
                         Submitting…
-
                       </>
-
                     ) : (
-
                       'Post Comment'
-
                     )}
 
                   </button>
-
 
                   {commentMsg &&
                     !commentMsg.includes(
@@ -4971,49 +4902,44 @@ export default function StoryPage() {
                     !commentMsg.includes(
                       'Failed to copy'
                     ) && (
-
-                    <p
-                      style={{
-                        color:
-                          commentMsg.startsWith(
-                            '✅'
-                          )
-                            ? '#166534'
-                            : '#c0392b',
-                        fontSize:
-                          12,
-                        margin:
-                          0,
-                        padding:
-                          '4px 10px',
-                        borderRadius:
-                          3,
-                        background:
-                          commentMsg.startsWith(
-                            '✅'
-                          )
-                            ? 'rgba(22,101,52,.08)'
-                            : 'rgba(192,57,43,.08)'
-                      }}
-                    >
-                      {commentMsg}
-                    </p>
-
-                  )}
+                      <p
+                        style={{
+                          color:
+                            commentMsg.startsWith(
+                              '✅'
+                            )
+                              ? '#166534'
+                              : '#c0392b',
+                          fontSize:
+                            12,
+                          margin:
+                            0,
+                          padding:
+                            '4px 10px',
+                          borderRadius:
+                            3,
+                          background:
+                            commentMsg.startsWith(
+                              '✅'
+                            )
+                              ? 'rgba(22,101,52,.08)'
+                              : 'rgba(192,57,43,.08)'
+                        }}
+                      >
+                        {
+                          commentMsg
+                        }
+                      </p>
+                    )}
 
                 </div>
 
               </form>
-
             </div>
 
           </div>
-
         </div>
-
       )}
-
     </PublicLayout>
   );
 }
-
